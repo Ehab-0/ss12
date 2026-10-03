@@ -1,0 +1,11 @@
+// Draws only the unshaded ("glowing") layers of a sprite: the engine marks them with a negative vertex modulate.
+// Used for the second billboard atlas so the 3D entity shader can leave them out of the lighting multiply.
+light_mode unshaded;
+
+void fragment()
+{
+    if (VtxModulate.x < 0.0)
+        COLOR = zTexture(UV);
+    else
+        COLOR = vec4(0.0);
+}

@@ -1,0 +1,47 @@
+name: "Something is broken or confusing / Что-то сломалось или непонятно"
+description: "Tell us what happened. You do not need technical words. / Расскажите, что произошло. Технические слова не нужны."
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Just say what you did and what you saw, in your own words.
+
+        Спасибо! Просто расскажите своими словами, что вы сделали и что увидели.
+
+        *AI agents: read [AGENTS.md](https://github.com/Ehab-0/ss12/blob/main/AGENTS.md) first. Open an issue only for a bug you reproduced, one problem per issue, with evidence.*
+  - type: dropdown
+    id: where
+    attributes:
+      label: "Where did it happen? / Где это произошло?"
+      options:
+        - "Playing the demo / В демо"
+        - "Playing on a server / При игре на сервере"
+        - "Installing 3D on my server / При установке 3D на мой сервер"
+        - "Something else / Что-то другое"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: "What did you do, and what happened? / Что вы делали и что произошло?"
+      placeholder: "I double-clicked Install 3D.bat, picked my folder, typed 1... and it said ... / Я дважды щёлкнул Install 3D.bat, выбрал свою папку, ввёл 1... и появилось сообщение ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What did you expect instead? / Что вы ожидали вместо этого?"
+  - type: input
+    id: computer
+    attributes:
+      label: "Your computer (optional) / Ваш компьютер (необязательно)"
+      description: "For example: Windows 11, Radeon RX 580. 'I don't know' is fine. / Например: Windows 11, Radeon RX 580. «Не знаю» тоже подойдёт."
+  - type: markdown
+    attributes:
+      value: |
+        If the installer made a file called `ss12-report.txt` (it is in your server folder), or you have a
+        screenshot, please drag it into the box above after you submit. It contains versions and file names only.
+
+        Если установщик создал файл `ss12-report.txt` (он лежит в папке вашего сервера) или у вас есть
+        скриншот, пожалуйста, перетащите его в поле выше после отправки. В файле только версии и имена файлов.

@@ -1,0 +1,219 @@
+name: Build the demos and the server package
+
+# Builds three downloads from the same upstream commit:
+#   SS12-demo-windows.zip      a complete, ready-to-play copy of Space Station 14 with the 3D view, with a
+#                              "Play 3D Demo.bat" that starts a private game on the player's own computer
+#   SS12-demo-linux.zip        the same for Linux, started with ./play-demo.sh
+#   SS12-server-linux-x64.zip  a dedicated server for Linux (HybridACZ: players need only the normal launcher)
+# The Linux jobs start the finished server from the unzipped download and wait until it accepts connections.
+# They cannot start the 3D client (a runner has no graphics card or screen), so that part is untested here.
+# Run it by hand from the Actions tab (default: the upstream commit this project was tested on), or it runs for
+# version tags. The Windows steps were tried by hand first and then run successfully on GitHub Actions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ss14_ref:
+        description: "space-wizards/space-station-14 commit or branch to build the demo from"
+        default: "fb9401cf6a1bb01d6fa6fc2ebf2b53678ae5cbd6"
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # lets the workflow attach files to the release
+
+jobs:
+  demo:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+
+      - uses: actions/checkout@v4
+        with:
+          repository: space-wizards/space-station-14
+          ref: ${{ github.event.inputs.ss14_ref || 'fb9401cf6a1bb01d6fa6fc2ebf2b53678ae5cbd6' }}
+          submodules: recursive
+          path: ss14
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Add 3D to it
+        shell: bash
+        run: |
+          cd ss14
+          dotnet run --project ../project/installer/ss12.csproj -c Release -- install . --source ../project/overlay --no-build --no-commit
+
+      - name: Publish the server and the client (self-contained, nothing to install for the player)
+        shell: bash
+        run: |
+          cd ss14
+          dotnet publish Content.Server/Content.Server.csproj -c Release -r win-x64 --self-contained true -o ../demo/bin/Content.Server
+          dotnet publish Content.Client/Content.Client.csproj -c Release -r win-x64 --self-contained true -o ../demo/bin/Content.Client
+          cp -r Resources ../demo/Resources
+          mkdir -p ../demo/RobustToolbox
+          cp -r RobustToolbox/Resources ../demo/RobustToolbox/Resources
+
+      - name: Add the start script and the notes
+        shell: bash
+        run: |
+          cp "project/scripts/demo/Play 3D Demo.bat" project/scripts/demo/play-demo.ps1 demo/
+          cp project/LICENSE demo/LICENSE-SS12.txt
+          cp ss14/LICENSE.TXT demo/LICENSE-SpaceStation14.txt
+          cp project/docs/PLAY-THE-DEMO.md demo/READ-ME-FIRST.md
+          cp project/docs/ru/PLAY-THE-DEMO.md demo/READ-ME-FIRST.ru.md
+
+      - name: Zip it
+        shell: pwsh
+        run: Compress-Archive -Path demo/* -DestinationPath SS12-demo-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-windows
+          path: SS12-demo-windows.zip
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SS12-demo-windows.zip
+
+  demo-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+
+      - uses: actions/checkout@v4
+        with:
+          repository: space-wizards/space-station-14
+          ref: ${{ github.event.inputs.ss14_ref || 'fb9401cf6a1bb01d6fa6fc2ebf2b53678ae5cbd6' }}
+          submodules: recursive
+          path: ss14
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Add 3D to it
+        run: |
+          cd ss14
+          dotnet run --project ../project/installer/ss12.csproj -c Release -- install . --source ../project/overlay --no-build --no-commit
+
+      - name: Publish the server and the client (self-contained, nothing to install for the player)
+        run: |
+          cd ss14
+          dotnet publish Content.Server/Content.Server.csproj -c Release -r linux-x64 --self-contained true -o ../demo/bin/Content.Server
+          dotnet publish Content.Client/Content.Client.csproj -c Release -r linux-x64 --self-contained true -o ../demo/bin/Content.Client
+          cp -r Resources ../demo/Resources
+          mkdir -p ../demo/RobustToolbox
+          cp -r RobustToolbox/Resources ../demo/RobustToolbox/Resources
+
+      - name: Add the start script and the notes
+        run: |
+          cp project/scripts/demo/play-demo.sh demo/
+          cp project/LICENSE demo/LICENSE-SS12.txt
+          cp ss14/LICENSE.TXT demo/LICENSE-SpaceStation14.txt
+          cp project/docs/PLAY-THE-DEMO.md demo/READ-ME-FIRST.md
+          cp project/docs/ru/PLAY-THE-DEMO.md demo/READ-ME-FIRST.ru.md
+          chmod +x demo/play-demo.sh demo/bin/Content.Server/Content.Server demo/bin/Content.Client/Content.Client
+
+      - name: Zip it
+        run: (cd demo && zip -qr ../SS12-demo-linux.zip .)
+
+      - name: Start the server from the unzipped download
+        run: |
+          mkdir smoke
+          unzip -q SS12-demo-linux.zip -d smoke
+          mkdir -p smoke/data/server
+          cd smoke/bin/Content.Server
+          ./Content.Server --data-dir ../../data/server \
+            --cvar net.bindto=127.0.0.1 --cvar status.bind=127.0.0.1:1212 \
+            --cvar game.lobbyenabled=false --cvar game.map=Saltern --cvar game.defaultpreset=Sandbox \
+            > ../../data/server.log 2>&1 &
+          pid=$!
+          cd ../..
+          result=0
+          bash "$GITHUB_WORKSPACE/project/scripts/ci/wait-ready.sh" data/server.log "$pid" 240 || result=$?
+          kill "$pid" 2>/dev/null || true
+          exit $result
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-linux
+          path: SS12-demo-linux.zip
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SS12-demo-linux.zip
+
+  server-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+
+      - uses: actions/checkout@v4
+        with:
+          repository: space-wizards/space-station-14
+          ref: ${{ github.event.inputs.ss14_ref || 'fb9401cf6a1bb01d6fa6fc2ebf2b53678ae5cbd6' }}
+          submodules: recursive
+          path: ss14
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Add 3D to it
+        run: |
+          cd ss14
+          dotnet run --project ../project/installer/ss12.csproj -c Release -- install . --source ../project/overlay --no-build --no-commit
+
+      - name: Package the server (HybridACZ, so players need only the normal launcher)
+        run: |
+          cd ss14
+          dotnet run --project Content.Packaging -c Release -- server --platform linux-x64 --hybrid-acz
+          ls -la release
+
+      - name: Assemble the download
+        run: |
+          mkdir -p pkg/server
+          unzip -q ss14/release/SS14.Server_linux-x64.zip -d pkg/server
+          cp project/scripts/server/run-server.sh project/scripts/server/server_config.example.toml \
+             project/scripts/server/ss12.service project/scripts/server/README.md project/scripts/server/README.ru.md pkg/
+          cp project/LICENSE pkg/LICENSE-SS12.txt
+          cp ss14/LICENSE.TXT pkg/LICENSE-SpaceStation14.txt
+          chmod +x pkg/run-server.sh pkg/server/Robust.Server
+          (cd pkg && zip -qr ../SS12-server-linux-x64.zip .)
+
+      - name: Start the server from the unzipped download
+        run: |
+          mkdir smoke
+          unzip -q SS12-server-linux-x64.zip -d smoke
+          cd smoke
+          ./run-server.sh --cvar net.bindto=127.0.0.1 --cvar status.bind=127.0.0.1:1212 \
+            --cvar game.lobbyenabled=false --cvar game.map=Saltern --cvar game.defaultpreset=Sandbox \
+            > server.log 2>&1 &
+          pid=$!
+          result=0
+          bash "$GITHUB_WORKSPACE/project/scripts/ci/wait-ready.sh" server.log "$pid" 240 || result=$?
+          kill "$pid" 2>/dev/null || true
+          exit $result
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-linux
+          path: SS12-server-linux-x64.zip
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SS12-server-linux-x64.zip

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea / Вопрос или идея
+    url: https://github.com/Ehab-0/ss12/discussions
+    about: Ask how something works, or share an idea, in Discussions. / Задайте вопрос или предложите идею в обсуждениях.
+  - name: Quick fixes / Частые проблемы
+    url: https://github.com/Ehab-0/ss12/blob/main/docs/TROUBLESHOOTING.md
+    about: The common problems and their fixes, in plain words. / Частые проблемы и их решения простыми словами.
+  - name: Website and test server / Сайт и тестовый сервер
+    url: https://ss12.org
+    about: Try SS12 on lol.ss12.org with the normal Space Station 14 launcher. / Попробуйте SS12 на lol.ss12.org через обычный лаунчер.

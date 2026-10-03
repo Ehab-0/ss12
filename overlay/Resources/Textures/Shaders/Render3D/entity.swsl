@@ -1,0 +1,148 @@
+// Entity quads: samples the per-frame billboard atlas (TEXTURE), depth-tests against the raymarched scene,
+// lights the quad from the ground light buffer and hides it when the 2D field of view would hide it.
+// Vertex data layout is documented in Content.Client/Render3D/QuadBuilder.cs.
+preset raw;
+blend_mode mix;
+
+#include "/Shaders/Internal/shadow_cast_shared.swsl"
+
+// required by ChebyshevUpperBound in the shared include (unused here)
+const highp float g_MinVariance = 0.0;
+
+uniform sampler2D sceneTex;    // raymarch output, a = planar view depth
+uniform sampler2D glowTex;     // atlas of the unshaded layers only (same layout as TEXTURE)
+uniform highp float glowOn;
+uniform highp vec2 atlasSize;  // size of TEXTURE in texels
+uniform highp float sharpOn;   // 1 = sharp bilinear sampling, 0 = plain nearest
+uniform sampler2D lightTex;    // light buffer of the ground viewport
+uniform sampler2D fovTex;      // FOV shadow-depth map of the ground viewport
+uniform highp vec2 viewSize;
+uniform highp vec4 groundParams; // x,y = world centre of the ground texture, z = world size, w = 1 / size
+uniform highp vec4 fovParams;    // x,y = FOV eye position (world), z = enabled, w = bias
+
+varying highp vec3 vUvW;   // uv / w, 1 / w
+varying highp vec4 vData;  // light/fov world position xy, alpha multiplier, flags
+varying highp float vShade;
+
+void vertex()
+{
+    VERTEX = apply_mvp(VERTEX);
+    vUvW = vec3(tCoord, tCoord2.x);
+    vData = modulate;
+    vShade = tCoord2.y;
+}
+
+highp vec2 groundUv(highp vec2 w)
+{
+    return vec2((w.x - groundParams.x) * groundParams.w + 0.5, (w.y - groundParams.y) * groundParams.w + 0.5);
+}
+
+void fragment()
+{
+    highp float invW = vUvW.z;
+    highp float depth = 1.0 / invW;
+    highp vec2 uv = vUvW.xy * depth;
+    highp vec2 sp = FRAGCOORD.xy / viewSize;
+
+    // Sharp bilinear sampling (see below). The screen-space derivative is taken here, before any discard, so it is
+    // valid for every pixel; it also cannot live in a helper function because those are compiled into the vertex stage too.
+    highp vec2 texPx = uv * atlasSize;
+    highp vec2 texAa = max(fwidth(texPx), vec2(0.0001));
+
+    // depth test against walls / floor / ceiling
+    highp float sceneDepth = texture2D(sceneTex, sp).a;
+    if (depth > sceneDepth + 0.04)
+        discard;
+
+    // field of view: hide what a 2D player could not see
+    if (fovParams.z > 0.5)
+    {
+        highp vec2 rel = vData.xy - fovParams.xy;
+        if (dot(rel, rel) > 0.8 && doesOcclude(rel, fovTex, 0.75, fovParams.w))
+            discard;
+    }
+
+    // Things right next to the camera would fill the screen with one big block: fade them out smoothly as they get close
+    // (an alpha fade; throwing away every other pixel instead leaves a visible screen-door pattern that crawls when moving).
+    highp float nearFade = smoothstep(0.10, 0.65, depth);
+    if (nearFade < 0.02)
+        discard;
+
+    // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow; +0.5 = draw the edge outline
+    highp float kind = floor(vData.w + 0.1);
+    highp float outline = (vData.w - kind) > 0.25 ? 1.0 : 0.0;
+
+    if (kind > 2.5)
+    {
+        // lamp halo: a soft round glow tinted with the colour of the light at the lamp
+        highp float r = length(uv);
+        highp float k = 1.0 - smoothstep(0.0, 1.0, r);
+        k = k * k;
+        highp vec3 lc = texture2D(lightTex, groundUv(vData.xy)).rgb;
+        highp float peak = max(lc.r, max(lc.g, lc.b));
+        highp vec3 tint = mix(vec3(1.0), lc / max(peak, 0.001), 0.7);
+        highp float haloFade = smoothstep(0.7, 3.2, depth);
+        if (k * vData.z * nearFade * haloFade < 0.01)
+            discard;
+
+        COLOR = vec4(tint, k * vData.z * nearFade * haloFade);
+    }
+    else if (kind > 1.5)
+    {
+        // a soft round shadow: the quad's uv is -1..1 across it
+        highp float r = length(uv);
+        highp float shadow = vData.z * nearFade * (1.0 - smoothstep(0.1, 1.0, r));
+        if (shadow < 0.01)
+            discard;
+
+        COLOR = vec4(0.0, 0.0, 0.0, shadow);
+    }
+    else
+    {
+        // Sharp bilinear: crisp texel edges when the sprite is magnified (the normal case), a smooth blend only across the
+        // width of one screen pixel. Removes the shimmer and stair-steps plain nearest sampling shows on tilted and
+        // distant sprites without blurring the pixel art. With sharpOn = 0 it is plain nearest sampling.
+        highp vec2 suv = (floor(texPx) + 0.5) / atlasSize;
+        if (sharpOn > 0.5)
+        {
+            highp vec2 base = floor(texPx - 0.5) + 0.5;
+            highp vec2 f = texPx - base;
+            highp vec2 w = clamp((f - 1.0) / texAa + 0.5, 0.0, 1.0);
+            suv = (base + w) / atlasSize;
+        }
+
+        highp vec4 tex = zTextureSpec(TEXTURE, suv);
+        highp float a = tex.a;
+        if (kind < 0.5)
+        {
+            if (a < 0.5)
+                discard;
+            a = nearFade;
+        }
+        else
+        {
+            a = a * vData.z * nearFade;
+            if (a < 0.02)
+                discard;
+        }
+
+        highp vec3 light = texture2D(lightTex, groundUv(vData.xy)).rgb;
+        // glowing (unshaded) layers keep their own colour instead of being multiplied by the light
+        highp vec4 glow = zTextureSpec(glowTex, suv);
+        highp vec3 lit = tex.rgb * light * vShade;
+        highp vec3 outRgb = mix(lit, glow.rgb, glow.a * glowOn);
+
+        // edge outline: pixels on the silhouette (a transparent texel next to them) are darkened
+        if (outline > 0.5)
+        {
+            highp vec2 centre = (floor(uv * atlasSize) + 0.5) / atlasSize;
+            highp vec2 t = 1.0 / atlasSize;
+            highp float edge = min(min(texture2D(TEXTURE, centre + vec2(t.x, 0.0)).a, texture2D(TEXTURE, centre - vec2(t.x, 0.0)).a),
+                                   min(texture2D(TEXTURE, centre + vec2(0.0, t.y)).a, texture2D(TEXTURE, centre - vec2(0.0, t.y)).a));
+            if (edge < 0.5)
+                outRgb *= 0.5;
+        }
+
+        COLOR = vec4(outRgb, a);
+    }
+}

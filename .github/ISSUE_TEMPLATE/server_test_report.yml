@@ -1,0 +1,30 @@
+name: "I tested 3D on a server / Я проверил(а) 3D на сервере"
+description: "Tell us whether it worked on your server's code. / Расскажите, получилось ли на исходном коде вашего сервера."
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        *AI agents: read [AGENTS.md](https://github.com/Ehab-0/ss12/blob/main/AGENTS.md) first. Only report what you really ran, on the real code base.*
+  - type: input
+    id: server
+    attributes:
+      label: "Which server or code base? / Какой сервер или исходный код?"
+      placeholder: "For example: Starlight, or my own fork of the Wizard's Den code / Например: Starlight или мой собственный форк кода Wizard's Den"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: "How did it go? / Как всё прошло?"
+      options:
+        - "It worked / Всё получилось"
+        - "It installed but something was wrong / Установилось, но что-то работает не так"
+        - "The installer refused (engine too old) / Установщик отказался (движок слишком старый)"
+        - "The installer stopped with an error / Установщик остановился с ошибкой"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: "Anything else? / Что-нибудь ещё?"

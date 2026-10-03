@@ -1,0 +1,102 @@
+# ss12.org test server: Wizard's Den copy (upstream fb9401cf) + SS12 3D.
+# Based on Resources/ConfigPresets/WizardsDen/wizardsDen.toml + lizard.toml, minus the
+# official-server-only parts (IPIntel contact, panic bunker, WD privacy policy / feedback origin).
+
+[game]
+hostname = "[3D] JOIN FOR A S U R P R I S E - ss12.org"
+desc = "SS12: Space Station 13 in 3D, running on Space Station 14. Vanilla ruleset. Test server."
+lobbyenabled = true
+soft_max_players = 80
+lobbyduration = 60
+panic_bunker.enabled = false
+panic_bunker.disable_with_admins = false
+panic_bunker.enable_without_admins = false
+ipintel_enabled = false
+# Open to everyone: no playtime or whitelist requirements for any job or antag role.
+role_timers = false
+role_whitelist = false
+
+[ic]
+# Every species is available to new accounts (the default hides some until you have playtime).
+blacklist_species_new_account = ""
+
+[ooc]
+# OOC chat also works while a round is running (off by default).
+enable_during_round = true
+
+[infolinks]
+website = "https://ss12.org"
+github = "https://github.com/Ehab-0/ss12"
+wiki = "https://wiki.spacestation14.com"
+
+[server]
+rules_file = "SS12Welcome"
+id = "ss12_test"
+
+# First-join welcome/about popup: no wait timer, one click to continue.
+[rules]
+time = 0
+
+[movement]
+mob_pushing = false
+
+[net]
+port = 1212
+tickrate = 30
+max_connections = 1024
+
+[vote]
+restart_required_ratio = 0.7
+# Let players vote for the next map at the end of a round.
+map_enabled = true
+
+[netres]
+limit = 10.0
+
+[admin]
+see_own_notes = true
+# Count admins in the reported player count, so the restart-if-empty check never mistakes a connected admin for an empty server.
+admins_count_in_playercount = true
+allow_multi_server_play = false
+
+[atmos]
+max_explosion_range = 0
+
+[adminlogs]
+server_name = "ss12-test"
+
+[console]
+loginlocal = false
+# Account name that is made a full admin on every join, from any address (the name is the authenticated SS14 account).
+# login_host_user = "<your SS14 username>"
+
+[status]
+connectaddress = "udp://lol.ss12.org:1212"
+
+[hub]
+# Listed on the public hub.
+advertise = true
+tags = "lang:en"
+server_url = "ss14://lol.ss12.org:1212"
+
+[database]
+engine = "sqlite"
+
+[log]
+level = 2
+enabled = true
+
+# SS12 3D (Resources/ConfigPresets/Build/render3d.toml)
+[render3d]
+enforced = false
+
+[physics]
+relative_movement = true
+
+[shuttle]
+# Must stay false while render3d.enforced = false: with the lock on, the server refuses the 3D camera yaw
+# (SharedCameraYawSystem.OnRequestYaw), so WASD stops being camera-relative and prediction fights the server.
+camera_rotation_locked = false
+# Rounds end by themselves: the evacuation shuttle is called after 30 minutes, and command may call it early.
+auto_call_time = 30
+emergency_early_launch_allowed = true

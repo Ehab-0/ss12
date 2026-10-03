@@ -1,0 +1,21 @@
+// Bloom, step 1: keeps only the bright parts of the 3D image (soft threshold) and shrinks them (this pass draws into a
+// target a quarter of the size, so the 4 taps below also act as a box downsample).
+light_mode unshaded;
+blend_mode none;
+
+uniform highp vec2 texel;      // 1 / size of the source texture
+uniform highp float threshold; // brightness where glow starts (0..1)
+
+void fragment()
+{
+    highp vec3 c = texture2D(TEXTURE, UV + texel * vec2(-1.0, -1.0)).rgb
+                 + texture2D(TEXTURE, UV + texel * vec2( 1.0, -1.0)).rgb
+                 + texture2D(TEXTURE, UV + texel * vec2(-1.0,  1.0)).rgb
+                 + texture2D(TEXTURE, UV + texel * vec2( 1.0,  1.0)).rgb;
+    c *= 0.25;
+
+    highp float peak = max(c.r, max(c.g, c.b));
+    highp float k = clamp((peak - threshold) / max(1.0 - threshold, 0.001), 0.0, 1.0);
+    k = k * k * (3.0 - 2.0 * k);
+    COLOR = vec4(c * k, 1.0);
+}

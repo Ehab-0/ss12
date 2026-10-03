@@ -1,0 +1,26 @@
+# systemd unit for the SS12 server. Install:
+#   sudo useradd --system --home /opt/ss12 ss12
+#   sudo cp -r <unzipped folder>/. /opt/ss12 && sudo chown -R ss12:ss12 /opt/ss12
+#   sudo cp ss12.service /etc/systemd/system/ss12.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now ss12
+[Unit]
+Description=SS12 game server (Space Station 14 with the 3D view)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ss12
+Group=ss12
+WorkingDirectory=/opt/ss12/server
+ExecStart=/opt/ss12/server/Robust.Server --config-file /opt/ss12/server_config.toml --data-dir /opt/ss12/data
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

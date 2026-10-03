@@ -1,0 +1,9 @@
+// Presents the 3D scene target (rgb colour, alpha = depth) to the screen with alpha forced to 1.
+light_mode unshaded;
+blend_mode none;
+
+void fragment()
+{
+    highp vec4 c = texture2D(TEXTURE, UV);
+    COLOR = vec4(c.rgb, 1.0);
+}

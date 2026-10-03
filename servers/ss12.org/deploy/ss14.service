@@ -1,0 +1,21 @@
+[Unit]
+Description=SS14 server (ss12.org test, Wizard's Den copy + SS12 3D)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ss14
+Group=ss14
+WorkingDirectory=/opt/ss14/server
+ExecStart=/opt/ss14/server/Robust.Server --config-file /opt/ss14/server_config.toml --data-dir /opt/ss14/data
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

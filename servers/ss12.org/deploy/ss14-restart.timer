@@ -1,0 +1,10 @@
+[Unit]
+Description=Check every 10 minutes whether the SS14 server can be restarted
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=false
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

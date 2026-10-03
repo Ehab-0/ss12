@@ -1,0 +1,448 @@
+// 3D world pass: per-pixel raymarch over the tile map (walls) plus floor, ceiling and space.
+// Output: rgb = linear colour, a = planar view depth (distance along the camera forward axis) used to depth-test
+// the entity quads that are drawn afterwards. See docs/ss12/PLAN.md (Phase 1).
+preset raw;
+blend_mode none;
+
+uniform sampler2D groundTex;   // lit floor layer captured from the 2D renderer (north up, 32 px/tile)
+uniform sampler2D lightTex;    // light buffer of the ground viewport, same mapping as groundTex
+uniform sampler2D tileMap;     // per-grid windows: r = wall slot (1..255, 0 none), g = tile exists
+uniform sampler2D wallAtlas;   // wall front-face textures, slotsPerRow x slotsPerRow slots
+
+uniform highp vec3 camPos;
+uniform highp vec3 camFwd;
+uniform highp vec3 camRightS;  // camera right vector scaled by tan(fov/2) * aspect
+uniform highp vec3 camUpS;     // camera up vector scaled by tan(fov/2)
+uniform highp vec2 viewSize;   // pixels of the render target
+uniform highp vec4 groundParams; // x,y = world centre of the ground texture, z = world size (tiles), w = 1 / z
+uniform highp vec4 sceneParams;  // x = wall height, y = max distance, z = fog start, w = unused
+uniform highp vec4 atlasParams;  // x = slots per row, y = 1 / slots per row, z = inset (in slot uv), w = unused
+uniform highp vec4 wallUv;       // u0, v0, u1, v1 sub-rectangle of a wall icon used as the front face (v from top)
+uniform highp vec4 spaceColor;
+uniform highp vec4 ceilColor;
+uniform highp vec4 fxFlags;      // x = surface shading, y = detailed sky, z = haze, w = time in seconds
+uniform highp vec4 aaParams;     // x = angular size of one pixel (tan units)
+uniform highp vec4 ambientFill;  // x = 1: give surfaces the 2D line of sight leaves unlit a faint ambient light
+uniform highp vec2 tileMapInv;   // 1 / tileMap size in texels
+
+// Per grid (up to 4): A = (m11, m12, m21, m22) of the world->local matrix, B = (m31, m32, window origin x, y),
+// C = (atlas offset x, y in texels, window size in cells, unused). C.z == 0 means the slot is unused.
+uniform highp vec4 gridA0;
+uniform highp vec4 gridB0;
+uniform highp vec4 gridC0;
+uniform highp vec4 gridA1;
+uniform highp vec4 gridB1;
+uniform highp vec4 gridC1;
+uniform highp vec4 gridA2;
+uniform highp vec4 gridB2;
+uniform highp vec4 gridC2;
+uniform highp vec4 gridA3;
+uniform highp vec4 gridB3;
+uniform highp vec4 gridC3;
+
+void vertex()
+{
+    VERTEX = apply_mvp(VERTEX);
+}
+
+highp vec2 groundUv(highp vec2 w)
+{
+    // Textures are addressed with v = 1 at the top of the image; the ground image has north at the top.
+    return vec2((w.x - groundParams.x) * groundParams.w + 0.5, (w.y - groundParams.y) * groundParams.w + 0.5);
+}
+
+// Averages a few taps over the footprint of one screen pixel so distant floor and walls don't shimmer
+// when the camera moves (nearest-filtered pixel art minifies badly without mipmaps).
+highp vec3 sampleGroundAA(highp vec2 w, highp float fpTiles)
+{
+    highp vec2 uv = groundUv(w);
+    highp float texel = groundParams.w / 32.0;
+    highp float fp = fpTiles * groundParams.w;
+    if (fp <= texel * 0.75)
+        return zTextureSpec(groundTex, uv).rgb;
+    highp float r = min(fp, texel * 5.0) * 0.35;
+    highp vec3 c = zTextureSpec(groundTex, uv + vec2(r, r)).rgb;
+    c += zTextureSpec(groundTex, uv + vec2(-r, r)).rgb;
+    c += zTextureSpec(groundTex, uv + vec2(r, -r)).rgb;
+    c += zTextureSpec(groundTex, uv + vec2(-r, -r)).rgb;
+    return c * 0.25;
+}
+
+// Atlas texel (image coordinates, row 0 at the top) -> uv (v = 1 at the top).
+highp vec2 tileUv(highp vec2 texel)
+{
+    highp vec2 p = (texel + 0.5) * tileMapInv;
+    return vec2(p.x, 1.0 - p.y);
+}
+
+highp vec4 cellAt(highp vec4 A, highp vec4 B, highp vec4 C, highp vec2 w)
+{
+    highp vec2 l = vec2(w.x * A.x + w.y * A.z + B.x, w.x * A.y + w.y * A.w + B.y);
+    highp vec2 rel = floor(l) - B.zw;
+    if (rel.x < 0.0 || rel.y < 0.0 || rel.x >= C.z || rel.y >= C.z)
+        return vec4(0.0);
+    return texture2D(tileMap, tileUv(C.xy + rel));
+}
+
+highp float tileExists(highp vec2 w)
+{
+    highp float e = cellAt(gridA0, gridB0, gridC0, w).g;
+    e = max(e, cellAt(gridA1, gridB1, gridC1, w).g);
+    e = max(e, cellAt(gridA2, gridB2, gridC2, w).g);
+    e = max(e, cellAt(gridA3, gridB3, gridC3, w).g);
+    return e;
+}
+
+// Grid-local coordinates of the tile under a world point, and whether such a tile exists: (local x, local y, exists).
+// The ceiling seams use them so they line up with the walls of a rotated grid instead of running along the world axes.
+highp vec3 gridLocalAt(highp vec4 A, highp vec4 B, highp vec4 C, highp vec2 w)
+{
+    highp vec2 l = vec2(w.x * A.x + w.y * A.z + B.x, w.x * A.y + w.y * A.w + B.y);
+    highp vec2 rel = floor(l) - B.zw;
+    if (rel.x < 0.0 || rel.y < 0.0 || rel.x >= C.z || rel.y >= C.z)
+        return vec3(l, 0.0);
+    return vec3(l, texture2D(tileMap, tileUv(C.xy + rel)).g);
+}
+
+highp vec3 tileLocal(highp vec2 w)
+{
+    highp vec3 r = gridLocalAt(gridA0, gridB0, gridC0, w);
+    highp vec3 r1 = gridLocalAt(gridA1, gridB1, gridC1, w);
+    if (r1.z > r.z) r = r1;
+    highp vec3 r2 = gridLocalAt(gridA2, gridB2, gridC2, w);
+    if (r2.z > r.z) r = r2;
+    highp vec3 r3 = gridLocalAt(gridA3, gridB3, gridC3, w);
+    if (r3.z > r.z) r = r3;
+    return r;
+}
+
+// Marches the ray (world space ro + rd * t) through one grid's wall window. rd.xy is un-normalised; t is the
+// planar view depth, which is also the length parameter of the ray in grid-local space (rotation only).
+// info = (world normal x, world normal y, u along the face, wall slot)
+void marchGrid(highp vec4 A, highp vec4 B, highp vec4 C, highp vec3 ro, highp vec3 rd, highp float tMax,
+               highp float H, out highp float tHit, out highp vec4 info)
+{
+    tHit = -1.0;
+    info = vec4(0.0);
+    if (C.z < 0.5)
+        return;
+
+    highp vec2 o = vec2(ro.x * A.x + ro.y * A.z + B.x, ro.x * A.y + ro.y * A.w + B.y);
+    highp vec2 d = vec2(rd.x * A.x + rd.y * A.z, rd.x * A.y + rd.y * A.w);
+
+    highp vec2 cell = floor(o);
+    highp vec2 stepDir = vec2(d.x >= 0.0 ? 1.0 : -1.0, d.y >= 0.0 ? 1.0 : -1.0);
+    highp vec2 ad = max(abs(d), vec2(0.00001));
+    highp vec2 tDelta = 1.0 / ad;
+    highp vec2 nextT;
+    // distance to the first cell boundary along each axis
+    nextT.x = (stepDir.x > 0.0 ? (cell.x + 1.0 - o.x) : (o.x - cell.x)) * tDelta.x;
+    nextT.y = (stepDir.y > 0.0 ? (cell.y + 1.0 - o.y) : (o.y - cell.y)) * tDelta.y;
+
+    for (int i = 0; i < 64; i++)
+    {
+        highp float t;
+        highp float axis;
+        if (nextT.x < nextT.y)
+        {
+            t = nextT.x;
+            nextT.x += tDelta.x;
+            cell.x += stepDir.x;
+            axis = 0.0;
+        }
+        else
+        {
+            t = nextT.y;
+            nextT.y += tDelta.y;
+            cell.y += stepDir.y;
+            axis = 1.0;
+        }
+
+        if (t > tMax)
+            return;
+
+        highp vec2 rel = cell - B.zw;
+        if (rel.x < 0.0 || rel.y < 0.0 || rel.x >= C.z || rel.y >= C.z)
+            return;
+
+        highp vec4 texel = texture2D(tileMap, tileUv(C.xy + rel));
+        highp float slot = floor(texel.r * 255.0 + 0.5);
+        if (slot > 0.5)
+        {
+            highp float z = ro.z + rd.z * t;
+            if (z >= 0.0 && z <= H)
+            {
+                highp vec2 p = o + d * t;
+                highp vec2 nl;
+                highp float u;
+                if (axis < 0.5)
+                {
+                    nl = vec2(-stepDir.x, 0.0);
+                    u = stepDir.x > 0.0 ? 1.0 - fract(p.y) : fract(p.y);
+                }
+                else
+                {
+                    nl = vec2(0.0, -stepDir.y);
+                    u = stepDir.y > 0.0 ? fract(p.x) : 1.0 - fract(p.x);
+                }
+                // local normal -> world normal (transpose of the rotation)
+                highp vec2 nw = vec2(nl.x * A.x + nl.y * A.y, nl.x * A.z + nl.y * A.w);
+                tHit = t;
+                info = vec4(nw, u, slot);
+                return;
+            }
+        }
+    }
+}
+
+highp float hash13(highp vec3 p)
+{
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+highp float valueNoise(highp vec3 p)
+{
+    highp vec3 i = floor(p);
+    highp vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    highp float n000 = hash13(i);
+    highp float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+    highp float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+    highp float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+    highp float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+    highp float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+    highp float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+    highp float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+    return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+               mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
+
+highp float fbm3(highp vec3 p)
+{
+    return valueNoise(p) * 0.5 + valueNoise(p * 2.03) * 0.25 + valueNoise(p * 4.1) * 0.125;
+}
+
+highp vec3 spaceSky(highp vec3 dir)
+{
+    highp vec3 col = spaceColor.rgb;
+    highp vec3 nd = normalize(dir);
+
+    // cheap procedural stars on a direction grid
+    highp vec3 q = floor(nd * 90.0);
+    highp float h = fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    if (h > 0.9965)
+        col += vec3((h - 0.9965) * 220.0);
+
+    if (fxFlags.y > 0.5)
+    {
+        // a second, sparser layer of larger, tinted, twinkling stars
+        highp vec3 q2 = floor(nd * 38.0);
+        highp float h2 = hash13(q2 + vec3(17.0));
+        if (h2 > 0.985)
+        {
+            highp float k = fract(h2 * 57.0);
+            highp vec3 tint = mix(vec3(0.7, 0.8, 1.0), vec3(1.0, 0.8, 0.6), k);
+            highp float twinkle = 0.7 + 0.3 * sin(fxFlags.w * (1.2 + 3.0 * fract(h2 * 91.0)) + h2 * 40.0);
+            col += tint * (h2 - 0.985) * 40.0 * twinkle;
+        }
+
+        // faint nebula: two layers of low-frequency noise, a little colour, nothing that competes with the game
+        highp float n1 = fbm3(nd * 1.6 + vec3(3.0));
+        highp float n2 = fbm3(nd * 2.7 + vec3(11.0));
+        col += vec3(0.060, 0.025, 0.100) * smoothstep(0.42, 0.85, n1);
+        col += vec3(0.015, 0.045, 0.080) * smoothstep(0.50, 0.90, n2);
+    }
+
+    return col;
+}
+
+void fragment()
+{
+    // NOTE: the body of fragment() is inlined into main() by the engine; never use `return` in it.
+    highp vec2 sp = FRAGCOORD.xy / viewSize;
+    highp vec3 ro = camPos;
+    highp vec3 rd = camFwd + camRightS * (sp.x * 2.0 - 1.0) + camUpS * (sp.y * 2.0 - 1.0);
+
+    highp float H = sceneParams.x;
+    highp float maxD = sceneParams.y;
+
+    highp float tPlane = maxD;
+    highp float planeKind = 0.0; // 0 = none within range, 1 = floor, 2 = ceiling
+    if (rd.z < -0.00001)
+    {
+        highp float tf = -ro.z / rd.z;
+        if (tf < tPlane)
+        {
+            tPlane = tf;
+            planeKind = 1.0;
+        }
+    }
+    else if (rd.z > 0.00001)
+    {
+        highp float tc = (H - ro.z) / rd.z;
+        if (tc < tPlane)
+        {
+            tPlane = tc;
+            planeKind = 2.0;
+        }
+    }
+
+    highp float bestT = tPlane;
+    highp vec4 bestInfo = vec4(0.0);
+    bool wallHit = false;
+
+    highp float th;
+    highp vec4 inf;
+
+    marchGrid(gridA0, gridB0, gridC0, ro, rd, bestT, H, th, inf);
+    if (th > 0.0 && th < bestT) { bestT = th; bestInfo = inf; wallHit = true; }
+    marchGrid(gridA1, gridB1, gridC1, ro, rd, bestT, H, th, inf);
+    if (th > 0.0 && th < bestT) { bestT = th; bestInfo = inf; wallHit = true; }
+    marchGrid(gridA2, gridB2, gridC2, ro, rd, bestT, H, th, inf);
+    if (th > 0.0 && th < bestT) { bestT = th; bestInfo = inf; wallHit = true; }
+    marchGrid(gridA3, gridB3, gridC3, ro, rd, bestT, H, th, inf);
+    if (th > 0.0 && th < bestT) { bestT = th; bestInfo = inf; wallHit = true; }
+
+    highp vec3 hit = ro + rd * bestT;
+    highp vec3 col;
+    highp float depth = bestT;
+
+    if (wallHit)
+    {
+        highp float slot = bestInfo.w;
+        highp float v = clamp(1.0 - hit.z / H, 0.0, 1.0);
+        highp float uu = clamp(bestInfo.z, 0.0, 1.0);
+        // sub-rectangle of the icon
+        highp vec2 iconUv = vec2(mix(wallUv.x, wallUv.z, uu), mix(wallUv.y, wallUv.w, v));
+        highp float col0 = mod(slot, atlasParams.x);
+        highp float row0 = floor(slot / atlasParams.x);
+        highp float rlen = length(rd);
+        highp float facing = max(abs(dot(rd.xy, bestInfo.xy)) / rlen, 0.2);
+        highp float fp = bestT * aaParams.x * rlen / facing;           // pixel footprint in tiles
+        highp vec2 fpUv = vec2(fp * (wallUv.z - wallUv.x), fp / H * (wallUv.w - wallUv.y));
+        highp float limit = 4.0 / 32.0;
+        highp vec2 rr = min(fpUv, vec2(limit)) * 0.35;
+        highp vec3 albedo = vec3(0.0);
+        for (int k = 0; k < 4; k++)
+        {
+            highp vec2 sgn = vec2(k == 1 || k == 3 ? -1.0 : 1.0, k >= 2 ? -1.0 : 1.0);
+            highp vec2 tapUv = iconUv + sgn * rr * (fpUv.x > 1.0 / 32.0 * 0.75 ? 1.0 : 0.0);
+            highp vec2 slotUv = clamp(tapUv, vec2(atlasParams.z), vec2(1.0 - atlasParams.z));
+            highp vec2 auv = vec2((col0 + slotUv.x) * atlasParams.y, 1.0 - (row0 + slotUv.y) * atlasParams.y);
+            albedo += zTextureSpec(wallAtlas, auv).rgb;
+        }
+        albedo *= 0.25;
+        highp vec2 lp = hit.xy + bestInfo.xy * 0.1;
+        highp vec3 light = texture2D(lightTex, groundUv(lp)).rgb;
+        light = max(light, vec3(0.075) * ambientFill.x);
+        col = albedo * light;
+
+        if (fxFlags.x > 0.5)
+        {
+            // walls: darker at the foot and under the ceiling, and slightly at the vertical corners
+            highp float baseDark = mix(0.72, 1.0, smoothstep(0.0, 0.32, hit.z));
+            highp float topDark = mix(0.80, 1.0, smoothstep(0.0, 0.22, H - hit.z));
+            highp float edgeDark = mix(0.86, 1.0, smoothstep(0.0, 0.10, min(uu, 1.0 - uu)));
+            col *= baseDark * topDark * edgeDark;
+        }
+    }
+    else if (planeKind == 1.0)
+    {
+        highp vec2 fl = hit.xy;
+        if (tileExists(fl) > 0.5)
+        {
+            highp float rlen = length(rd);
+            highp float sinEl = max(abs(rd.z) / rlen, 0.15);
+            col = sampleGroundAA(fl, bestT * aaParams.x * rlen / sinEl);
+            col = max(col, vec3(0.0125, 0.0115, 0.0105) * ambientFill.x);
+
+            if (fxFlags.x > 0.5)
+            {
+                // waxed floor: lit floor brightens towards the horizon, like a polished surface catching the lamps
+                highp float fres = pow(1.0 - sinEl, 3.0);
+                col += col * fres * 0.45;
+            }
+        }
+        else
+        {
+            col = spaceSky(rd);
+            depth = maxD;
+        }
+    }
+    else if (planeKind == 2.0)
+    {
+        highp vec2 cl = hit.xy;
+        highp vec3 tl = tileLocal(cl);
+        if (tl.z > 0.5)
+        {
+            highp vec3 light = max(texture2D(lightTex, groundUv(cl)).rgb, vec3(0.075) * ambientFill.x);
+
+            // Ceiling panels: a faint seam on every tile edge and a slight checker, so there is something to judge
+            // distance and walking speed by when looking up. The seams fade out with the pixel footprint (no shimmer).
+            highp float crlen = length(rd);
+            highp float cfp = bestT * aaParams.x * crlen / max(abs(rd.z) / crlen, 0.15);
+            highp vec2 cf = fract(tl.xy);
+            highp float cd = min(min(cf.x, 1.0 - cf.x), min(cf.y, 1.0 - cf.y));
+            highp float seam = 1.0 - smoothstep(0.015, 0.045 + cfp, cd);
+            highp float seamFade = 1.0 - clamp(cfp * 5.0, 0.0, 1.0);
+            highp float checker = mod(floor(tl.x) + floor(tl.y), 2.0);
+            highp float panel = (1.0 - 0.28 * seam * seamFade) * (0.965 + 0.035 * checker);
+            col = ceilColor.rgb * light * mix(1.0, panel, fxFlags.x);
+        }
+        else
+        {
+            col = spaceSky(rd);
+            depth = maxD;
+        }
+    }
+    else
+    {
+        col = spaceSky(rd);
+        depth = maxD;
+    }
+
+    if (sceneParams.w > 29.5)
+    {
+        col = vec3(1.0, 0.0, 0.0);
+    }
+    else if (sceneParams.w > 3.5)
+    {
+        // developer debug views
+        if (sceneParams.w < 4.5)
+            col = rd * 0.5 + 0.5;                                   // 4: ray directions
+        else if (sceneParams.w < 5.5)
+            col = zTextureSpec(groundTex, groundUv(hit.xy)).rgb;    // 5: raw ground at the hit point
+        else if (sceneParams.w < 6.5)
+            col = vec3(depth / maxD);                               // 6: depth
+        else if (sceneParams.w < 7.5)
+            col = vec3(tileExists(hit.xy), wallHit ? 1.0 : 0.0, planeKind * 0.5);  // 7: tile flags
+        else if (sceneParams.w < 8.5)
+            col = texture2D(lightTex, groundUv(hit.xy)).rgb;        // 8: light at the hit point
+        else if (sceneParams.w < 9.5)
+        {
+            highp vec4 tm = texture2D(tileMap, sp);                  // 9: the tile map atlas itself (r x50, g)
+            col = vec3(tm.r * 50.0, tm.g, tm.a * 0.2);
+        }
+        else
+            col = vec3(gridC0.z / 64.0, gridB0.z / -100.0, 0.5);    // 10: grid 0 parameters
+    }
+    else
+    {
+        // distance fog to the space colour hides the edge of the rendered area
+        highp float fog = clamp((depth - sceneParams.z) / max(maxD - sceneParams.z, 0.001), 0.0, 1.0);
+
+        if (fxFlags.z > 0.5 && depth < maxD * 0.999)
+        {
+            // haze: the air takes on the colour of the light where it is, so lit rooms glow softly and dark ones stay dark
+            highp vec3 hazeLight = texture2D(lightTex, groundUv(hit.xy)).rgb;
+            highp float amount = (1.0 - exp(-depth * 0.05)) * 0.30;
+            col = mix(col, spaceColor.rgb * 0.5 + hazeLight * 0.30, amount);
+        }
+
+        col = mix(col, spaceColor.rgb, fog);
+    }
+
+    COLOR = vec4(col, depth);
+}

@@ -1,0 +1,6 @@
+[Unit]
+Description=Install a staged SS14 server build, or restart for a fresh round, but only when nobody is connected
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ss14-restart-if-empty.sh

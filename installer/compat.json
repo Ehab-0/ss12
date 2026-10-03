@@ -1,0 +1,6 @@
+{
+  "comment": "Engine (RobustToolbox) versions. minEngineVersion: the 3D view needs relative mouse mode for windows (engine 286) and the viewport FOV render target (283); older engines cannot compile it. testedEngineVersions: built and run. Within warnWithin major versions of a tested one: warning only.",
+  "minEngineVersion": "286.0.0",
+  "testedEngineVersions": ["291.0.0"],
+  "warnWithin": 15
+}

@@ -1,0 +1,22 @@
+SS12 installer
+==============
+SS12 is SS13 in 3D, using SS14. This helper adds the 3D view to a Space Station 14 server.
+
+WINDOWS
+  Drag your Space Station 14 server's code folder onto "Install 3D.bat".
+  (Or double-click "Install 3D.bat" and pick the folder in the window that opens.)
+
+MAC / LINUX
+  Open a terminal in this folder and run:
+      ./install-ss12.sh /path/to/your/server/code/folder
+
+The helper shows what it would change first and asks before changing anything.
+You can undo everything later (choose "Remove 3D").
+
+Your server's code folder is the one that contains "Content.Client", "Content.Server" and "Content.Shared".
+Your server's game engine must be version 286 or newer (see README.md). If it is older, the helper says so and changes nothing.
+
+To try SS12 without a server, or to host one on Linux, see the demo and server downloads on the Releases page
+(docs/PLAY-THE-DEMO.md and docs/INSTALL-ON-YOUR-SERVER.md).
+
+Plain-language guides are in the "docs" folder (start with INSTALL-ON-YOUR-SERVER.md), and on the project page.
