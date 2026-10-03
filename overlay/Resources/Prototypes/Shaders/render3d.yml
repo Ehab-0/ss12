@@ -1,0 +1,39 @@
+- type: shader
+  id: Render3DRaymarch
+  kind: source
+  path: "/Textures/Shaders/Render3D/raymarch.swsl"
+
+- type: shader
+  id: Render3DPresent
+  kind: source
+  path: "/Textures/Shaders/Render3D/present.swsl"
+
+- type: shader
+  id: Render3DEntity
+  kind: source
+  path: "/Textures/Shaders/Render3D/entity.swsl"
+
+- type: shader
+  id: Render3DGlowMask
+  kind: source
+  path: "/Textures/Shaders/Render3D/glowmask.swsl"
+
+- type: shader
+  id: Render3DBloomExtract
+  kind: source
+  path: "/Textures/Shaders/Render3D/bloom_extract.swsl"
+
+- type: shader
+  id: Render3DBlur
+  kind: source
+  path: "/Textures/Shaders/Render3D/blur.swsl"
+
+- type: shader
+  id: Render3DPost
+  kind: source
+  path: "/Textures/Shaders/Render3D/post.swsl"
+
+- type: shader
+  id: Render3DResolve
+  kind: source
+  path: "/Textures/Shaders/Render3D/resolve.swsl"

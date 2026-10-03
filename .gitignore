@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+.vs/
+dist/
+demo-build/
+ss12-report.txt
+ss12-ai-config.json

@@ -1,0 +1,28 @@
+// Final step of a supersampled 3D view: averages the large image down to the window size.
+// TEXTURE is the finished image at the large size (bilinear filtered). Four taps, each a bilinear fetch, are placed so
+// that together they cover the block of source pixels that belongs to one output pixel (an exact box filter for a
+// factor of 2, a close approximation in between). This removes shimmer and jagged edges on every surface.
+light_mode unshaded;
+blend_mode none;
+
+uniform highp vec2 srcTexel; // 1 / size of TEXTURE
+uniform highp vec2 spread;   // a quarter of the source pixels per output pixel, on x and y
+uniform highp float dither;  // 1 = add one least-significant bit of noise (hides banding in dark gradients)
+
+void fragment()
+{
+    highp vec2 o = spread * srcTexel;
+    highp vec3 c = texture2D(TEXTURE, UV + vec2(-o.x, -o.y)).rgb;
+    c += texture2D(TEXTURE, UV + vec2(o.x, -o.y)).rgb;
+    c += texture2D(TEXTURE, UV + vec2(-o.x, o.y)).rgb;
+    c += texture2D(TEXTURE, UV + vec2(o.x, o.y)).rgb;
+    c *= 0.25;
+
+    if (dither > 0.5)
+    {
+        highp float n = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
+        c += (n - 0.5) / 255.0;
+    }
+
+    COLOR = vec4(c, 1.0);
+}

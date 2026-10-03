@@ -1,0 +1,43 @@
+# Example settings for an SS12 server (Space Station 14 with the 3D view).
+# Copy to server_config.toml (run-server.sh does it for you) and edit.
+# Every setting is documented in the Space Station 14 source: Content.Shared/CCVar and RobustToolbox/Robust.Shared/CVars.cs.
+
+[game]
+hostname = "My SS12 server"
+desc = "SS12: Space Station 13 in 3D, running on Space Station 14."
+lobbyenabled = true
+soft_max_players = 80
+lobbyduration = 300
+
+[net]
+# Open this port (TCP and UDP) in your firewall for players to connect.
+port = 1212
+tickrate = 30
+max_connections = 1024
+
+[status]
+# What players' launchers connect to. Set it to your public address, for example "udp://play.example.org:1212".
+# Leave it commented out for a server that is only used on your own network.
+# connectaddress = "udp://play.example.org:1212"
+
+[hub]
+# Set to true to be listed on the public server list.
+advertise = false
+
+[database]
+engine = "sqlite"
+
+[log]
+level = 2
+enabled = true
+
+# SS12 3D
+[render3d]
+# true: everyone must use the 3D view. false: each player can switch with F12.
+enforced = false
+
+[physics]
+relative_movement = true
+
+[shuttle]
+camera_rotation_locked = true

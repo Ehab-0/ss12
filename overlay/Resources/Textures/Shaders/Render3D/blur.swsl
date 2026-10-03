@@ -1,0 +1,15 @@
+// Bloom, step 2: separable gaussian blur (9 taps). Run once with dir = (1/width, 0) and once with (0, 1/height).
+light_mode unshaded;
+blend_mode none;
+
+uniform highp vec2 dir; // step between taps, in uv units
+
+void fragment()
+{
+    highp vec3 c = texture2D(TEXTURE, UV).rgb * 0.227027;
+    c += (texture2D(TEXTURE, UV + dir * 1.0).rgb + texture2D(TEXTURE, UV - dir * 1.0).rgb) * 0.1945946;
+    c += (texture2D(TEXTURE, UV + dir * 2.0).rgb + texture2D(TEXTURE, UV - dir * 2.0).rgb) * 0.1216216;
+    c += (texture2D(TEXTURE, UV + dir * 3.0).rgb + texture2D(TEXTURE, UV - dir * 3.0).rgb) * 0.0540540;
+    c += (texture2D(TEXTURE, UV + dir * 4.0).rgb + texture2D(TEXTURE, UV - dir * 4.0).rgb) * 0.0162162;
+    COLOR = vec4(c, 1.0);
+}

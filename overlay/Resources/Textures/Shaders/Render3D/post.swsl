@@ -1,0 +1,111 @@
+// Final pass of the 3D view: ambient occlusion from depth, edge smoothing, bloom, tone mapping, vignette and dithering.
+// TEXTURE is the finished colour image (walls, floors and entities). Every effect is switched by a uniform, so
+// a disabled effect costs nothing but a branch.
+//   fx1: x = bloom strength, y = ambient occlusion strength, z = edge smoothing (0/1), w = grade (tone map + vignette) strength
+//   fx2: x = dither (0/1), y = ao radius in pixels, z/w unused
+light_mode unshaded;
+blend_mode none;
+
+uniform sampler2D bloomTex;  // blurred bright parts, quarter size
+uniform sampler2D depthTex;  // the raymarched scene; alpha = planar view depth (walls, floor, ceiling only)
+uniform highp vec2 texel;    // 1 / size of TEXTURE
+uniform highp vec4 fx1;
+uniform highp vec4 fx2;
+
+highp float invDepth(highp vec2 uv)
+{
+    // inverse depth is linear across a flat surface in screen space, so creases show up as kinks in it
+    return 1.0 / max(texture2D(depthTex, uv).a, 0.05);
+}
+
+highp vec3 acesApprox(highp vec3 x)
+{
+    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+}
+
+void fragment()
+{
+    highp vec2 uv = UV;
+    highp vec3 col = texture2D(TEXTURE, uv).rgb;
+    highp float inv = invDepth(uv);
+
+    // entity sprites are drawn over the raymarched scene and are not in its depth: where the final image differs
+    // from the raw scene there is a sprite, and depth based effects must leave it alone
+    highp float isWorld = distance(col, texture2D(depthTex, uv).rgb) > 0.0005 ? 0.0 : 1.0;
+
+    // ambient occlusion: darken the inside of corners (floor meets wall, wall meets ceiling)
+    if (fx1.y > 0.0)
+    {
+        highp float r1 = fx2.y;
+        highp float r2 = fx2.y * 2.5;
+        highp float occ = 0.0;
+        highp vec2 o;
+
+        o = vec2(r1, 0.0) * texel;
+        occ += max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+        o = vec2(0.0, r1) * texel;
+        occ += max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+        o = vec2(r1, r1) * 0.7071 * texel;
+        occ += max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+        o = vec2(r1, -r1) * 0.7071 * texel;
+        occ += max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+
+        o = vec2(r2, 0.0) * texel;
+        occ += 0.5 * max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+        o = vec2(0.0, r2) * texel;
+        occ += 0.5 * max(invDepth(uv + o) + invDepth(uv - o) - 2.0 * inv, 0.0);
+
+        // normalise by the depth so the effect does not weaken with distance
+        occ = occ / max(inv, 0.02) * 0.9;
+        col *= 1.0 - clamp(occ * fx1.y, 0.0, 0.55) * isWorld;
+    }
+
+    // edge smoothing: soften pixels where the depth jumps (silhouettes of walls against floor, ceiling and space)
+    if (fx1.z > 0.5 && isWorld > 0.5)
+    {
+        highp vec3 acc = col;
+        highp float w = 1.0;
+        highp vec2 n0 = vec2(texel.x, 0.0);
+        highp vec2 n1 = vec2(0.0, texel.y);
+        highp float d0 = texture2D(depthTex, uv).a;
+
+        highp float dn = texture2D(depthTex, uv + n0).a;
+        if (abs(dn - d0) > 0.12 * min(dn, d0)) { acc += texture2D(TEXTURE, uv + n0).rgb; w += 1.0; }
+        dn = texture2D(depthTex, uv - n0).a;
+        if (abs(dn - d0) > 0.12 * min(dn, d0)) { acc += texture2D(TEXTURE, uv - n0).rgb; w += 1.0; }
+        dn = texture2D(depthTex, uv + n1).a;
+        if (abs(dn - d0) > 0.12 * min(dn, d0)) { acc += texture2D(TEXTURE, uv + n1).rgb; w += 1.0; }
+        dn = texture2D(depthTex, uv - n1).a;
+        if (abs(dn - d0) > 0.12 * min(dn, d0)) { acc += texture2D(TEXTURE, uv - n1).rgb; w += 1.0; }
+
+        col = acc / w;
+    }
+
+    // bloom
+    if (fx1.x > 0.0)
+        col += texture2D(bloomTex, uv).rgb * fx1.x;
+
+    // grade: filmic tone curve, a touch more colour, vignette
+    if (fx1.w > 0.0)
+    {
+        highp vec3 mapped = acesApprox(col * 1.12);
+        col = mix(col, mapped, 0.55 * fx1.w);
+
+        highp float luma = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(luma), col, 1.0 + 0.10 * fx1.w);
+
+        highp vec2 c = uv - vec2(0.5);
+        c.x *= 0.85; // a little less vignette at the sides than at the corners
+        highp float v = smoothstep(0.30, 0.85, length(c));
+        col *= 1.0 - 0.34 * fx1.w * v;
+    }
+
+    // dither: one least-significant bit of noise hides banding in dark gradients
+    if (fx2.x > 0.5)
+    {
+        highp float n = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
+        col += (n - 0.5) / 255.0;
+    }
+
+    COLOR = vec4(col, 1.0);
+}

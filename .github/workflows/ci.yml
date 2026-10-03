@@ -1,0 +1,19 @@
+name: Check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build the installer
+        run: dotnet build installer/ss12.csproj -c Release
+      - name: Run the installer's own tests (they use throw-away fake server folders)
+        run: dotnet run --project installer/ss12.csproj -c Release --no-build -- selftest --source overlay

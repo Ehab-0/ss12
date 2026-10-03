@@ -1,0 +1,44 @@
+# How the 3D renderer draws entities, by the prototype they inherit from.
+# Anything not matched here is classified automatically from its components and draw depth
+# (see Content.Client/Render3D/EntityClassifier.cs). Unknown prototype ids are ignored, so this file is safe to keep
+# when a codebase renames or removes one of them.
+- type: render3dRules
+  id: Render3DDefault
+  rules:
+  - mode: Panel
+    parents:
+    - BaseAirlockIndestructible
+    - BaseFirelock
+    - BaseShutter
+  - mode: EdgePanel
+    parents:
+    - BaseWindoorGeneric
+    - BaseRailing
+    - BaseWindowStructureDirectional
+  - mode: GlassBox
+    parents:
+    - BaseWindowStructure
+    - Grille
+  - mode: TableBox
+    parents:
+    - TableBase
+  - mode: WallDecal
+    parents:
+    - BaseWallmount
+
+  # How thick things are drawn and whether they lean towards the camera (needs the matching effects switched on in the
+  # 3D settings). Anything not listed gets the default of its category: 0.06 tiles for items, 0.16 for characters,
+  # 0.14 for other objects. Thickness is in tiles, 0 = paper thin; "lean: false" keeps a thing exactly flat or upright.
+  shapes:
+  - components:
+    - Paper
+    thickness: 0.01
+  - components:
+    - IdCard
+    thickness: 0.015
+  - components:
+    - CartridgeAmmo
+    thickness: 0.03
+  - parents:
+    - ToolboxBase
+    thickness: 0.12

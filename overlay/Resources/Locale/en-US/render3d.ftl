@@ -1,0 +1,66 @@
+## 3D view: strings for the settings window and, where it is installed, the Options tab
+ui-options-tab-3d = 3D
+ui-options-header-3d = 3D view
+ui-options-function-toggle3d-view = Toggle 3D / 2D view
+ui-options-function-toggle3d-camera-mode = Toggle first / third person
+ui-options-function-render3d-free-cursor = Free cursor (hold)
+
+ui-options-3d-use-3d = Use the 3D view
+ui-options-3d-use-3d-tooltip = Servers can force the 3D view on while you are alive.
+ui-options-3d-fov = Field of view:
+ui-options-3d-sensitivity = Mouse sensitivity:
+ui-options-3d-render-scale = Render scale:
+ui-options-3d-invert-y = Invert vertical look
+ui-options-3d-crosshair-names = Show names under the crosshair
+ui-options-3d-first-person = Start in first person
+
+render3d-settings-title = 3D view settings
+render3d-settings-view = View
+render3d-settings-keys = Keys
+render3d-settings-use-3d = Use the 3D view
+render3d-settings-first-person = Start in first person
+render3d-settings-fov = Field of view
+render3d-settings-sensitivity = Mouse sensitivity
+render3d-settings-render-scale = Render scale
+render3d-settings-invert-y = Invert vertical look
+render3d-settings-crosshair-names = Show names under the crosshair
+render3d-settings-press-key = Press a key... (Esc cancels)
+render3d-settings-unbound = Unbound
+render3d-key-toggle-view = Toggle 3D / 2D view
+render3d-key-toggle-camera = Toggle first / third person
+render3d-key-free-cursor = Free cursor (hold)
+render3d-key-open-settings = Open these settings
+
+render3d-quality-lowered = Graphics quality lowered to { $level } because the frame rate was low. You can change it in the 3D settings (F11).
+render3d-quality-scale = Render scale lowered to { $scale } because the frame rate was low. You can change it in the 3D settings (F11).
+
+render3d-settings-graphics = Graphics
+render3d-settings-quality = Quality preset
+render3d-settings-supersample = Smoothing (supersampling)
+render3d-settings-quality-low = Low
+render3d-settings-quality-medium = Medium
+render3d-settings-quality-high = High
+render3d-settings-quality-custom = Custom
+render3d-settings-auto-quality = Lower quality automatically if slow
+render3d-fx-bloom = Glow around lights and screens
+render3d-fx-fxaa = Smooth jagged edges
+render3d-fx-ao = Soft shadows in corners and under things
+render3d-fx-surface = Wall, floor and ceiling shading
+render3d-fx-ambient = Dim light in places you cannot see (no black holes)
+render3d-fx-shadows = Contact shadows under characters and items
+render3d-fx-outline = Outline around characters and items
+render3d-fx-sharp = Sharper, steadier sprites
+render3d-fx-grade = Colour grading and vignette
+render3d-fx-haze = Distance haze
+render3d-fx-sky = Stars and nebula in space
+render3d-fx-fixtures = Glowing wall lamps
+render3d-fx-head-bob = Head bob while walking
+render3d-fx-item-lift = Items on the ground: lifted, with shadow and outline
+render3d-fx-item-lean = Items on the ground: tilt towards the camera
+render3d-fx-item-thick = Items on the ground: thickness
+render3d-fx-char-lean = Characters: lean back slightly
+render3d-fx-char-thick = Characters: thickness
+render3d-fx-object-lean = Objects and machines: lean back slightly
+render3d-fx-object-thick = Objects and machines: thickness
+render3d-settings-shapes = Shape of things
+render3d-settings-thickness-layers = Thickness detail (layers)
