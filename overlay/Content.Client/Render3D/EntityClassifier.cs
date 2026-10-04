@@ -23,6 +23,9 @@ public struct EntityDraw3D
     public SpriteComponent Sprite;
     public Render3DMode Mode;
 
+    /// <summary>Squared distance used to pick the nearest entities when there are more than the cap (smaller is kept).</summary>
+    public float CapKey;
+
     /// <summary>World (map space) position of the entity origin.</summary>
     public Vector2 Pos;
 

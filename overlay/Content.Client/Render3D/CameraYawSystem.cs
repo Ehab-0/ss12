@@ -1,6 +1,8 @@
+using Content.Shared.CCVar;
 using Content.Shared.Movement.Components;
 using Content.Shared.Render3D;
 using Robust.Client.Player;
+using Robust.Shared.Configuration;
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
 
@@ -14,12 +16,41 @@ namespace Content.Client.Render3D;
 public sealed partial class CameraYawSystem : SharedCameraYawSystem
 {
     [Dependency] private IPlayerManager _player = default!;
+    [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IGameTiming _timing = default!;
 
     private static readonly Angle SendThreshold = Angle.FromDegrees(1);
-    private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(1.0 / 30.0);
+
+    public const float MinSendRate = 4f;
+    public const float MaxSendRate = 30f;
 
     private TimeSpan _lastSent;
+    private TimeSpan _minInterval = SendInterval(12f);
+
+    public override void Initialize()
+    {
+        base.Initialize();
+        Subs.CVar(_cfg, CCVars.Render3DYawSendRate, hz => _minInterval = SendInterval(hz), true);
+    }
+
+    /// <summary>The shortest time between two yaw updates for a send rate in updates per second (kept within 4 to 30).</summary>
+    public static TimeSpan SendInterval(float hz)
+    {
+        if (!float.IsFinite(hz))
+            hz = 12f;
+        return TimeSpan.FromSeconds(1.0 / Math.Clamp(hz, MinSendRate, MaxSendRate));
+    }
+
+    /// <summary>
+    ///     True when a yaw update should go out now: the camera has turned away from the yaw the mover has by more than the
+    ///     threshold and the previous update is at least <paramref name="minInterval"/> old.
+    /// </summary>
+    public static bool ShouldSend(Angle desired, Angle implied, TimeSpan now, TimeSpan lastSent, TimeSpan minInterval)
+    {
+        if (Math.Abs(Angle.ShortestDistance(desired, implied).Theta) <= SendThreshold.Theta)
+            return false;
+        return now - lastSent >= minInterval;
+    }
 
     /// <summary>The yaw the 3D camera wants (set by the controller each frame while 3D is active).</summary>
     public Angle? DesiredYaw;
@@ -58,12 +89,8 @@ public sealed partial class CameraYawSystem : SharedCameraYawSystem
         if (_player.LocalEntity is not { } uid || !TryComp<InputMoverComponent>(uid, out var mover))
             return;
 
-        var implied = GetYaw(uid, mover);
-        if (Math.Abs(Angle.ShortestDistance(desired, implied).Theta) <= SendThreshold.Theta)
-            return;
-
         var now = _timing.RealTime;
-        if (now - _lastSent < MinInterval)
+        if (!ShouldSend(desired, GetYaw(uid, mover), now, _lastSent, _minInterval))
             return;
 
         _lastSent = now;

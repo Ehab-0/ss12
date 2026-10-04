@@ -3,12 +3,30 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
-- **Lamps on windows and grilles hang at ceiling height, and wall-mounted things draw in a stable order.** A lamp on a
-  window or grille tile has no wall behind it in the wall map, so it was treated like a poster and drawn at eye level:
-  its glowing tube sat just above the floor, popped in and out as you moved, and showed up over the feet of your
-  character. Such lamps now hang at the same height as the ones on solid walls. Separately, upright quads (wall lamps,
-  windows, doors, posters, characters) are now ordered by their distance on the ground plane instead of the depth of
-  their 3D centre, so two quads on the same wall at different heights no longer swap places when the camera pitches.
+- **Turning the view sends fewer updates to the server.** While you turn with the mouse, the client told the server the
+  new direction up to 30 times a second, and each of those is a message that must arrive in order. On a connection that
+  drops packets, every lost one holds up the messages behind it, including your movement keys. The client now sends at
+  most 12 a second by default (`render3d.yaw_send_rate`, 4 to 30; WASD follows the new direction at that rate). This cuts
+  the traffic to less than half; it is meant to help with a character that stops for a moment and snaps forward on a
+  bad connection, but it has not been shown to cure that by itself.
+- **Far things no longer blink in and out while you walk.** Only the nearest few hundred entities are drawn (200 on Low, 400
+  on the other presets), and the distance of the last one that makes it changes as you move or as lag nudges your
+  position, so everything near that distance, such as lamps and litter at the far end of a corridor, dropped out and came
+  back from frame to frame. An entity that was drawn last frame now counts as closer when the cut is made
+  (`render3d.cap_hysteresis`). In a test walk the number of entities that dropped out and returned fell from about 105 to
+  about 0 at the strongest setting; the default is gentler, so things at the very edge may appear a few tiles later.
+- **A server can open the graphics settings for players when they join.** The new server setting
+  `render3d.settings_on_join` opens the 3D settings window (the one on `F11`) by itself when a player enters a round:
+  `0` never (the default, so nothing changes for existing servers), `1` the first time only on each computer, `2` every
+  round. It lets new players choose a quality level before the game picks one for them.
+- **Wall lamps hang near the ceiling at every quality level, and wall-mounted things draw in a stable order.** Lamps were
+  only hung up there when the "fixtures" effect was on (it is off in the Low preset, which slow computers fall back to)
+  and when a wall was found behind them (lamps on windows and grilles have none). Otherwise they were drawn like
+  posters at eye level, so their glowing tube sat just above the floor, where the thin strip popped in and out as you
+  moved and showed up over the feet of your character. Lamps now always hang near the ceiling; the "fixtures" effect
+  only adds the glow. Separately, upright quads (wall lamps, windows, doors, posters, characters) are now ordered by their
+  distance on the ground plane instead of the depth of their 3D centre, so two quads on the same wall at different
+  heights no longer swap places when the camera pitches.
 - **W A S D follow the camera on every server setup.** With the installer's preset (`render3d.enforced = false` and
   `shuttle.camera_rotation_locked = true`) the server threw away the camera direction, so the camera turned while the
   keys kept walking along the map axes (inverted in some directions, fine in others). The lock only switches off the 90

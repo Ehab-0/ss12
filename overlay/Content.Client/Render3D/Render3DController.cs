@@ -76,6 +76,26 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
             .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
             .Register<Render3DController>();
+
+        MaybeOpenSettingsOnJoin();
+    }
+
+    /// <summary>Opens the settings window by itself when the server asks for it (render3d.settings_on_join).</summary>
+    private void MaybeOpenSettingsOnJoin()
+    {
+        var mode = _cfg.GetCVar(CCVars.Render3DSettingsOnJoin);
+        if (mode <= 0 || mode == 1 && _cfg.GetCVar(CCVars.Render3DSettingsShown))
+            return;
+
+        // give the screen, the viewport and the player's body a moment to appear first
+        Timer.Spawn(TimeSpan.FromSeconds(2), () =>
+        {
+            if (!Active || _settingsWindow is { Disposed: false, IsOpen: true })
+                return;
+
+            _cfg.SetCVar(CCVars.Render3DSettingsShown, true);
+            ToggleSettingsWindow();
+        });
     }
 
     public void OnStateExited(GameplayState state)

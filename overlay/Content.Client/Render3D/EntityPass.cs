@@ -65,6 +65,9 @@ public sealed class EntityPass : IDisposable
 
     private ShaderInstance? _shader;
     private EntityDraw3D[] _draws = new EntityDraw3D[512];
+
+    /// <summary>The entities that were drawn last frame (see <see cref="ApplyCap"/>).</summary>
+    private readonly HashSet<EntityUid> _wasDrawn = new();
     private int _drawCount;
     private readonly List<Entity<SpriteComponent, TransformComponent>> _query = new();
     private readonly HashSet<(EntityUid, int, int)> _surfaceTiles = new();
@@ -269,11 +272,7 @@ public sealed class EntityPass : IDisposable
 
         // nearest first, capped
         var cap = Math.Max(16, _cfg.GetCVar(CCVars.Render3DBillboardCap));
-        if (_drawCount > cap)
-        {
-            Array.Sort(_draws, 0, _drawCount, DistanceComparer.Instance);
-            _drawCount = cap;
-        }
+        _drawCount = ApplyCap(_draws, _drawCount, cap, _wasDrawn, Math.Clamp(_cfg.GetCVar(CCVars.Render3DCapHysteresis), 0.1f, 1f));
 
         // slots
         for (var i = 0; i < _drawCount; i++)
@@ -536,16 +535,17 @@ public sealed class EntityPass : IDisposable
                 var axis = new Vector2(-f.Y, f.X);
                 var height = Math.Clamp(b.Height, 0.2f, 1.0f);
                 var width = Math.Clamp(b.Width, 0.2f, 1.0f);
-                // lamps hang near the ceiling and glow; everything else (posters, buttons, APCs) sits at eye level.
-                // This includes lamps that hang on windows, grilles and doors: there is no wall for them in the wall map
-                // (onWall is false), and treating them as eye-level things put their glowing tube a hand's width above the
-                // floor, where it was seen drawn over the feet of characters and flickered against the glass.
+                // lamps hang near the ceiling; everything else (posters, buttons, APCs) sits at eye level. This holds at every
+                // quality level and for lamps on windows, grilles and doors too (they have no wall in the wall map, onWall is
+                // false): drawn at eye level the glowing tube sat just above the floor, where such a thin strip flickered
+                // against the floor and the wall behind it and was drawn over the feet of characters. The "fixtures" effect
+                // only adds the glow halo.
                 PointLightComponent? light = null;
-                var fixture = _fxFixtures && _classifier.TryGetFixture(e.Uid, out light);
+                var fixture = _classifier.TryGetFixture(e.Uid, out light);
                 var zMid = fixture ? wallHeight - 0.3f : 0.7f;
                 var zb = zMid - height * 0.5f;
                 AddVerticalFace(center, axis, width, zb, zb + height, uvTl, uvTr, uvBr, uvBl, center + f * 0.6f, 1f);
-                if (fixture && light!.Enabled)
+                if (fixture && _fxFixtures && light!.Enabled)
                     AddHalo(center + f * 0.06f, axis, zMid, center + f * 0.55f);
                 break;
             }
@@ -795,6 +795,40 @@ public sealed class EntityPass : IDisposable
     public void Dispose()
     {
         _atlas.Dispose();
+    }
+
+    /// <summary>
+    ///     Keeps the nearest <paramref name="cap"/> of the first <paramref name="count"/> entries (moved to the front) and
+    ///     returns how many remain. An entity that was drawn last frame counts as closer (0.6 on the squared distance,
+    ///     about 23% on the distance), so the ring where the cut falls does not flicker: with the plain nearest-N rule, the
+    ///     distance of the N-th entity changes as the camera moves, and everything near that distance dropped out and came
+    ///     back from frame to frame. <paramref name="wasDrawn"/> is replaced by the entities kept.
+    /// </summary>
+    public static int ApplyCap(EntityDraw3D[] draws, int count, int cap, HashSet<EntityUid> wasDrawn, float hysteresis = DefaultCapHysteresis)
+    {
+        if (count > cap)
+        {
+            for (var i = 0; i < count; i++)
+                draws[i].CapKey = draws[i].Distance2 * (wasDrawn.Contains(draws[i].Uid) ? hysteresis : 1f);
+
+            Array.Sort(draws, 0, count, CapKeyComparer.Instance);
+            count = cap;
+        }
+
+        wasDrawn.Clear();
+        for (var i = 0; i < count; i++)
+            wasDrawn.Add(draws[i].Uid);
+
+        return count;
+    }
+
+    private const float DefaultCapHysteresis = 0.6f;
+
+    private sealed class CapKeyComparer : IComparer<EntityDraw3D>
+    {
+        public static readonly CapKeyComparer Instance = new();
+
+        public int Compare(EntityDraw3D x, EntityDraw3D y) => x.CapKey.CompareTo(y.CapKey);
     }
 
     private sealed class DistanceComparer : IComparer<EntityDraw3D>
