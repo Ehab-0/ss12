@@ -1,0 +1,12 @@
+[Unit]
+Description=Record the SS14 player count for the ss12.org stats
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ss12-stats sample
+Nice=19
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ss12-stats
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true

@@ -1,0 +1,13 @@
+[Unit]
+Description=Write the ss12.org stats page
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ss12-stats report --days 30 --html /var/lib/ss12-stats/public/index.html
+Nice=19
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ss12-stats
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+StandardOutput=null

@@ -1,0 +1,10 @@
+# /etc/ss12-stats.conf: every key is optional.
+[stats]
+# account names left out of the player numbers (your own, for example); comma separated
+exclude_names =
+# the website's host name (visits from it are not counted as a referrer)
+site_host = ss12.org
+# web_logs   = /var/log/caddy/ss12.org*.log
+# database   = /opt/ss14/data/preferences.db
+# data_dir   = /var/lib/ss12-stats
+# status_url = http://127.0.0.1:1212/status
