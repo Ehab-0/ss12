@@ -37,13 +37,16 @@ public sealed class EntityPass : IDisposable
 
     private static readonly ProtoId<ShaderPrototype> EntityShader = "Render3DEntity";
     private static readonly ProtoId<ShaderPrototype> GlowShader = "Render3DGlowMask";
+    private static readonly ProtoId<ShaderPrototype> GlassShader = "Render3DGlassPane";
     private ShaderInstance? _glowShader;
+    private ShaderInstance? _glassShader;
 
     // effect switches, read once per frame in Prepare
     private bool _fxShadows;
     private bool _fxOutline;
     private bool _fxSharp;
     private bool _fxFixtures;
+    private bool _fxGlass;
     private bool _atlasOffset = true;
     private bool _curOutline;
 
@@ -136,6 +139,7 @@ public sealed class EntityPass : IDisposable
         _fxOutline = _cfg.GetCVar(CCVars.Render3DFxOutline);
         _fxSharp = _cfg.GetCVar(CCVars.Render3DFxSharp);
         _fxFixtures = _cfg.GetCVar(CCVars.Render3DFxFixtures);
+        _fxGlass = _cfg.GetCVar(CCVars.Render3DFxGlass);
         _atlasOffset = _cfg.GetCVar(CCVars.Render3DDevAtlasOffset);
         _fxItemLift = _cfg.GetCVar(CCVars.Render3DFxItemLift);
         _fxItemLean = _cfg.GetCVar(CCVars.Render3DFxItemLean);
@@ -227,6 +231,17 @@ public sealed class EntityPass : IDisposable
             // local bounds, so the slot has to cover it
             e.Bounds = ReservedBounds(local, sprite, Angle.Zero);
             e.Glow = HasGlowLayer(uid, sprite);
+
+            // windows, window doors and grilles: a pane drawn here (see GlassLook) in place of the sprite. A window door that is
+            // open keeps its sprite, which shows it open.
+            if (_fxGlass && mode is Render3DMode.GlassBox or Render3DMode.EdgePanel
+                && !(_classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid))
+                && _classifier.GetGlass(uid) is { } glass)
+            {
+                e.Glass = glass;
+                e.Glow = false;
+                e.Bounds = new Box2(-0.5f, -0.5f, 0.5f, 0.5f);
+            }
 
             e.Category = _classifier.IsMob(uid) ? EntityCategory.Character
                 : _classifier.IsItem(uid) ? EntityCategory.Item
@@ -387,10 +402,22 @@ public sealed class EntityPass : IDisposable
     {
         var slot = e.Slot;
         const float inset = 0.5f;
-        var u0 = (slot.Left + inset) / atlasSize;
-        var u1 = (slot.Right - inset) / atlasSize;
-        var vTop = 1f - (slot.Top + inset) / atlasSize;
-        var vBot = 1f - (slot.Bottom - inset) / atlasSize;
+        float picLeft = slot.Left, picRight = slot.Right, picTop = slot.Top, picBottom = slot.Bottom;
+        if (e.Mode is Render3DMode.Panel or Render3DMode.EdgePanel or Render3DMode.GlassBox && e.Glass == null)
+        {
+            // only the entity's own tile of the picture goes on the face (see AtlasBounds.TileCrop)
+            var crop = AtlasBounds.TileCrop(e.Bounds);
+            const float px = BillboardAtlas.PixelsPerTile;
+            picLeft = slot.Left + (crop.Left - e.Bounds.Left) * px;
+            picRight = slot.Left + (crop.Right - e.Bounds.Left) * px;
+            picTop = slot.Top + (e.Bounds.Top - crop.Top) * px;
+            picBottom = slot.Top + (e.Bounds.Top - crop.Bottom) * px;
+        }
+
+        var u0 = (picLeft + inset) / atlasSize;
+        var u1 = (picRight - inset) / atlasSize;
+        var vTop = 1f - (picTop + inset) / atlasSize;
+        var vBot = 1f - (picBottom - inset) / atlasSize;
         var uvTl = new Vector2(u0, vTop);
         var uvTr = new Vector2(u1, vTop);
         var uvBr = new Vector2(u1, vBot);
@@ -546,7 +573,7 @@ public sealed class EntityPass : IDisposable
                 if (_classifier.GetWallMount(e.Uid) is { } mount)
                     facing += mount.Direction;
                 var f = facing.ToWorldVec();
-                var center = DecalCenter(ref e, f, out var onWall);
+                var center = DecalCenter(ref e, f, out var onWall, out f);
                 e.OnWall = onWall;
 
                 var axis = new Vector2(-f.Y, f.X);
@@ -559,7 +586,8 @@ public sealed class EntityPass : IDisposable
                 // only adds the glow halo.
                 PointLightComponent? light = null;
                 var fixture = _classifier.TryGetFixture(e.Uid, out light);
-                var zMid = fixture ? wallHeight - 0.3f : 0.7f;
+                // security cameras hang near the ceiling too
+                var zMid = fixture ? wallHeight - 0.3f : _classifier.IsCeilingMounted(e.Uid) ? wallHeight - 0.35f : 0.7f;
                 var zb = zMid - height * 0.5f;
                 AddVerticalFace(center, axis, width, zb, zb + height, uvTl, uvTr, uvBr, uvBl, center + f * 0.6f, 1f);
                 if (fixture && _fxFixtures && light!.Enabled)
@@ -716,23 +744,32 @@ public sealed class EntityPass : IDisposable
     }
 
     /// <summary>Centre of the quad of a wall mounted entity: hugging the face of the wall behind or around it.</summary>
-    private Vector2 DecalCenter(ref EntityDraw3D e, Vector2 facing, out bool onWall)
+    private Vector2 DecalCenter(ref EntityDraw3D e, Vector2 facing, out bool onWall, out Vector2 outward)
     {
         onWall = true;
+        outward = facing;
         var xform = _entMan.GetComponent<TransformComponent>(e.Uid);
         if (xform.GridUid is { } grid && xform.ParentUid == grid)
         {
             var gridInv = _xform.GetInvWorldMatrix(grid);
             var behind = Vector2.Transform(e.Pos - facing, gridInv);
+            var ahead = Vector2.Transform(e.Pos + facing, gridInv);
             var here = Vector2.Transform(e.Pos, gridInv);
             var behindTile = new Vector2i((int) MathF.Floor(behind.X), (int) MathF.Floor(behind.Y));
+            var aheadTile = new Vector2i((int) MathF.Floor(ahead.X), (int) MathF.Floor(ahead.Y));
             var hereTile = new Vector2i((int) MathF.Floor(here.X), (int) MathF.Floor(here.Y));
 
-            if (_tileWorld.TryGetWall(grid, behindTile) && !_tileWorld.TryGetWall(grid, hereTile))
-                return e.Pos - facing * 0.48f;
-
-            if (_tileWorld.TryGetWall(grid, hereTile))
-                return e.Pos + facing * 0.52f;
+            switch (WallDecalSide.Choose(_tileWorld.TryGetWall(grid, behindTile), _tileWorld.TryGetWall(grid, hereTile), _tileWorld.TryGetWall(grid, aheadTile)))
+            {
+                case DecalSide.Behind:
+                    return e.Pos - facing * 0.48f;
+                case DecalSide.Here:
+                    return e.Pos + facing * 0.52f;
+                case DecalSide.Ahead:
+                    // the wall is in front: hang on it, facing back into the room
+                    outward = -facing;
+                    return e.Pos + facing * 0.48f;
+            }
         }
 
         // No wall entity found: most of these hang on windows, grilles or doors in the tile behind (those are not in
@@ -772,7 +809,8 @@ public sealed class EntityPass : IDisposable
     public void DrawAtlas(DrawingHandleScreen screen)
     {
         _glowShader ??= _protos.Index(GlowShader).InstanceUnique();
-        _atlas.Draw(screen, _draws, _drawCount, _glowShader);
+        _glassShader ??= _protos.Index(GlassShader).InstanceUnique();
+        _atlas.Draw(screen, _draws, _drawCount, _glowShader, _glassShader);
     }
 
     private Action<int, IRenderTexture>? _auditSave;

@@ -3,6 +3,24 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Docking airlocks fill their doorway.** The docking airlock has a clamp layer one tile below the door, so its sprite is two
+  tiles tall. The whole picture was put on the one-tile doorway, which squeezed the door into the top half and left the rest of
+  the opening empty. Doors, windows and panels now show only their own tile of the picture.
+- **Security cameras hang on their wall.** A camera is rotated to point at its wall, and the 3D view only looked for a wall behind
+  a wall-mounted thing, so it never found it and drew every camera at the open edge of its tile, floating a tile from the wall.
+  It now looks in front as well, hangs the camera on that wall facing the room, and puts cameras near the ceiling like lamps.
+- **Windows are see-through glass in the 3D view.** The picture of a window in the game is a top-down drawing of a bevelled
+  frame around a small pane. Stuck on a standing face (as before) about 62% of it was solid frame, and a grille under every window
+  tile added a dark mesh, so reinforced windows read as walls and hid what 2D players could see through them. Edge windows and
+  window doors were worse: their picture is a thin strip, which showed as a sliver. With the new `glass` effect (on at every quality
+  level) the 3D view draws windows, window doors and grilles itself: a thin frame and a mostly transparent pane tinted for the
+  type (plain, reinforced, plasma, uranium, shuttle, tinted, frosted and so on), a faint highlight, and a sparse mesh for grilles.
+  The cracks of a damaged window are still drawn over it, an open window door keeps its sprite, and corner and diagonal windows
+  keep theirs. The colours and thickness live in the new `glass` list of `rules.yml`. Switch it off in the 3D settings
+  ("See-through glass in windows and grilles") or with `render3d.fx.glass`.
+- **The default wall height is 2.3 tiles (was 1.6).** Players who never changed `render3d.wall_height` get the taller rooms;
+  anyone who set their own value keeps it. The wall picture repeats a whole number of times as the walls get taller, choosing
+  the count whose repeats are closest to the original proportions.
 - **The 3D settings window (`F11`) is reorganised, and has a wall height slider.** It now opens with a **General** section:
   use the 3D view, the quality preset, the wall height (new, 1 to 4 tiles, the same as `render3d.wall_height`) and the field of
   view. The other sections follow in this order: **Keys**, **View**, **Graphics**, **Shape of things**.

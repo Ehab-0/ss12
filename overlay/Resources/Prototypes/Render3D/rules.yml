@@ -26,6 +26,141 @@
     parents:
     - BaseWallmount
 
+  # How glass is drawn (the "glass" effect in the 3D settings). The picture of a window in the game is a top-down drawing, a frame
+  # with a small pane in the middle, which looked like a solid wall on a standing face. With the effect on, the 3D view draws
+  # windows, window doors and grilles itself: a thin frame and a mostly transparent pane (alpha 0 clear, 1 solid) in the colour
+  # given here, with the cracks of a damaged window kept. The nearest matching ancestor wins, so a window type beats the
+  # base prototype it inherits from; "disabled: true" keeps the sprite (corner and diagonal windows are not plain panes).
+  # frameWidth is in pixels of the 32 pixel picture of a tile; mesh is the spacing of a fine mesh over the pane (grilles).
+  glass:
+  - parents:
+    - BaseWindowStructure
+    - BaseWindowStructureDirectional
+    tint: "#8fc4e8"
+    alpha: 0.16
+    frame: "#566478"
+    frameWidth: 1
+  - parents:
+    - ReinforcedWindow
+    - WindowReinforcedDirectional
+    tint: "#7aa6d6"
+    alpha: 0.20
+    frame: "#5a6676"
+    frameWidth: 2
+  - parents:
+    - PlasmaWindow
+    - PlasmaWindowDirectional
+    tint: "#c050d0"
+    alpha: 0.24
+    frame: "#6a5878"
+    frameWidth: 1
+  - parents:
+    - ReinforcedPlasmaWindow
+    - PlasmaReinforcedWindowDirectional
+    tint: "#b050c0"
+    alpha: 0.26
+    frame: "#5a6676"
+    frameWidth: 2
+  - parents:
+    - UraniumWindow
+    - UraniumWindowDirectional
+    tint: "#30c8b0"
+    alpha: 0.24
+    frame: "#4a6e5a"
+    frameWidth: 1
+  - parents:
+    - ReinforcedUraniumWindow
+    - UraniumReinforcedWindowDirectional
+    tint: "#20b0a0"
+    alpha: 0.26
+    frame: "#5a6676"
+    frameWidth: 2
+  - parents:
+    - ShuttleWindow
+    tint: "#7078c8"
+    alpha: 0.22
+    frame: "#808b9b"
+    frameWidth: 2
+  - parents:
+    - PlastitaniumWindow
+    tint: "#b05068"
+    alpha: 0.24
+    frame: "#4a4a56"
+    frameWidth: 2
+  - parents:
+    - TintedWindow
+    tint: "#2a2f35"
+    alpha: 0.62
+    frame: "#3c4248"
+    frameWidth: 1
+  - parents:
+    - WindowFrostedDirectional
+    tint: "#d4e4f0"
+    alpha: 0.68
+    frame: "#55606c"
+    frameWidth: 1
+    shine: false
+  - parents:
+    - RegalWindow
+    tint: "#b8c4e0"
+    alpha: 0.30
+    frame: "#502b18"
+    frameWidth: 2
+  - parents:
+    - XenoResinWindow
+    tint: "#8a66cc"
+    alpha: 0.45
+    frame: "#4b3a7a"
+    frameWidth: 2
+  # window doors
+  - parents:
+    - BaseWindoorGeneric
+    tint: "#9cc8e0"
+    alpha: 0.20
+    frame: "#7f8b99"
+    frameWidth: 2
+  - parents:
+    - WindoorPlasma
+    tint: "#c050d0"
+    alpha: 0.26
+    frame: "#7f8b99"
+    frameWidth: 2
+  - parents:
+    - WindoorUranium
+    tint: "#30c8b0"
+    alpha: 0.26
+    frame: "#7f8b99"
+    frameWidth: 2
+  # grilles: no pane, a frame and a fine mesh of wires (the colour of the mesh may carry an alpha: #rrggbbaa)
+  - parents:
+    - Grille
+    alpha: 0
+    frame: "#4a5057"
+    frameWidth: 1
+    mesh: 6
+    meshColor: "#3a4046a8"
+    shine: false
+  # not plain panes: these keep their sprite
+  - disabled: true
+    parents:
+    - GrilleDiagonal
+    - WindowDiagonal
+    - ReinforcedWindowDiagonal
+    - PlasmaWindowDiagonal
+    - ReinforcedPlasmaWindowDiagonal
+    - UraniumWindowDiagonal
+    - ReinforcedUraniumWindowDiagonal
+    - ShuttleWindowDiagonal
+    - PlastitaniumWindowDiagonal
+    - PlastitaniumWindowDiagonalIndestructible
+    - WindowDirectionalCorner
+    - WindowReinforcedDirectionalCorner
+    - PlasmaWindowDirectionalCorner
+    - PlasmaReinforcedWindowDirectionalCorner
+    - UraniumWindowDirectionalCorner
+    - UraniumReinforcedWindowDirectionalCorner
+    - WindowFrostedDirectionalCorner
+
   # How thick things are drawn and whether they lean towards the camera (needs the matching effects switched on in the
   # 3D settings). Anything not listed gets the default of its category: 0.06 tiles for items, 0.16 for characters,
   # 0.14 for other objects. Thickness is in tiles, 0 = paper thin; "lean: false" keeps a thing exactly flat or upright.

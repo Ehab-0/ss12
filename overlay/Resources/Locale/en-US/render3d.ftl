@@ -56,6 +56,7 @@ render3d-fx-grade = Colour grading and vignette
 render3d-fx-haze = Distance haze
 render3d-fx-sky = Stars and nebula in space
 render3d-fx-fixtures = Glowing wall lamps
+render3d-fx-glass = See-through glass in windows and grilles
 render3d-fx-head-bob = Head bob while walking
 render3d-fx-item-lift = Items on the ground: lifted, with shadow and outline
 render3d-fx-item-lean = Items on the ground: tilt towards the camera

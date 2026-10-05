@@ -2,6 +2,7 @@ using System.Numerics;
 using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
 using Robust.Shared.Graphics;
+using Robust.Shared.Graphics.RSI;
 
 namespace Content.Client.Render3D;
 
@@ -117,7 +118,7 @@ public sealed class BillboardAtlas : IDisposable
     }
 
     /// <summary>Draws the given entries' sprites into their slots. Call while drawing (inside a control's Draw).</summary>
-    public void Draw(DrawingHandleScreen handle, EntityDraw3D[] entries, int count, ShaderInstance glowShader)
+    public void Draw(DrawingHandleScreen handle, EntityDraw3D[] entries, int count, ShaderInstance glowShader, ShaderInstance glassShader)
     {
         if (_target == null)
             return;
@@ -139,6 +140,12 @@ public sealed class BillboardAtlas : IDisposable
 
                 try
                 {
+                    if (e.Glass is { } glass)
+                    {
+                        DrawGlass(handle, ref e, glass, glassShader);
+                        continue;
+                    }
+
                     handle.DrawEntity(
                         e.Uid,
                         pos,
@@ -182,6 +189,57 @@ public sealed class BillboardAtlas : IDisposable
 
             handle.UseShader(null);
         }, Color.Transparent);
+    }
+
+    private readonly List<(UIBox2 Rect, GlassPart Part)> _glassParts = new();
+
+    /// <summary>
+    ///     Draws a window, window door or grille as glass: the rectangles of its <see cref="GlassLook"/> written straight
+    ///     into the slot (no blending, so the pane keeps its low alpha as it is), then the layers of the sprite above the
+    ///     first one, which carry the cracks of a damaged window.
+    /// </summary>
+    private void DrawGlass(DrawingHandleScreen handle, ref EntityDraw3D e, GlassLook glass, ShaderInstance glassShader)
+    {
+        var slot = e.Slot;
+        glass.Layout(slot.Width, slot.Height, _glassParts);
+
+        var pane = glass.Tint.WithAlpha(glass.Alpha);
+        var shine = Color.InterpolateBetween(glass.Tint, Color.White, 0.65f).WithAlpha(Math.Min(1f, glass.Alpha + 0.3f));
+        handle.UseShader(glassShader);
+        foreach (var (rect, part) in _glassParts)
+        {
+            var color = part switch
+            {
+                GlassPart.Pane => pane,
+                GlassPart.Frame => glass.Frame,
+                GlassPart.Mesh => glass.MeshColor,
+                _ => shine,
+            };
+            handle.DrawRect(new UIBox2(slot.Left + rect.Left, slot.Top + rect.Top, slot.Left + rect.Right, slot.Top + rect.Bottom), color);
+        }
+
+        handle.UseShader(null);
+
+        var whole = new UIBox2(slot.Left, slot.Top, slot.Right, slot.Bottom);
+        var first = true;
+        foreach (var layer in e.Sprite.AllLayers)
+        {
+            if (first)
+            {
+                first = false;
+                continue;
+            }
+
+            if (!layer.Visible)
+                continue;
+
+            var texture = layer.Texture;
+            if (texture == null && layer.ActualRsi is { } rsi && rsi.TryGetState(layer.RsiState, out var state))
+                texture = state.GetFrame(RsiDirection.South, layer.AnimationFrame);
+
+            if (texture != null)
+                handle.DrawTextureRect(texture, whole, layer.Color);
+        }
     }
 
     public void Dispose()

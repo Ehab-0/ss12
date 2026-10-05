@@ -39,6 +39,7 @@ public static class Render3DQuality
         new("haze", CCVars.Render3DFxHaze, false, false, true, "render3d-fx-haze"),
         new("sky", CCVars.Render3DFxSky, false, true, true, "render3d-fx-sky"),
         new("fixtures", CCVars.Render3DFxFixtures, false, true, true, "render3d-fx-fixtures"),
+        new("glass", CCVars.Render3DFxGlass, true, true, true, "render3d-fx-glass"),
         new("head_bob", CCVars.Render3DFxHeadBob, false, false, false, "render3d-fx-head-bob"),
         new("item_lift", CCVars.Render3DFxItemLift, false, true, true, "render3d-fx-item-lift", true),
         new("item_lean", CCVars.Render3DFxItemLean, false, true, true, "render3d-fx-item-lean", true),

@@ -20,7 +20,7 @@ public sealed partial class CCVars
 
     /// <summary>Height of the ceiling (and of wall blocks) in tile units.</summary>
     public static readonly CVarDef<float> Render3DWallHeight =
-        CVarDef.Create("render3d.wall_height", 1.6f, CVar.CLIENTONLY | CVar.ARCHIVE);
+        CVarDef.Create("render3d.wall_height", 2.3f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>First-person eye height in tile units.</summary>
     public static readonly CVarDef<float> Render3DEyeHeight =
@@ -190,6 +190,13 @@ public sealed partial class CCVars
     /// <summary>Wall lamps get a soft glow halo on the wall. (Lamps hang near the ceiling whether this is on or not.)</summary>
     public static readonly CVarDef<bool> Render3DFxFixtures =
         CVarDef.Create("render3d.fx.fixtures", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Windows, window doors and grilles are drawn as see-through glass (a thin frame and a mostly transparent pane) instead
+    ///     of the top-down picture of the sprite, which looked like a solid wall.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DFxGlass =
+        CVarDef.Create("render3d.fx.glass", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     // ---- shape of things: lean and thickness, per category (items on the ground, characters, other objects) ----
 

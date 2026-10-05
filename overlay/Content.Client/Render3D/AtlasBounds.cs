@@ -36,6 +36,21 @@ public static class AtlasBounds
     }
 
     /// <summary>
+    ///     The part of a sprite's bounds that lies inside its own tile (one tile around the entity origin). A door, a window or a
+    ///     panel stands in the one tile it is in, so only that square of its picture belongs on the face that is drawn. The docking
+    ///     airlock has a clamp layer one tile below the door: its bounds are two tiles tall, and showing all of it on a one tile
+    ///     doorway squeezed the door into the top half and left the rest of the opening empty.
+    /// </summary>
+    public static Box2 TileCrop(Box2 bounds)
+    {
+        var left = Math.Max(bounds.Left, -0.5f);
+        var bottom = Math.Max(bounds.Bottom, -0.5f);
+        var right = Math.Min(bounds.Right, 0.5f);
+        var top = Math.Min(bounds.Top, 0.5f);
+        return right > left && top > bottom ? new Box2(left, bottom, right, top) : bounds;
+    }
+
+    /// <summary>
     ///     The area the engine really covers when it draws a sprite: it turns the layers by the sprite's own rotation
     ///     (<c>sprite.Rotation</c>, which a lying character has), moves them by <c>sprite.Offset</c>, and then turns all of
     ///     that by the entity rotation it was asked to draw with (<paramref name="entityRotation"/>, see

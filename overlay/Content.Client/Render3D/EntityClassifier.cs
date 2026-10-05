@@ -59,6 +59,9 @@ public struct EntityDraw3D
     /// <summary>Wall decals only: false when nothing was found to hang it on (drawn on the ceiling).</summary>
     public bool OnWall;
 
+    /// <summary>Glass to draw in place of the sprite (windows, window doors, grilles), or null.</summary>
+    public GlassLook? Glass;
+
     /// <summary>Pre-rendered impostor frame to draw instead of the live sprite (Phase 8), if any.</summary>
     public Robust.Client.Graphics.Texture? Impostor;
 
@@ -101,6 +104,10 @@ public sealed class EntityClassifier
     // shape rules: prototype id -> (thickness, lean) from the render3dRules prototypes, plus component rules
     private readonly Dictionary<string, (float Thickness, bool Lean)?> _shapeCache = new();
     private Dictionary<string, (float Thickness, bool Lean)>? _shapeParents;
+
+    // glass looks: prototype id -> look (null = keep the sprite), computed once per prototype
+    private readonly Dictionary<string, GlassLook?> _glassCache = new();
+    private Dictionary<string, Content.Shared.Render3D.Render3DGlassRule>? _glassParents;
     private List<(float Thickness, bool Lean, List<Type> Components)>? _shapeComponents;
 
     public EntityClassifier(IEntityManager entMan, IPrototypeManager protos)
@@ -230,6 +237,7 @@ public sealed class EntityClassifier
         _componentRules = new List<(Render3DMode, List<Type>)>();
         _shapeParents = new Dictionary<string, (float, bool)>();
         _shapeComponents = new List<(float, bool, List<Type>)>();
+        _glassParents = new Dictionary<string, Content.Shared.Render3D.Render3DGlassRule>();
         var factory = _entMan.ComponentFactory;
 
         foreach (var set in _protos.EnumeratePrototypes<Render3DRulesPrototype>())
@@ -248,6 +256,12 @@ public sealed class EntityClassifier
 
                 if (types.Count > 0)
                     _componentRules.Add((rule.Mode, types));
+            }
+
+            foreach (var glass in set.Glass)
+            {
+                foreach (var parent in glass.Parents)
+                    _glassParents[parent] = glass;
             }
 
             foreach (var shape in set.Shapes)
@@ -312,6 +326,63 @@ public sealed class EntityClassifier
         }
 
         return (-1f, true);
+    }
+
+    /// <summary>
+    ///     How the glass of this entity is drawn (the nearest matching ancestor in the <c>glass</c> rules), or null to keep its
+    ///     sprite: no rule matches, or the rule is marked disabled (corner and diagonal windows).
+    /// </summary>
+    public GlassLook? GetGlass(EntityUid uid)
+    {
+        if (!_meta.TryComp(uid, out var meta) || meta.EntityPrototype is not { } proto)
+            return null;
+
+        if (_glassCache.TryGetValue(proto.ID, out var cached))
+            return cached;
+
+        BuildRules();
+        GlassLook? look = null;
+        foreach (var (ancestorId, _) in _protos.EnumerateAllParents<EntityPrototype>(proto.ID, includeSelf: true))
+        {
+            if (_glassParents!.TryGetValue(ancestorId, out var rule))
+            {
+                look = rule.Disabled ? null : new GlassLook(rule);
+                break;
+            }
+        }
+
+        _glassCache[proto.ID] = look;
+        return look;
+    }
+
+    public bool IsDoor(EntityUid uid) => _doors.HasComp(uid);
+
+    /// <summary>Things that hang near the ceiling and not at eye level, by component name (forks rename or drop them).</summary>
+    private static readonly string[] CeilingComponents = { "SurveillanceCamera" };
+
+    private Type[]? _ceilingTypes;
+
+    public bool IsCeilingMounted(EntityUid uid)
+    {
+        if (_ceilingTypes == null)
+        {
+            var types = new List<Type>();
+            foreach (var name in CeilingComponents)
+            {
+                if (_entMan.ComponentFactory.TryGetRegistration(name, out var reg))
+                    types.Add(reg.Type);
+            }
+
+            _ceilingTypes = types.ToArray();
+        }
+
+        foreach (var type in _ceilingTypes)
+        {
+            if (_entMan.HasComponent(uid, type))
+                return true;
+        }
+
+        return false;
     }
 
     public bool IsMob(EntityUid uid) => _mobs.HasComp(uid);
