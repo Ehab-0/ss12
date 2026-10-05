@@ -26,6 +26,15 @@ Yes, on servers that allow it: press `F12`. Servers can make 3D mandatory for li
 Nearly certainly. It needs a graphics card with OpenGL 3.3 (almost everything since about 2012). Older computers can turn
 off the fancy parts one by one (`F11`), and the game does it for you if it notices it is slow.
 
+### Why did the game lower my graphics by itself?
+Every round starts on the highest graphics and measures the frame rate for a few seconds. If it is too low, the game
+steps down to a lighter preset and tells you. The next round starts on High again and measures again. A preset or effect
+you chose yourself in `F11` is never changed by the game, and the automatic step-down can be switched off there.
+
+### Can I turn the minimap off, or make it bigger?
+Yes: `M` switches it on and off and `-` makes it small or large. `F11` has a switch and a size slider for it too. It never
+shows other players.
+
 ### Is there a server I can just try?
 Yes: a test server at `lol.ss12.org`. Open the normal launcher, choose Direct Connect and type the address. More on
 [ss12.org](https://ss12.org). It is a test server, so it may restart or be down at times.

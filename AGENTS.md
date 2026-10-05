@@ -66,8 +66,13 @@ Things to know before touching `overlay/`:
   plane are biased by the sprite's draw depth (`SortBiasPerDepth` in `EntityPass`). `QuadBuilderOrderTest` covers this.
 - A window tile is a see-through glass box. Only the faces turned towards the camera are drawn; the far faces would be
   seen through the near ones and double every window and grille pattern. Do not "complete" the box.
+- Windows, window doors and grilles are not drawn from their sprite (a top-down picture of a frame around a small pane, about
+  62% solid frame when stood up). `GlassLook` lays out a pane, a frame, a grille mesh and highlight streaks for each glass
+  type in `rules.yml` (`glass:`), and `BillboardAtlas.DrawGlass` draws that into the atlas slot with the `Render3DGlassPane`
+  shader (straight alpha, no blending). Damage and other overlay layers are still drawn from the sprite. Rules match a prototype
+  or any of its parents; one under no listed parent keeps its drawn sprite.
 - A sprite's bounds are its whole rectangle, not its opaque pixels. A 1x1 sprite can hold a small drawing.
-- Indoors the camera cannot rise above the ceiling (wall height 1.6 tiles), so things close to it look huge. Test
+- Indoors the camera cannot rise above the ceiling (wall height 2.3 tiles by default), so things close to it look huge. Test
   visual changes with the default third-person distance, not a far-away camera.
 - Items are tilted at most 20 degrees. A first version used 60 and cards rose like ramps into the view.
 

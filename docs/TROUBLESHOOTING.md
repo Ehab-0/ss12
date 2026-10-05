@@ -14,8 +14,9 @@ Find your problem below. Every answer is in plain words. If yours is not here, s
 2. Set **Quality preset** to **Low**.
 3. Still slow? Move **Render scale** down a bit (for example to 0.75).
 
-The game also does this by itself after a few seconds of slow running, and shows a message when it does. You can turn
-that off in the same window if you do not want it.
+The game also does this by itself: every round starts on High, and after a few seconds of slow running it lowers the
+quality and shows a message. A preset you choose yourself is never changed by the game. If you do not want the automatic
+step-down, untick **Lower quality automatically if slow** in the same window.
 
 ### The mouse will not turn the camera
 - Click once inside the game window so it knows you are using it.

@@ -2,7 +2,8 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
-## Unreleased
+## 1.3.0
+See-through windows, a minimap, graphics that start high and step down by themselves, and many fixes to how things are drawn.
 - **Objects next to the camera no longer leave a smeared band across the view.** The shader fades out things very close to the
   camera, by the depth of each pixel. The thickness layers of an object lie behind its front face, so they are further from the
   camera and faded less: when you stood next to a vending machine or a disposal unit its face went see-through and its layers

@@ -14,8 +14,8 @@
 > Space Station 14 game and engine. Under the hood it is the SS14 game seen in 3D: the rules, roles and balance are whatever
 > your server already has.
 
-![The same station corridor, before and after](docs/screenshots/before_after.webp)
-*Left: the normal top-down 2D view. Right: SS12, the same moment in the same corridor. Same game, same station.*
+![The same room, before and after](docs/screenshots/before_after.webp)
+*Left: the normal top-down 2D view. Right: SS12, the same moment in the same room. Same game, same station.*
 
 **SS12 turns Space Station 14 into a first-person or third-person 3D game.** You walk around the station
 and look around with the mouse, and everything else works the way you already know: the same jobs, the same rules,
@@ -49,11 +49,17 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
   talk. Aim with the cross in the middle of the screen.
 - **It looks good, and you can turn the looks down.** Soft lighting, glowing lamps, shadows under people and
   things, a starry sky outside. Every extra can be switched off one by one, for older computers. Press `F11`.
+- **Windows are real glass.** You see the room, the corridor or the space behind a window, through a tinted pane
+  with a steel frame and a highlight, and through grilles. Each kind of window (plain, reinforced, plasma, shuttle...) has
+  its own look.
 - **Things have a body.** Items on the floor are lifted, tilted towards you and drawn with thickness, so a crowbar
   does not look like a sticker or a stain; people and machines get a thin slab of depth too. Each of these can be
   switched off on its own.
-- **It protects slow computers.** If the game starts running badly, it lowers the fancy settings by itself and
-  tells you.
+- **A minimap to find your way.** A small map of the station in the corner, with an arrow for where you look. It shows no
+  other players. `M` switches it on and off, `-` makes it larger.
+- **It starts on the best looks and protects slow computers.** Every round starts on the highest graphics and measures the
+  frame rate. If the game runs badly, it lowers the fancy settings by itself and tells you. Your own choices in `F11` are
+  never overridden.
 
 ## What it is not
 
@@ -65,14 +71,23 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
 
 ## Screenshots
 
+All of these were taken on the **highest** graphics setting, in a game window of about 2400 x 1300 pixels.
+
 | | |
 |---|---|
-| ![A corridor](docs/screenshots/hero_high.webp) | ![Characters with shadows](docs/screenshots/visual_entity_fx_off_on.webp) |
-| A station corridor | Shadows and outlines on people, off (left) and on (right) |
-| ![Lamps](docs/screenshots/visual_lamp_halo.webp) | ![Cuffing](docs/screenshots/flash_cuff_pull_3d.webp) |
-| Lamps that glow | Security work: flash, cuff, pull |
-| ![Items](docs/screenshots/visual_items_shape_off_on.webp) | |
-| Items on the floor with the shape effects off (left) and on (right) | |
+| ![A station room](docs/screenshots/hero_high.webp) | ![Glass walls](docs/screenshots/glass_windows.webp) |
+| Botany: lamps, a ceiling, items and beds with thickness | Glass walls in Chemistry: the machines and rooms behind them are visible |
+| ![First person](docs/screenshots/first_person.webp) | ![Engineering](docs/screenshots/engineering_3d.webp) |
+| First person (`N`): you look through the character's eyes | Engineering: lockers, signs and lamps |
+| ![Large minimap](docs/screenshots/minimap_large.webp) | |
+| The large minimap (`-`): the whole station, with the names of the areas | |
+
+### Low and High
+
+The graphics presets in `F11` (**Low**, **Medium**, **High**) switch the extras on and off. Same place, same moment:
+
+![The same room on Low (left) and High (right)](docs/screenshots/low_vs_high.webp)
+*Left: Low, flat and plain, for slow computers. Right: High, with the tiled ceiling, glowing lamps, shadows and thickness.*
 
 More pictures are in the [screenshots folder](docs/screenshots/).
 
@@ -88,6 +103,8 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Free the mouse (to click menus), hold | `Alt` |
 | Open the 3D settings (looks, speed, keys) | `F11` |
 | Switch between 3D and the old flat view, if the server allows it | `F12` |
+| Minimap on and off | `M` |
+| Minimap small or large | `-` |
 | Everything else (use, throw, talk, combat mode...) | the same keys as in normal SS14 |
 
 The little cross in the middle of the screen is where you point. It turns **green** when what you are pointing at is
@@ -123,15 +140,15 @@ with the `F12` key.
 
 Almost certainly. It needs a graphics card that can run OpenGL 3.3, which is nearly every computer made since
 about 2012. On a 2017 mid-range card (Radeon RX 580) the author measured roughly **200 to 300 frames per second** at 1080p with every extra
-on (screens normally show 60, so that leaves a lot of room).
+on (an earlier version; screens normally show 60, so that leaves a lot of room).
 
 If your computer is slow:
 1. Press `F11`.
 2. Set **Quality preset** to **Low**.
 3. If it is still slow, move **Render scale** down a little.
 
-You do not even have to do that: with the automatic setting (on by default) the game lowers the quality itself
-after a few seconds of slow running.
+You do not even have to do that: every round starts on High, and with the automatic setting (on by default) the game
+lowers the quality itself after a few seconds of slow running, and tells you when it does.
 
 ---
 
