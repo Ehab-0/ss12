@@ -41,7 +41,9 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle 3D / 2D (when allowed) | `F12` |
 | Toggle first / third person | `N` |
 | Free cursor (hold) | `Alt` (Alt-click keeps its normal meaning) |
-| 3D settings window (look, graphics, keys) | `F11`, or the console command `render3d_settings` |
+| 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
+| Minimap on and off | `M`, or the console command `render3d_minimap` |
+| Minimap small or large | `-` |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -92,7 +94,9 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 |------|---------|
 | `render3d.enabled` (true) | Use the 3D view at all. |
 | `render3d.enforced` (false, server, replicated) | Living players may not use 2D. |
-| `render3d.wall_height` (1.6), `eye_height` (0.9) | Tiles are 1 unit wide; the plan's 1.25 / 0.75 felt cramped. |
+| `render3d.yaw_send_rate` (12, client) | How many camera yaw updates per second the client sends while the mouse turns the view (4 to 30). Lower sends less over a lossy connection; WASD follows the new direction at this rate. |
+| `render3d.settings_on_join` (0, server, replicated), `render3d.settings_shown` (false) | Opens the 3D settings window by itself when a player enters a round: 0 never, 1 the first time only (`settings_shown` remembers it on that computer), 2 every round. |
+| `render3d.wall_height` (2.3), `eye_height` (0.9) | Tiles are 1 unit wide; the plan's 1.25 / 0.75 felt cramped, so rooms are 2.3 tiles tall (also a slider in the F11 window). |
 | `render3d.table_height` (0.45), `effect_height` (0.6), `ui_anchor_height` (0.9) | Where table tops, flat effects and floating labels sit. |
 | `render3d.fov` (80, degrees, integer) | Vertical field of view. |
 | `render3d.render_scale` (1.0) | Resolution of the 3D scene relative to the window (below 1 draws fewer pixels). |
@@ -103,10 +107,11 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
-| `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45) | Preset (0 low, 1 medium, 2 high, 3 custom), and the automatic step-down. |
-| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
+| `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
+| `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
+| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
-| `render3d.dev_channel` (false), `render3d.debug_view` (0) | Developer aids. |
+| `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
 
 ## Graphics, and turning things off for older PCs
 
@@ -128,7 +133,8 @@ effect. Toggling a single effect by hand makes the preset read "Custom". The sam
 | `grade` | tone mapping, colour grading, vignette, dithering | - | on | on |
 | `haze` | distance haze tinted by the local light | - | - | on |
 | `sky` | layered stars and a faint nebula | - | on | on |
-| `fixtures` | wall lamps hang near the ceiling and glow | - | on | on |
+| `fixtures` | wall lamps get a soft glow halo (they hang near the ceiling at every level) | - | on | on |
+| `glass` | windows, window doors and grilles are drawn as see-through glass (a thin frame and a mostly transparent pane) instead of the sprite's top-down picture, which looked like a solid wall | on | on | on |
 | `head_bob` | gentle bob while walking in first person | - | - | - |
 | `item_lift` | items on the ground are lifted a little and get a contact shadow and a thin outline, so they read as objects and not as stains | - | on | on |
 | `item_lean` | items on the ground tilt towards the camera (up to 20 degrees, none when looking straight down) | - | on | on |
@@ -144,6 +150,10 @@ the preset down one level and tells the player (`render3d.auto_quality`, `render
 already off it lowers the render scale as a last resort. It never steps up and never touches a Custom setup. On a
 Radeon RX 580 at 1600x900 the whole High preset costs about 0.65 ms per frame (342 FPS Low, 280 FPS High with 20 extra
 characters in view).
+
+Every round starts on the highest preset: a round is joined with a short message that the frame rate is being measured, and if the
+game itself had lowered the graphics last time (`render3d.auto_lowered`) they are put back on High first. A preset or effect the
+player chose themselves is never overridden. When it does lower the graphics, it says so on screen for a few seconds.
 
 ## Shape of things: lean and thickness
 
@@ -162,6 +172,14 @@ darker with depth, so the sides of the silhouette show like the sides of a slab 
 fewer beyond 9 tiles, none beyond 17 tiles, and at most 3000 extra quads per frame). Only the front face is clickable
 and outlined. Lean is a plain tilt of the sprite's quad about its near edge (flat things) or its foot (standing things);
 picking uses the tilted quad, so it is easier to click.
+
+The `glass` list of a `render3dRules` prototype says how windows, window doors and grilles are drawn when the `glass` effect is
+on: a `tint` and an `alpha` for the pane (0 clear, 1 solid), a `frame` colour and `frameWidth` (pixels of the 32 pixel picture of
+a tile), an optional fine `mesh` (spacing in pixels, for grilles) with its `meshColor` (may carry an alpha, `#rrggbbaa`), and
+`shine` for the faint diagonal highlight. The picture is built from these and written into the sprite atlas in place of the
+sprite; the layers of the sprite above the first one (the cracks of a damaged window) are still drawn over it. The nearest
+ancestor wins, and `disabled: true` keeps the sprite (corner and diagonal windows). A window door that is open keeps its
+sprite too. Prototypes the list does not name are drawn from their sprite as before.
 
 Per prototype, the `shapes` list of a `render3dRules` prototype (`Resources/Prototypes/Render3D/rules.yml`) overrides
 the thickness (in tiles, 0 = paper thin) and can keep a thing from leaning (`lean: false`). It matches prototype ids and
@@ -239,6 +257,9 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 | `r3d_cam fp\|tp` | camera mode |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
+| `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |
+| `r3d_atlas <name>` | save the billboard atlas and its glow layer as `atlas_<name>.png` / `atlasglow_<name>.png` |
+| `r3d_audit <name>` | draw every entity of the next frame alone in a roomy cell, save the sheets as `audit_<name>_<n>.png` and log the atlas slot of each cell (art outside its slot is painted onto a neighbour in the real atlas) |
 | `r3d_pick`, `r3d_dump` | what is under the crosshair; every drawn entity with its net id |
 | `r3d_noself on\|off`, `r3d_glow on\|off` | exclude the own body from picks; compare with/without the glow atlas |
 | `render3d_fx <effect> on\|off`, `render3d_quality ...` | switch effects (also real player commands), used for the A/B screenshots in `docs/ss12/screenshots/visual_*` |

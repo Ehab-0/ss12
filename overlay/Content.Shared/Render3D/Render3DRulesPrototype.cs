@@ -1,3 +1,4 @@
+using Robust.Shared.Maths;
 using Robust.Shared.Prototypes;
 
 namespace Content.Shared.Render3D;
@@ -20,6 +21,10 @@ public sealed partial class Render3DRulesPrototype : IPrototype
     /// <summary>Per-prototype overrides of the thickness and the lean of things (see <see cref="Render3DShapeRule"/>).</summary>
     [DataField]
     public List<Render3DShapeRule> Shapes = new();
+
+    /// <summary>How windows, window doors and grilles are drawn (see <see cref="Render3DGlassRule"/>).</summary>
+    [DataField]
+    public List<Render3DGlassRule> Glass = new();
 }
 
 /// <summary>
@@ -67,4 +72,52 @@ public sealed partial class Render3DShapeRule
     /// <summary>False keeps the thing from tilting towards the camera (it stays exactly flat or upright).</summary>
     [DataField]
     public bool Lean = true;
+}
+
+/// <summary>
+///     How a kind of glass is drawn by the 3D view. The picture of a window in the game is a top-down drawing of a frame with
+///     a small pane in the middle; stuck on a standing face it looks like a wall and hides everything behind it. With the
+///     "glass" effect on, the 3D view draws these faces itself instead: a thin frame and a mostly transparent, tinted pane
+///     (and a fine mesh for grilles), keeping the cracks the sprite shows for damage. Matched like
+///     <see cref="Render3DRule"/> by prototype and ancestors (nearest wins); only prototypes drawn as glass boxes or edge
+///     panels are looked up.
+/// </summary>
+[DataDefinition]
+public sealed partial class Render3DGlassRule
+{
+    /// <summary>Entity prototype ids (matched against the entity's prototype and all its parents).</summary>
+    [DataField]
+    public List<string> Parents = new();
+
+    /// <summary>True keeps the sprite for these (corner and diagonal windows, whose picture is not a plain pane).</summary>
+    [DataField]
+    public bool Disabled;
+
+    /// <summary>Colour of the pane.</summary>
+    [DataField]
+    public Color Tint = Color.FromHex("#8fc4e8");
+
+    /// <summary>How opaque the pane is, 0 (clear) to 1.</summary>
+    [DataField]
+    public float Alpha = 0.18f;
+
+    /// <summary>Colour of the frame around the pane.</summary>
+    [DataField]
+    public Color Frame = Color.FromHex("#3a4658");
+
+    /// <summary>Width of the frame in pixels of the 32 pixel picture of a tile (0 = none).</summary>
+    [DataField]
+    public int FrameWidth = 1;
+
+    /// <summary>Distance in pixels between the lines of a fine mesh over the pane (grilles); 0 = no mesh.</summary>
+    [DataField]
+    public int Mesh;
+
+    /// <summary>Colour of the mesh lines.</summary>
+    [DataField]
+    public Color MeshColor = Color.FromHex("#2a2e33");
+
+    /// <summary>A faint diagonal highlight, which makes a clear pane read as glass.</summary>
+    [DataField]
+    public bool Shine = true;
 }

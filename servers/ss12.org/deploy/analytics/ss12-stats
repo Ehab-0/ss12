@@ -1,0 +1,425 @@
+#!/usr/bin/env python3
+"""Simple, private analytics for the ss12.org website and the SS14 test server. Standard library only.
+
+  ss12-stats sample              append one line (time, players, round, preset) to the status log; run every minute
+  ss12-stats report [--days N] [--html FILE]
+                                 print a summary; with --html also write a page (see /etc/ss12-stats.conf)
+  ss12-stats selftest            check the report on made-up data
+
+Website numbers come from the web server's access log (visitor addresses are already cut to their network part there, there
+are no cookies and nothing is sent to other sites; requests that carry Do Not Track or Global Privacy Control are left out). Server numbers come from the game's own database (read only) and from the
+status log. Settings live in /etc/ss12-stats.conf (INI, section [stats]); every key is optional:
+
+  exclude_names   comma separated account names left out of the player numbers (for example your own)
+  web_logs        glob of the web server's access logs
+  database        the game's SQLite database
+  data_dir        where the status log and the page are kept
+  status_url      the game server's status address
+  site_host       the website's host name (visits from it are not counted as a referrer)
+"""
+import argparse
+import collections
+import configparser
+import csv
+import datetime as dt
+import glob
+import html
+import json
+import os
+import re
+import sqlite3
+import sys
+import tempfile
+import time
+import urllib.request
+
+CONF = "/etc/ss12-stats.conf"
+DEFAULTS = {
+    "exclude_names": "",
+    "web_logs": "/var/log/caddy/ss12.org*.log",
+    "database": "/opt/ss14/data/preferences.db",
+    "data_dir": "/var/lib/ss12-stats",
+    "status_url": "http://127.0.0.1:1212/status",
+    "site_host": "ss12.org",
+}
+EVENTS = {"copy": "Copied the server address", "github": "Clicked GitHub", "ss14": "Clicked the SS14 download", "shot": "Opened a screenshot"}
+BOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|headless|monitor|scan|fetch|http-?client|okhttp|libwww|scrapy|"
+                 r"preview|facebookexternalhit|embedly|discord|telegram|whatsapp|slack|skype|vkshare|bing|yandex|ahrefs|semrush|"
+                 r"uptime|pingdom|check|probe|zgrab|masscan|nmap|censys|expanse|go-http", re.I)
+MOBILE = re.compile(r"mobi|android|iphone|ipad", re.I)
+
+
+def load_conf(path=CONF):
+    conf = dict(DEFAULTS)
+    cp = configparser.ConfigParser()
+    if os.path.exists(path):
+        cp.read(path)
+        conf.update({k: v for k, v in cp["stats"].items()} if cp.has_section("stats") else {})
+    return conf
+
+
+def day_of(ts):
+    return dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+
+
+def utc_text_to_local_day(text):
+    """The game's database stores UTC times as 'YYYY-MM-DD HH:MM:SS.fffffff'."""
+    d = dt.datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=dt.timezone.utc)
+    return d.astimezone().strftime("%Y-%m-%d")
+
+
+def interval_seconds(text):
+    """'HH:MM:SS.fff' or 'D.HH:MM:SS.fff' (a .NET TimeSpan) to seconds."""
+    try:
+        days = 0
+        if re.match(r"^\d+\.\d+:", text):
+            d, text = text.split(".", 1)
+            days = int(d)
+        h, m, s = text.split(":")
+        return days * 86400 + int(h) * 3600 + int(m) * 60 + float(s)
+    except (ValueError, AttributeError):
+        return 0.0
+
+
+# ---------------------------------------------------------------- sampling
+
+def cmd_sample(conf):
+    os.makedirs(conf["data_dir"], exist_ok=True)
+    row = [int(time.time()), "", "", "", 0]
+    try:
+        with urllib.request.urlopen(conf["status_url"], timeout=5) as r:
+            data = json.load(r)
+        row = [int(time.time()), int(data.get("players", 0)), data.get("round_id") or "", str(data.get("preset") or ""), 1]
+    except Exception:
+        pass  # no answer: recorded as a missed sample
+    path = os.path.join(conf["data_dir"], "status.csv")
+    new = not os.path.exists(path)
+    with open(path, "a", newline="") as f:
+        w = csv.writer(f)
+        if new:
+            w.writerow(["time", "players", "round_id", "preset", "ok"])
+        w.writerow(row)
+
+
+# ---------------------------------------------------------------- website
+
+def read_web(conf, since_ts):
+    """Per-day website numbers from the access log (JSON lines)."""
+    days = collections.defaultdict(lambda: {
+        "views": 0, "visitors": set(), "bots": 0, "mobile": set(), "events": collections.Counter(),
+        "referrers": collections.Counter(), "paths": collections.Counter()})
+    for path in glob.glob(conf["web_logs"]):
+        try:
+            f = open(path, encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        with f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                    ts = float(e["ts"])
+                    req = e["request"]
+                except (ValueError, KeyError, TypeError):
+                    continue
+                if ts < since_ts or not isinstance(req, dict):
+                    continue
+                uri = str(req.get("uri", "/")).split("?", 1)[0]
+                method = req.get("method", "")
+                status = e.get("status", 0)
+                headers = {str(k).lower(): v for k, v in (req.get("headers") or {}).items()}
+                if (headers.get("dnt") or [""])[0] == "1" or (headers.get("sec-gpc") or [""])[0] == "1":
+                    continue  # the browser asked not to be tracked: left out of every count
+                ua = (headers.get("user-agent") or [""])[0]
+                d = days[day_of(ts)]
+                m = re.match(r"^/a/([a-z0-9_-]{1,24})$", uri)
+                if m:
+                    if method == "POST" and status == 204 and m.group(1) in EVENTS and not BOT.search(ua):
+                        d["events"][m.group(1)] += 1
+                    continue
+                if method != "GET" or uri not in ("/", "/index.html"):
+                    continue
+                if status != 200:
+                    continue
+                if not ua or BOT.search(ua):
+                    d["bots"] += 1
+                    continue
+                visitor = (req.get("remote_ip", ""), ua)
+                d["views"] += 1
+                d["visitors"].add(visitor)
+                if MOBILE.search(ua):
+                    d["mobile"].add(visitor)
+                ref = (headers.get("referer") or [""])[0]
+                host = re.sub(r"^https?://([^/:?#]+).*$", r"\1", ref).lower() if ref else ""
+                if host and host != conf["site_host"] and host != "www." + conf["site_host"]:
+                    d["referrers"][host[:80]] += 1
+                else:
+                    d["referrers"]["(direct)"] += 1
+    return days
+
+
+# ---------------------------------------------------------------- game server
+
+def read_game(conf, since_day):
+    out = {"days": collections.defaultdict(lambda: {"joins": 0, "players": set(), "new": set(), "rounds": 0}),
+           "total_players": 0, "avg_minutes": None, "available": False}
+    db = conf["database"]
+    if not os.path.exists(db):
+        return out
+    excluded = {n.strip().lower() for n in conf["exclude_names"].split(",") if n.strip()}
+    try:
+        c = sqlite3.connect("file:%s?mode=ro" % db, uri=True, timeout=5)
+        c.row_factory = sqlite3.Row
+        first_seen = {}
+        for r in c.execute("select user_id, first_seen_time, last_seen_user_name from player"):
+            if (r["last_seen_user_name"] or "").lower() in excluded:
+                continue
+            first_seen[r["user_id"]] = utc_text_to_local_day(r["first_seen_time"])
+        out["total_players"] = len(first_seen)
+        for r in c.execute("select user_id, user_name, time from connection_log where denied is null"):
+            if (r["user_name"] or "").lower() in excluded:
+                continue
+            day = utc_text_to_local_day(r["time"])
+            d = out["days"][day]
+            d["joins"] += 1
+            d["players"].add(r["user_id"])
+            if first_seen.get(r["user_id"]) == day:
+                d["new"].add(r["user_id"])
+        for r in c.execute("select start_date from round"):
+            out["days"][utc_text_to_local_day(r["start_date"])]["rounds"] += 1
+        secs = [interval_seconds(r["time_spent"]) for r in c.execute(
+            "select p.time_spent, q.last_seen_user_name from play_time p join player q on q.user_id = p.player_id "
+            "where p.tracker = 'Overall'") if (r["last_seen_user_name"] or "").lower() not in excluded]
+        if secs:
+            out["avg_minutes"] = sum(secs) / len(secs) / 60
+        out["available"] = True
+        c.close()
+    except sqlite3.Error as ex:
+        out["error"] = str(ex)
+    return out
+
+
+def read_status(conf, since_ts):
+    """Per-day peak and average players, and how many of the one-minute samples got an answer."""
+    days = collections.defaultdict(lambda: {"peak": 0, "sum": 0, "n": 0, "busy": 0, "ok": 0, "total": 0})
+    path = os.path.join(conf["data_dir"], "status.csv")
+    if not os.path.exists(path):
+        return days
+    with open(path, newline="") as f:
+        for r in csv.DictReader(f):
+            try:
+                ts = int(r["time"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if ts < since_ts:
+                continue
+            d = days[day_of(ts)]
+            d["total"] += 1
+            if r.get("ok") == "1":
+                d["ok"] += 1
+                p = int(r.get("players") or 0)
+                d["peak"] = max(d["peak"], p)
+                d["sum"] += p
+                d["n"] += 1
+                d["busy"] += 1 if p > 0 else 0
+    return days
+
+
+# ---------------------------------------------------------------- report
+
+def build(conf, days):
+    since = dt.datetime.now() - dt.timedelta(days=days - 1)
+    since_day = since.strftime("%Y-%m-%d")
+    since_ts = dt.datetime.combine(since.date(), dt.time.min).timestamp()
+    web = read_web(conf, since_ts)
+    game = read_game(conf, since_day)
+    status = read_status(conf, since_ts)
+    all_days = [(dt.date.today() - dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
+    return {"days": all_days, "web": web, "game": game, "status": status}
+
+
+def text_report(data):
+    web, game, status = data["web"], data["game"], data["status"]
+    out = []
+    out.append("WEBSITE (visits to the home page; bots and link previews are counted apart)")
+    out.append("%-11s %8s %7s %7s %6s %5s" % ("day", "visitors", "views", "mobile", "events", "bots"))
+    refs, events, tv = collections.Counter(), collections.Counter(), 0
+    for day in data["days"]:
+        d = web.get(day)
+        if not d:
+            continue
+        refs.update(d["referrers"])
+        events.update(d["events"])
+        tv += len(d["visitors"])
+        out.append("%-11s %8d %7d %7d %6d %5d" % (day, len(d["visitors"]), d["views"], len(d["mobile"]), sum(d["events"].values()), d["bots"]))
+    out.append("visitor-days in the period: %d" % tv)
+    if refs:
+        out.append("where visitors came from: " + ", ".join("%s %d" % kv for kv in refs.most_common(8)))
+    if events:
+        out.append("what they did: " + ", ".join("%s %d" % (EVENTS[k], v) for k, v in events.most_common()))
+    out.append("")
+    out.append("SERVER (excluding the names in exclude_names; the status log counts everyone connected, admins included)")
+    if not game["available"]:
+        out.append("  the game database could not be read" + (": " + game["error"] if "error" in game else ""))
+    out.append("%-11s %7s %7s %5s %7s %7s %6s %7s" % ("day", "players", "new", "joins", "rounds", "peak", "avg", "up%"))
+    for day in data["days"]:
+        g, s = game["days"].get(day), status.get(day)
+        if not g and not s:
+            continue
+        g = g or {"joins": 0, "players": set(), "new": set(), "rounds": 0}
+        s = s or {"peak": 0, "sum": 0, "n": 0, "busy": 0, "ok": 0, "total": 0}
+        avg = (s["sum"] / s["busy"]) if s["busy"] else 0
+        up = (100.0 * s["ok"] / 1440) if s["total"] else 0
+        out.append("%-11s %7d %7d %5d %7d %7d %6.1f %6.0f%%" % (day, len(g["players"]), len(g["new"]), g["joins"], g["rounds"], s["peak"], avg, min(up, 100)))
+    out.append("accounts ever seen (excluding the names above): %d" % game["total_players"])
+    if game["avg_minutes"] is not None:
+        out.append("average total play time per account: %.0f minutes" % game["avg_minutes"])
+    return "\n".join(out) + "\n"
+
+
+def html_report(data):
+    web, game, status = data["web"], data["game"], data["status"]
+    e = html.escape
+    rows_w, rows_g = [], []
+    refs, events = collections.Counter(), collections.Counter()
+    peak_v = max([len(web[d]["visitors"]) for d in web] + [1])
+    for day in data["days"]:
+        d = web.get(day)
+        if not d:
+            continue
+        refs.update(d["referrers"])
+        events.update(d["events"])
+        n = len(d["visitors"])
+        rows_w.append("<tr><td>%s</td><td>%d<i style='width:%d%%'></i></td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" % (
+            e(day), n, round(100 * n / peak_v), d["views"], len(d["mobile"]), sum(d["events"].values()), d["bots"]))
+    for day in data["days"]:
+        g, s = game["days"].get(day), status.get(day)
+        if not g and not s:
+            continue
+        g = g or {"joins": 0, "players": set(), "new": set(), "rounds": 0}
+        s = s or {"peak": 0, "sum": 0, "n": 0, "busy": 0, "ok": 0, "total": 0}
+        avg = (s["sum"] / s["busy"]) if s["busy"] else 0
+        up = min(100.0, 100.0 * s["ok"] / 1440) if s["total"] else 0
+        rows_g.append("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%.1f</td><td>%.0f%%</td></tr>" % (
+            e(day), len(g["players"]), len(g["new"]), g["joins"], g["rounds"], s["peak"], avg, up))
+    ref_list = "".join("<li>%s <b>%d</b></li>" % (e(k), v) for k, v in refs.most_common(10)) or "<li>none yet</li>"
+    ev_list = "".join("<li>%s <b>%d</b></li>" % (e(EVENTS[k]), v) for k, v in events.most_common()) or "<li>none yet</li>"
+    extra = "%d accounts seen" % game["total_players"]
+    if game["avg_minutes"] is not None:
+        extra += ", %.0f minutes of play per account on average" % game["avg_minutes"]
+    return """<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>ss12.org stats</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;background:#12141d;color:#e6e8f2;margin:0;padding:24px;max-width:900px;margin:auto}
+h1{font-size:22px}h2{margin-top:32px;font-size:17px;color:#9db4ff}table{border-collapse:collapse;width:100%%}
+td,th{padding:5px 8px;text-align:right;border-bottom:1px solid #262a3a}td:first-child,th:first-child{text-align:left}
+td i{display:block;height:3px;background:#4a6cf7;margin-top:2px}ul{padding-left:18px}small,.m{color:#8c91a8}</style>
+<h1>ss12.org stats</h1><p class="m">Made %s. Visits are counted from the web server's log without cookies; visitor addresses are cut to their network part.</p>
+<h2>Website</h2><table><tr><th>day</th><th>visitors</th><th>views</th><th>on a phone</th><th>actions</th><th>bots and previews</th></tr>%s</table>
+<ul class="m" style="list-style:none;padding:0"><li>Where visitors came from:</li></ul><ul>%s</ul>
+<ul class="m" style="list-style:none;padding:0"><li>What they did:</li></ul><ul>%s</ul>
+<h2>Server</h2><p class="m">%s. Peak and average count everyone connected, admins included; the other columns leave out the names in the settings file.</p>
+<table><tr><th>day</th><th>players</th><th>new</th><th>joins</th><th>rounds</th><th>peak online</th><th>avg online</th><th>answered</th></tr>%s</table>
+</html>
+""" % (e(dt.datetime.now().strftime("%Y-%m-%d %H:%M")), "".join(rows_w), ref_list, ev_list, e(extra), "".join(rows_g))
+
+
+def cmd_report(conf, days, html_path):
+    data = build(conf, days)
+    sys.stdout.write(text_report(data))
+    if html_path:
+        os.makedirs(os.path.dirname(html_path) or ".", exist_ok=True)
+        tmp = html_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(html_report(data))
+        os.replace(tmp, html_path)
+
+
+# ---------------------------------------------------------------- self test
+
+def cmd_selftest():
+    now = time.time()
+    today = dt.datetime.now().strftime("%Y-%m-%d")
+    with tempfile.TemporaryDirectory() as tmp:
+        log = os.path.join(tmp, "ss12.org.log")
+        human = {"User-Agent": ["Mozilla/5.0 (Windows NT 10.0) Chrome/120"], "Referer": ["https://www.reddit.com/r/ss14/"]}
+        phone = {"User-Agent": ["Mozilla/5.0 (iPhone) Safari"], "Referer": ["https://ss12.org/"]}
+        bot = {"User-Agent": ["Googlebot/2.1"]}
+
+        def line(uri, method="GET", status=200, ip="1.2.3.0", headers=None, ts=None):
+            return json.dumps({"ts": ts or now, "status": status, "request": {
+                "remote_ip": ip, "method": method, "uri": uri, "headers": headers or human}})
+
+        lines = [line("/"), line("/", ip="1.2.3.0"), line("/", ip="5.6.7.0", headers=phone), line("/", ip="9.9.9.0", headers=bot),
+                 line("/style.css"), line("/missing", status=404), line("/?utm=1", ip="7.7.7.0"),
+                 line("/a/copy", "POST", 204), line("/a/copy", "POST", 204), line("/a/evil<script>", "POST", 204),
+                 line("/a/github", "POST", 204, headers=bot), "not json", json.dumps({"ts": now}),
+                 line("/", ip="3.3.3.0", headers=dict(human, DNT=["1"])), line("/", ip="4.4.4.0", headers=dict(human, **{"Sec-Gpc": ["1"]})),
+                 line("/a/copy", "POST", 204, headers=dict(human, DNT=["1"]))]
+        open(log, "w").write("\n".join(lines) + "\n")
+
+        db = os.path.join(tmp, "p.db")
+        c = sqlite3.connect(db)
+        c.executescript("""
+            create table player(user_id text, first_seen_time text, last_seen_user_name text);
+            create table connection_log(user_id text, user_name text, time text, denied int);
+            create table round(start_date text);
+            create table play_time(player_id text, tracker text, time_spent text);""")
+        utc = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.0000000")
+        c.executemany("insert into player values(?,?,?)", [("a", utc, "Alice"), ("b", "2020-01-01 00:00:00.0", "Bob"), ("m", utc, "Me")])
+        c.executemany("insert into connection_log values(?,?,?,NULL)", [("a", "Alice", utc), ("a", "Alice", utc), ("b", "Bob", utc), ("m", "Me", utc)])
+        c.executemany("insert into round values(?)", [(utc,), (utc,)])
+        c.executemany("insert into play_time values(?,?,?)", [("a", "Overall", "01:00:00.0"), ("b", "Overall", "1.01:00:00.0"), ("m", "Overall", "09:00:00")])
+        c.commit()
+        c.close()
+
+        data_dir = os.path.join(tmp, "data")
+        os.makedirs(data_dir)
+        with open(os.path.join(data_dir, "status.csv"), "w") as f:
+            f.write("time,players,round_id,preset,ok\n")
+            for i, p in enumerate((0, 2, 5, 3)):
+                f.write("%d,%d,1,Secret,1\n" % (int(now) - i * 60, p))
+            f.write("%d,,,,0\n" % (int(now) - 400))
+
+        conf = dict(DEFAULTS, web_logs=log, database=db, data_dir=data_dir, exclude_names="me")
+        data = build(conf, 3)
+        w = data["web"][today]
+        assert w["views"] == 4, w["views"]  # two from 1.2.3.0, the phone one, and the query-string one
+        assert len(w["visitors"]) == 3, len(w["visitors"])
+        assert w["bots"] == 1 and len(w["mobile"]) == 1
+        assert w["events"] == collections.Counter({"copy": 2}), w["events"]
+        assert w["referrers"]["www.reddit.com"] == 3 and w["referrers"]["(direct)"] == 1, w["referrers"]
+        g = data["game"]["days"][today]
+        assert len(g["players"]) == 2 and g["joins"] == 3 and len(g["new"]) == 1 and g["rounds"] == 2, g
+        assert data["game"]["total_players"] == 2
+        assert abs(data["game"]["avg_minutes"] - (60 + 25 * 60) / 2) < 0.01, data["game"]["avg_minutes"]
+        s = data["status"][today]
+        assert s["peak"] == 5 and s["ok"] == 4 and s["total"] == 5, s
+        txt = text_report(data)
+        assert today in txt and "excluding the names" in txt
+        page = html_report(data)
+        assert "<script" not in page.lower().replace("<meta", "") or "&lt;script" in page
+        assert "Me" not in re.sub(r"<[^>]*>", "", page).split("Server")[-1].replace("Made", "")
+        assert interval_seconds("1.01:00:00.5") == 90000.5 and interval_seconds("bogus") == 0.0
+    print("selftest ok")
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("sample")
+    r = sub.add_parser("report")
+    r.add_argument("--days", type=int, default=14)
+    r.add_argument("--html")
+    sub.add_parser("selftest")
+    a = p.parse_args()
+    if a.cmd == "selftest":
+        cmd_selftest()
+        return
+    conf = load_conf()
+    if a.cmd == "sample":
+        cmd_sample(conf)
+    else:
+        cmd_report(conf, max(1, min(a.days, 365)), a.html)
+
+
+if __name__ == "__main__":
+    main()

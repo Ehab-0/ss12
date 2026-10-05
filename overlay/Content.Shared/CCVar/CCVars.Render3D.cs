@@ -20,7 +20,7 @@ public sealed partial class CCVars
 
     /// <summary>Height of the ceiling (and of wall blocks) in tile units.</summary>
     public static readonly CVarDef<float> Render3DWallHeight =
-        CVarDef.Create("render3d.wall_height", 1.6f, CVar.CLIENTONLY | CVar.ARCHIVE);
+        CVarDef.Create("render3d.wall_height", 2.3f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>First-person eye height in tile units.</summary>
     public static readonly CVarDef<float> Render3DEyeHeight =
@@ -97,6 +97,41 @@ public sealed partial class CCVars
     public static readonly CVarDef<int> Render3DQuality =
         CVarDef.Create("render3d.quality", 2, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     Opens the 3D settings window by itself when a player enters a round, so they can pick the graphics quality:
+    ///     0 never (the default), 1 the first time only (see <see cref="Render3DSettingsShown"/>), 2 every round.
+    ///     Set by the server.
+    /// </summary>
+    public static readonly CVarDef<int> Render3DSettingsOnJoin =
+        CVarDef.Create("render3d.settings_on_join", 0, CVar.SERVER | CVar.REPLICATED);
+
+    /// <summary>The 3D settings window has already been opened automatically on this computer (for mode 1 of <see cref="Render3DSettingsOnJoin"/>).</summary>
+    public static readonly CVarDef<bool> Render3DSettingsShown =
+        CVarDef.Create("render3d.settings_shown", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     How much closer (on the squared distance) an entity that was drawn last frame counts when the nearest ones are
+    ///     picked under <see cref="Render3DBillboardCap"/>; 1 turns the head start off. A developer aid.
+    /// </summary>
+    public static readonly CVarDef<float> Render3DCapHysteresis =
+        CVarDef.Create("render3d.cap_hysteresis", 0.6f, CVar.CLIENTONLY);
+
+    /// <summary>
+    ///     How many camera yaw updates per second the client may send to the server while the mouse turns the view (4 to
+    ///     30). Each update is a reliable message, so on a lossy connection a high rate adds packets that can each hold up
+    ///     the movement keys behind them; a lower rate sends fewer. WASD follows the new direction at this rate.
+    /// </summary>
+    public static readonly CVarDef<float> Render3DYawSendRate =
+        CVarDef.Create("render3d.yaw_send_rate", 12f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     A developer aid: whether the billboard atlas slot of a sprite covers the offset of the sprite itself (wall lamps have
+    ///     one). Off gives the old behaviour, where the art of such a sprite lands outside its slot, on top of its neighbours;
+    ///     it exists to compare the two (<c>r3d_atlas</c>) and should stay on.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DDevAtlasOffset =
+        CVarDef.Create("render3d.dev_atlas_offset", true, CVar.CLIENTONLY);
+
     /// <summary>Step the quality down automatically when the frame rate is low (never steps up).</summary>
     public static readonly CVarDef<bool> Render3DAutoQuality =
         CVarDef.Create("render3d.auto_quality", true, CVar.CLIENTONLY | CVar.ARCHIVE);
@@ -104,6 +139,30 @@ public sealed partial class CCVars
     /// <summary>Average FPS below which auto quality steps down.</summary>
     public static readonly CVarDef<int> Render3DAutoQualityFps =
         CVarDef.Create("render3d.auto_quality_fps", 45, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     The last time the quality or the render scale was lowered, it was automatic (not the player's choice). The next time the
+    ///     player joins a round the game starts on the highest graphics again and measures the frame rate again. Any change the
+    ///     player makes themselves clears it.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DAutoLowered =
+        CVarDef.Create("render3d.auto_lowered", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>The minimap in a corner of the 3D view: 0 hidden, 1 small, 2 large (with the names of the areas).</summary>
+    public static readonly CVarDef<int> Render3DMinimapMode =
+        CVarDef.Create("render3d.minimap_mode", 1, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Side of the small minimap in pixels.</summary>
+    public static readonly CVarDef<int> Render3DMinimapSize =
+        CVarDef.Create("render3d.minimap_size", 200, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Tiles from the player to the edge of the small minimap (the large one shows about two and a half times as many).</summary>
+    public static readonly CVarDef<float> Render3DMinimapRange =
+        CVarDef.Create("render3d.minimap_range", 20f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>The minimap turns with the camera, so that up on the map is the way the player looks (otherwise north is up).</summary>
+    public static readonly CVarDef<bool> Render3DMinimapRotate =
+        CVarDef.Create("render3d.minimap_rotate", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>Glow around bright lights and screens.</summary>
     public static readonly CVarDef<bool> Render3DFxBloom =
@@ -152,9 +211,16 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> Render3DFxSky =
         CVarDef.Create("render3d.fx.sky", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
-    /// <summary>Wall lamps drawn as glowing fixtures instead of flat boards.</summary>
+    /// <summary>Wall lamps get a soft glow halo on the wall. (Lamps hang near the ceiling whether this is on or not.)</summary>
     public static readonly CVarDef<bool> Render3DFxFixtures =
         CVarDef.Create("render3d.fx.fixtures", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Windows, window doors and grilles are drawn as see-through glass (a thin frame and a mostly transparent pane) instead
+    ///     of the top-down picture of the sprite, which looked like a solid wall.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DFxGlass =
+        CVarDef.Create("render3d.fx.glass", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     // ---- shape of things: lean and thickness, per category (items on the ground, characters, other objects) ----
 

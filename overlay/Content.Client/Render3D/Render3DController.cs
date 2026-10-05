@@ -1,3 +1,4 @@
+using System.Linq;
 using Content.Client.Administration.Managers;
 using Content.Client.Gameplay;
 using Content.Client.UserInterface.Controls;
@@ -58,9 +59,12 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         load.OnScreenLoad += OnScreenLoad;
         load.OnScreenUnload += OnScreenUnload;
         InitializeQuality();
+        InitializeMinimap();
 
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
             (_, _, _) => ToggleSettingsWindow());
+        _console.RegisterCommand("render3d_tune", "Open the developer tuning window: a slider for every client-side render3d.* setting", "render3d_tune",
+            (_, _, _) => ToggleTuneWindow());
 
     }
 
@@ -72,10 +76,33 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleView, new Render3DInputHandler(down => { if (down) ToggleView(); }, consume: true))
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
+            .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
+            .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
             .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
             .Register<Render3DController>();
+
+        MaybeOpenSettingsOnJoin();
+        StartAutoQualityOnJoin();
+    }
+
+    /// <summary>Opens the settings window by itself when the server asks for it (render3d.settings_on_join).</summary>
+    private void MaybeOpenSettingsOnJoin()
+    {
+        var mode = _cfg.GetCVar(CCVars.Render3DSettingsOnJoin);
+        if (mode <= 0 || mode == 1 && _cfg.GetCVar(CCVars.Render3DSettingsShown))
+            return;
+
+        // give the screen, the viewport and the player's body a moment to appear first
+        Timer.Spawn(TimeSpan.FromSeconds(2), () =>
+        {
+            if (!Active || _settingsWindow is { Disposed: false, IsOpen: true })
+                return;
+
+            _cfg.SetCVar(CCVars.Render3DSettingsShown, true);
+            ToggleSettingsWindow();
+        });
     }
 
     public void OnStateExited(GameplayState state)
@@ -86,6 +113,19 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
     }
 
     private Render3DSettingsWindow? _settingsWindow;
+    private Render3DTuneWindow? _tuneWindow;
+
+    private void ToggleTuneWindow()
+    {
+        if (_tuneWindow is { Disposed: false, IsOpen: true })
+        {
+            _tuneWindow.Close();
+            return;
+        }
+
+        _tuneWindow = new Render3DTuneWindow();
+        _tuneWindow.OpenToRight();
+    }
 
     private void ToggleSettingsWindow()
     {
@@ -107,6 +147,11 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
         OnScreenUnload();
 
+        // A screen that is loaded again must never end up with two 3D views side by side (seen once after a respawn
+        // through the lobby): take away any view this host still has before adding the new one.
+        foreach (var stale in host.Children.OfType<Render3DViewportControl>().ToList())
+            host.RemoveChild(stale);
+
         _host = host;
         _control = new Render3DViewportControl
         {
@@ -116,6 +161,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         };
         _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
         host.AddChild(_control);
+        AddMinimap(_control);
         Active = false;
     }
 
@@ -133,6 +179,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             _control = null;
         }
 
+        _minimap = null;
         _host = null;
         Active = false;
         Render3DPointer.Shown = false;
@@ -222,6 +269,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
         UpdateMouseMode();
         UpdateAutoQuality(args.DeltaSeconds);
+        UpdateMinimap();
     }
 
     private void UpdateMouseMode()

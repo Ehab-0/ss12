@@ -89,6 +89,8 @@ enabled = true
 # SS12 3D (Resources/ConfigPresets/Build/render3d.toml)
 [render3d]
 enforced = false
+# Open the 3D settings window by itself the first time a player enters a round (0 never, 1 first time, 2 every round).
+settings_on_join = 1
 
 [physics]
 relative_movement = true
@@ -100,3 +102,8 @@ camera_rotation_locked = false
 # Rounds end by themselves: the evacuation shuttle is called after 30 minutes, and command may call it early.
 auto_call_time = 30
 emergency_early_launch_allowed = true
+
+[npc]
+# Creature AI (mice, carp and so on) took about a tenth of the main loop on a small test server. With it off the creatures
+# stay where they are.
+enabled = false

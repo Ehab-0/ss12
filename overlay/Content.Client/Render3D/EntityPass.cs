@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Content.Client.Clickable;
 using Content.Shared.CCVar;
@@ -36,13 +37,17 @@ public sealed class EntityPass : IDisposable
 
     private static readonly ProtoId<ShaderPrototype> EntityShader = "Render3DEntity";
     private static readonly ProtoId<ShaderPrototype> GlowShader = "Render3DGlowMask";
+    private static readonly ProtoId<ShaderPrototype> GlassShader = "Render3DGlassPane";
     private ShaderInstance? _glowShader;
+    private ShaderInstance? _glassShader;
 
     // effect switches, read once per frame in Prepare
     private bool _fxShadows;
     private bool _fxOutline;
     private bool _fxSharp;
     private bool _fxFixtures;
+    private bool _fxGlass;
+    private bool _atlasOffset = true;
     private bool _curOutline;
 
     // shape of things (lean and thickness per category), read once per frame in Prepare
@@ -65,6 +70,9 @@ public sealed class EntityPass : IDisposable
 
     private ShaderInstance? _shader;
     private EntityDraw3D[] _draws = new EntityDraw3D[512];
+
+    /// <summary>The entities that were drawn last frame (see <see cref="ApplyCap"/>).</summary>
+    private readonly HashSet<EntityUid> _wasDrawn = new();
     private int _drawCount;
     private readonly List<Entity<SpriteComponent, TransformComponent>> _query = new();
     private readonly HashSet<(EntityUid, int, int)> _surfaceTiles = new();
@@ -93,6 +101,15 @@ public sealed class EntityPass : IDisposable
     public int DrawCount => _drawCount;
 
     public int LastEntityCount { get; private set; }
+
+    /// <summary>The billboard atlas as drawn last frame (a developer aid: debug view 41).</summary>
+    public Texture? AtlasTexture => _atlas.Texture;
+
+    public IRenderTexture? AtlasTarget => _atlas.Target;
+    public IRenderTexture? GlowAtlasTarget => _atlas.GlowTarget;
+
+    /// <summary>The unshaded layers of the billboard atlas (a developer aid: debug view 42).</summary>
+    public Texture? GlowAtlasTexture => _atlas.GlowTexture;
     public int LastQuadCount => _quads.QuadCount;
 
     public EntityPass(IEntityManager entMan, IClyde clyde, IPrototypeManager protos, IConfigurationManager cfg)
@@ -122,6 +139,8 @@ public sealed class EntityPass : IDisposable
         _fxOutline = _cfg.GetCVar(CCVars.Render3DFxOutline);
         _fxSharp = _cfg.GetCVar(CCVars.Render3DFxSharp);
         _fxFixtures = _cfg.GetCVar(CCVars.Render3DFxFixtures);
+        _fxGlass = _cfg.GetCVar(CCVars.Render3DFxGlass);
+        _atlasOffset = _cfg.GetCVar(CCVars.Render3DDevAtlasOffset);
         _fxItemLift = _cfg.GetCVar(CCVars.Render3DFxItemLift);
         _fxItemLean = _cfg.GetCVar(CCVars.Render3DFxItemLean);
         _fxItemThick = _cfg.GetCVar(CCVars.Render3DFxItemThick);
@@ -208,8 +227,21 @@ public sealed class EntityPass : IDisposable
             e.Pos = pos;
             e.WorldRot = rot;
             e.Distance2 = dist2;
-            e.Bounds = local;
+            // the art of a sprite with an offset (wall lamps) or its own rotation (lying characters) lies outside the plain
+            // local bounds, so the slot has to cover it
+            e.Bounds = ReservedBounds(local, sprite, Angle.Zero);
             e.Glow = HasGlowLayer(uid, sprite);
+
+            // windows, window doors and grilles: a pane drawn here (see GlassLook) in place of the sprite. A window door that is
+            // open keeps its sprite, which shows it open.
+            if (_fxGlass && mode is Render3DMode.GlassBox or Render3DMode.EdgePanel
+                && !(_classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid))
+                && _classifier.GetGlass(uid) is { } glass)
+            {
+                e.Glass = glass;
+                e.Glow = false;
+                e.Bounds = new Box2(-0.5f, -0.5f, 0.5f, 0.5f);
+            }
 
             e.Category = _classifier.IsMob(uid) ? EntityCategory.Character
                 : _classifier.IsItem(uid) ? EntityCategory.Item
@@ -248,17 +280,17 @@ public sealed class EntityPass : IDisposable
                     e.Z = (onTable ? tableHeight + 0.01f : 0.01f)
                         + (_fxItemLift && e.Category == EntityCategory.Item ? ItemLiftHeight : 0f);
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 case Render3DMode.FlatAir:
                     e.Z = effectHeight;
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 case Render3DMode.TableBox:
                     e.Z = tableHeight;
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 default:
                     // Panel, EdgePanel, GlassBox, WallDecal: the front of the live sprite
@@ -269,16 +301,14 @@ public sealed class EntityPass : IDisposable
 
         // nearest first, capped
         var cap = Math.Max(16, _cfg.GetCVar(CCVars.Render3DBillboardCap));
-        if (_drawCount > cap)
-        {
-            Array.Sort(_draws, 0, _drawCount, DistanceComparer.Instance);
-            _drawCount = cap;
-        }
+        _drawCount = ApplyCap(_draws, _drawCount, cap, _wasDrawn, Math.Clamp(_cfg.GetCVar(CCVars.Render3DCapHysteresis), 0.1f, 1f));
 
         // slots
         for (var i = 0; i < _drawCount; i++)
         {
             ref var e = ref _draws[i];
+            if (!BillboardAtlas.Fits(e.Bounds))
+                continue;
             if (!_atlas.TryAllocate(e.Bounds, out e.Slot, out e.SlotOrigin))
                 break;
             e.Placed = true;
@@ -296,6 +326,12 @@ public sealed class EntityPass : IDisposable
 
             BuildQuads(ref e, cam, atlasSize, wallHeight, tableHeight);
         }
+    }
+
+    /// <summary>The area to reserve in the atlas for a sprite drawn with the entity rotation <paramref name="entityRotation"/>.</summary>
+    private Box2 ReservedBounds(Box2 local, SpriteComponent sprite, Angle entityRotation)
+    {
+        return AtlasBounds.Drawn(local, _atlasOffset ? sprite.Offset : Vector2.Zero, sprite.Rotation, entityRotation);
     }
 
     /// <summary>
@@ -362,19 +398,26 @@ public sealed class EntityPass : IDisposable
         results.Sort((a, b) => a.T.CompareTo(b.T));
     }
 
-    private static Box2 RotatedBounds(Box2 local, Angle rot)
-    {
-        return new Box2Rotated(local, rot, Vector2.Zero).CalcBoundingBox();
-    }
-
     private void BuildQuads(ref EntityDraw3D e, Camera3D cam, float atlasSize, float wallHeight, float tableHeight)
     {
         var slot = e.Slot;
         const float inset = 0.5f;
-        var u0 = (slot.Left + inset) / atlasSize;
-        var u1 = (slot.Right - inset) / atlasSize;
-        var vTop = 1f - (slot.Top + inset) / atlasSize;
-        var vBot = 1f - (slot.Bottom - inset) / atlasSize;
+        float picLeft = slot.Left, picRight = slot.Right, picTop = slot.Top, picBottom = slot.Bottom;
+        if (e.Mode is Render3DMode.Panel or Render3DMode.EdgePanel or Render3DMode.GlassBox && e.Glass == null)
+        {
+            // only the entity's own tile of the picture goes on the face (see AtlasBounds.TileCrop)
+            var crop = AtlasBounds.TileCrop(e.Bounds);
+            const float px = BillboardAtlas.PixelsPerTile;
+            picLeft = slot.Left + (crop.Left - e.Bounds.Left) * px;
+            picRight = slot.Left + (crop.Right - e.Bounds.Left) * px;
+            picTop = slot.Top + (e.Bounds.Top - crop.Top) * px;
+            picBottom = slot.Top + (e.Bounds.Top - crop.Bottom) * px;
+        }
+
+        var u0 = (picLeft + inset) / atlasSize;
+        var u1 = (picRight - inset) / atlasSize;
+        var vTop = 1f - (picTop + inset) / atlasSize;
+        var vBot = 1f - (picBottom - inset) / atlasSize;
         var uvTl = new Vector2(u0, vTop);
         var uvTr = new Vector2(u1, vTop);
         var uvBr = new Vector2(u1, vBot);
@@ -384,6 +427,7 @@ public sealed class EntityPass : IDisposable
         var b = e.Bounds;
         _curUid = e.Uid;
         _curPos = pos;
+        _camXy = new Vector2(cam.Position.X, cam.Position.Y);
         _curClickable = _clickable.HasComp(e.Uid);
         // translucent sprites (construction and placement ghosts, fading effects) are alpha blended, not alpha tested
         _curTranslucent = e.Sprite.Color.A < 0.99f;
@@ -530,22 +574,24 @@ public sealed class EntityPass : IDisposable
                 if (_classifier.GetWallMount(e.Uid) is { } mount)
                     facing += mount.Direction;
                 var f = facing.ToWorldVec();
-                var center = DecalCenter(ref e, f, out var onWall);
+                var center = DecalCenter(ref e, f, out var onWall, out f);
                 e.OnWall = onWall;
 
                 var axis = new Vector2(-f.Y, f.X);
                 var height = Math.Clamp(b.Height, 0.2f, 1.0f);
                 var width = Math.Clamp(b.Width, 0.2f, 1.0f);
-                // lamps hang near the ceiling and glow; everything else (posters, buttons, APCs) sits at eye level.
-                // This includes lamps that hang on windows, grilles and doors: there is no wall for them in the wall map
-                // (onWall is false), and treating them as eye-level things put their glowing tube a hand's width above the
-                // floor, where it was seen drawn over the feet of characters and flickered against the glass.
+                // lamps hang near the ceiling; everything else (posters, buttons, APCs) sits at eye level. This holds at every
+                // quality level and for lamps on windows, grilles and doors too (they have no wall in the wall map, onWall is
+                // false): drawn at eye level the glowing tube sat just above the floor, where such a thin strip flickered
+                // against the floor and the wall behind it and was drawn over the feet of characters. The "fixtures" effect
+                // only adds the glow halo.
                 PointLightComponent? light = null;
-                var fixture = _fxFixtures && _classifier.TryGetFixture(e.Uid, out light);
-                var zMid = fixture ? wallHeight - 0.3f : 0.7f;
+                var fixture = _classifier.TryGetFixture(e.Uid, out light);
+                // security cameras hang near the ceiling too
+                var zMid = fixture ? wallHeight - 0.3f : _classifier.IsCeilingMounted(e.Uid) ? wallHeight - 0.35f : 0.7f;
                 var zb = zMid - height * 0.5f;
                 AddVerticalFace(center, axis, width, zb, zb + height, uvTl, uvTr, uvBr, uvBl, center + f * 0.6f, 1f);
-                if (fixture && light!.Enabled)
+                if (fixture && _fxFixtures && light!.Enabled)
                     AddHalo(center + f * 0.06f, axis, zMid, center + f * 0.55f);
                 break;
             }
@@ -568,6 +614,8 @@ public sealed class EntityPass : IDisposable
     };
 
     /// <summary>How many layers of thickness to give this entity this frame (0 = flat).</summary>
+    private Vector2 _camXy;
+
     private int LayerCountFor(ref EntityDraw3D e)
     {
         var on = e.Category switch
@@ -578,6 +626,9 @@ public sealed class EntityPass : IDisposable
         };
 
         if (!on || e.Thickness < 0.01f || _curTranslucent || _extraQuads >= MaxExtraQuads)
+            return 0;
+
+        if (EntityShape.TooCloseForLayers(Vector2.DistanceSquared(e.Pos, _camXy)))
             return 0;
 
         return EntityShape.LayerCount(_thickLayers, MathF.Sqrt(e.Distance2));
@@ -699,23 +750,32 @@ public sealed class EntityPass : IDisposable
     }
 
     /// <summary>Centre of the quad of a wall mounted entity: hugging the face of the wall behind or around it.</summary>
-    private Vector2 DecalCenter(ref EntityDraw3D e, Vector2 facing, out bool onWall)
+    private Vector2 DecalCenter(ref EntityDraw3D e, Vector2 facing, out bool onWall, out Vector2 outward)
     {
         onWall = true;
+        outward = facing;
         var xform = _entMan.GetComponent<TransformComponent>(e.Uid);
         if (xform.GridUid is { } grid && xform.ParentUid == grid)
         {
             var gridInv = _xform.GetInvWorldMatrix(grid);
             var behind = Vector2.Transform(e.Pos - facing, gridInv);
+            var ahead = Vector2.Transform(e.Pos + facing, gridInv);
             var here = Vector2.Transform(e.Pos, gridInv);
             var behindTile = new Vector2i((int) MathF.Floor(behind.X), (int) MathF.Floor(behind.Y));
+            var aheadTile = new Vector2i((int) MathF.Floor(ahead.X), (int) MathF.Floor(ahead.Y));
             var hereTile = new Vector2i((int) MathF.Floor(here.X), (int) MathF.Floor(here.Y));
 
-            if (_tileWorld.TryGetWall(grid, behindTile) && !_tileWorld.TryGetWall(grid, hereTile))
-                return e.Pos - facing * 0.48f;
-
-            if (_tileWorld.TryGetWall(grid, hereTile))
-                return e.Pos + facing * 0.52f;
+            switch (WallDecalSide.Choose(_tileWorld.TryGetWall(grid, behindTile), _tileWorld.TryGetWall(grid, hereTile), _tileWorld.TryGetWall(grid, aheadTile)))
+            {
+                case DecalSide.Behind:
+                    return e.Pos - facing * 0.48f;
+                case DecalSide.Here:
+                    return e.Pos + facing * 0.52f;
+                case DecalSide.Ahead:
+                    // the wall is in front: hang on it, facing back into the room
+                    outward = -facing;
+                    return e.Pos + facing * 0.48f;
+            }
         }
 
         // No wall entity found: most of these hang on windows, grilles or doors in the tile behind (those are not in
@@ -755,7 +815,88 @@ public sealed class EntityPass : IDisposable
     public void DrawAtlas(DrawingHandleScreen screen)
     {
         _glowShader ??= _protos.Index(GlowShader).InstanceUnique();
-        _atlas.Draw(screen, _draws, _drawCount, _glowShader);
+        _glassShader ??= _protos.Index(GlassShader).InstanceUnique();
+        _atlas.Draw(screen, _draws, _drawCount, _glowShader, _glassShader);
+    }
+
+    private Action<int, IRenderTexture>? _auditSave;
+
+    /// <summary>
+    ///     Developer aid (<c>r3d_audit</c>): the next <see cref="DrawAtlas"/> also draws every placed entity on its own into a
+    ///     roomy cell of a sheet and hands each finished sheet to <paramref name="save"/> (which owns and disposes it), see
+    ///     <see cref="AtlasAudit"/>.
+    /// </summary>
+    public void RequestAudit(Action<int, IRenderTexture> save) => _auditSave = save;
+
+    /// <summary>
+    ///     Draws the entities of the frame one per cell, so that the art of each can be compared with the slot the atlas
+    ///     reserved for it, and logs one line per cell with that slot. Call it right after <see cref="DrawAtlas"/>.
+    /// </summary>
+    public void RunAuditIfRequested(DrawingHandleScreen screen, ISawmill log)
+    {
+        if (_auditSave is not { } save)
+            return;
+
+        _auditSave = null;
+
+        var placed = new List<int>();
+        for (var i = 0; i < _drawCount; i++)
+        {
+            ref var e = ref _draws[i];
+            if (e.Placed && e.Impostor == null && !_entMan.Deleted(e.Uid))
+                placed.Add(i);
+        }
+
+        const int side = 4096;
+        var perRow = AtlasAudit.CellsPerRow(side);
+        var perSheet = perRow * perRow;
+        log.Info($"atlas audit: {placed.Count} placed entities, cell {AtlasAudit.CellPixels}px, {perRow} per row, {(placed.Count + perSheet - 1) / perSheet} sheet(s)");
+
+        for (var first = 0; first < placed.Count; first += perSheet)
+        {
+            var sheet = first / perSheet;
+            var count = Math.Min(perSheet, placed.Count - first);
+            var target = _clyde.CreateRenderTarget(
+                new Vector2i(side, side),
+                new RenderTargetFormatParameters(RenderTargetColorFormat.Rgba8Srgb),
+                new TextureSampleParameters { Filter = false },
+                "render3d-atlas-audit");
+
+            for (var k = 0; k < count; k++)
+            {
+                ref var e = ref _draws[placed[first + k]];
+                var proto = _entMan.TryGetComponent(e.Uid, out MetaDataComponent? meta) ? meta.EntityPrototype?.ID ?? "?" : "?";
+                var sp = e.Sprite;
+                var slot = AtlasAudit.SlotInCell(e.Bounds, k % perRow, k / perRow, e.Slot.Width, e.Slot.Height);
+                log.Info($"atlas audit cell {sheet}:{k} slot={slot.Left},{slot.Top},{slot.Right},{slot.Bottom} {proto} {e.Mode} bounds={e.Bounds} rot={sp.Rotation.Degrees:F0} offset={sp.Offset} scale={sp.Scale} noRot={sp.NoRotation} snap={sp.SnapCardinals} layers={sp.AllLayers.Count()} granular={sp.GranularLayersRendering} drawRot={e.DrawRotated} dir={e.DrawDirection}");
+            }
+
+            var items = new EntityDraw3D[count];
+            for (var k = 0; k < count; k++)
+                items[k] = _draws[placed[first + k]];
+
+            screen.RenderInRenderTarget(target, () =>
+            {
+                for (var k = 0; k < count; k++)
+                {
+                    ref var e = ref items[k];
+                    var centre = new Vector2(
+                        k % perRow * AtlasAudit.CellPixels + AtlasAudit.CellPixels / 2,
+                        k / perRow * AtlasAudit.CellPixels + AtlasAudit.CellPixels / 2);
+                    try
+                    {
+                        screen.DrawEntity(e.Uid, centre, Vector2.One, e.DrawRotated ? null : Angle.Zero, Angle.Zero,
+                            e.DrawDirection, e.Sprite);
+                    }
+                    catch (Exception)
+                    {
+                        // deleted meanwhile: its cell stays empty
+                    }
+                }
+            }, Color.Transparent);
+
+            save(sheet, target);
+        }
     }
 
     /// <summary>
@@ -795,6 +936,40 @@ public sealed class EntityPass : IDisposable
     public void Dispose()
     {
         _atlas.Dispose();
+    }
+
+    /// <summary>
+    ///     Keeps the nearest <paramref name="cap"/> of the first <paramref name="count"/> entries (moved to the front) and
+    ///     returns how many remain. An entity that was drawn last frame counts as closer (0.6 on the squared distance,
+    ///     about 23% on the distance), so the ring where the cut falls does not flicker: with the plain nearest-N rule, the
+    ///     distance of the N-th entity changes as the camera moves, and everything near that distance dropped out and came
+    ///     back from frame to frame. <paramref name="wasDrawn"/> is replaced by the entities kept.
+    /// </summary>
+    public static int ApplyCap(EntityDraw3D[] draws, int count, int cap, HashSet<EntityUid> wasDrawn, float hysteresis = DefaultCapHysteresis)
+    {
+        if (count > cap)
+        {
+            for (var i = 0; i < count; i++)
+                draws[i].CapKey = draws[i].Distance2 * (wasDrawn.Contains(draws[i].Uid) ? hysteresis : 1f);
+
+            Array.Sort(draws, 0, count, CapKeyComparer.Instance);
+            count = cap;
+        }
+
+        wasDrawn.Clear();
+        for (var i = 0; i < count; i++)
+            wasDrawn.Add(draws[i].Uid);
+
+        return count;
+    }
+
+    private const float DefaultCapHysteresis = 0.6f;
+
+    private sealed class CapKeyComparer : IComparer<EntityDraw3D>
+    {
+        public static readonly CapKeyComparer Instance = new();
+
+        public int Compare(EntityDraw3D x, EntityDraw3D y) => x.CapKey.CompareTo(y.CapKey);
     }
 
     private sealed class DistanceComparer : IComparer<EntityDraw3D>

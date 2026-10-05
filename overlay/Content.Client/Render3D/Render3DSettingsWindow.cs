@@ -42,17 +42,28 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         scroll.AddChild(_body);
         ContentsContainer.AddChild(scroll);
 
-        AddHeader("render3d-settings-view");
+        AddHeader("render3d-settings-general");
         AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
-        AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
+        AddQualityRow();
+        AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
         AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
+
+        AddHeader("render3d-settings-keys");
+        foreach (var (function, _, locId) in Render3DKeys.All)
+            AddKeyRow(function, locId);
+
+        AddHeader("render3d-settings-view");
+        AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
         AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
+        AddMinimapShowCheck();
+        AddCheck(CCVars.Render3DMinimapRotate, "render3d-settings-minimap-rotate");
+        AddSlider(CCVars.Render3DMinimapSize, "render3d-settings-minimap-size", 120, 360, "0");
+        AddSlider(CCVars.Render3DMinimapRange, "render3d-settings-minimap-range", 10, 40, "0");
 
         AddHeader("render3d-settings-graphics");
-        AddQualityRow();
         AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
         AddSliderRow("render3d-settings-supersample", 1f, 2f, "0.00", _cfg.GetCVar(CCVars.Render3DSupersample), v =>
         {
@@ -70,10 +81,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         });
         foreach (var effect in Render3DQuality.Effects.Where(e => e.Shape))
             AddEffectCheck(effect);
-
-        AddHeader("render3d-settings-keys");
-        foreach (var (function, _, locId) in Render3DKeys.All)
-            AddKeyRow(function, locId);
     }
 
     private void AddHeader(string locId)
@@ -85,6 +92,14 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     {
         var box = new CheckBox { Text = Loc.GetString(locId), Pressed = _cfg.GetCVar(cvar) };
         box.OnToggled += args => _cfg.SetCVar(cvar, args.Pressed);
+        _body.AddChild(box);
+    }
+
+    /// <summary>The minimap box: ticked when the minimap is small or large, and ticking it brings back the small one.</summary>
+    private void AddMinimapShowCheck()
+    {
+        var box = new CheckBox { Text = Loc.GetString("render3d-settings-minimap"), Pressed = _cfg.GetCVar(CCVars.Render3DMinimapMode) > 0 };
+        box.OnToggled += args => _cfg.SetCVar(CCVars.Render3DMinimapMode, args.Pressed ? 1 : 0);
         _body.AddChild(box);
     }
 

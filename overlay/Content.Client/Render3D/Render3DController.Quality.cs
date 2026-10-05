@@ -18,8 +18,15 @@ public sealed partial class Render3DController
     private float _autoNextSample;
     private readonly List<double> _autoRecent = new();
 
+    // true while the game itself changes the quality, so that it is not taken for a change by the player
+    private bool _autoChanging;
+
     private void InitializeQuality()
     {
+        // a change the player makes (the settings window, a console command) ends the "automatic" state of a lowering
+        _cfg.OnValueChanged(CCVars.Render3DQuality, _ => ClearAutoLoweredIfManual());
+        _cfg.OnValueChanged(CCVars.Render3DRenderScale, _ => ClearAutoLoweredIfManual());
+
         _console.RegisterCommand("render3d_quality", "Show or set the 3D graphics quality preset", "render3d_quality [low|medium|high]",
             (shell, _, args) =>
             {
@@ -58,6 +65,49 @@ public sealed partial class Render3DController
 
                 Render3DQuality.SetEffect(_cfg, found, args[1] == "on");
             });
+    }
+
+    private void ClearAutoLoweredIfManual()
+    {
+        if (!_autoChanging && _cfg.GetCVar(CCVars.Render3DAutoLowered))
+            _cfg.SetCVar(CCVars.Render3DAutoLowered, false);
+    }
+
+    /// <summary>
+    ///     Called when a round is joined. Puts the graphics back on High if the game itself lowered them last time, starts the
+    ///     frame rate measurement afresh and tells the player what is happening.
+    /// </summary>
+    private void StartAutoQualityOnJoin()
+    {
+        _autoSeconds = 0;
+        _autoNextSample = 0;
+        _autoRecent.Clear();
+
+        var auto = _cfg.GetCVar(CCVars.Render3DAutoQuality);
+        var restored = false;
+        if (AutoQualityPolicy.ShouldRestoreOnJoin(auto, _cfg.GetCVar(CCVars.Render3DAutoLowered)))
+        {
+            _autoChanging = true;
+            try
+            {
+                Render3DQuality.Apply(_cfg, Render3DQuality.High);
+                _cfg.SetCVar(CCVars.Render3DRenderScale, 1f);
+                _cfg.SetCVar(CCVars.Render3DAutoLowered, false);
+            }
+            finally
+            {
+                _autoChanging = false;
+            }
+
+            restored = true;
+        }
+
+        if (!AutoQualityPolicy.ShouldAnnounceMeasuring(auto, _cfg.GetCVar(CCVars.Render3DQuality), Render3DQuality.High))
+            return;
+
+        var text = Loc.GetString(restored ? "render3d-quality-restored" : "render3d-quality-measuring");
+        // give the screen and the viewport a moment to appear first
+        Timer.Spawn(TimeSpan.FromSeconds(2), () => _control?.ShowNotice(text, 10f));
     }
 
     private void UpdateAutoQuality(float frameTime)
@@ -99,23 +149,34 @@ public sealed partial class Render3DController
         var level = _cfg.GetCVar(CCVars.Render3DQuality);
         string message;
 
-        if (level is > Render3DQuality.Low and <= Render3DQuality.High)
+        _autoChanging = true;
+        try
         {
-            Render3DQuality.Apply(_cfg, level - 1);
-            message = Loc.GetString("render3d-quality-lowered", ("level", Render3DQuality.LevelName(level - 1)));
+            if (level is > Render3DQuality.Low and <= Render3DQuality.High)
+            {
+                Render3DQuality.Apply(_cfg, level - 1);
+                message = Loc.GetString("render3d-quality-lowered", ("level", Render3DQuality.LevelName(level - 1)));
+            }
+            else if (level == Render3DQuality.Low && _cfg.GetCVar(CCVars.Render3DRenderScale) > 0.55f)
+            {
+                // last resort once everything is off: draw fewer pixels
+                var scale = _cfg.GetCVar(CCVars.Render3DRenderScale) > 0.8f ? 0.75f : 0.5f;
+                _cfg.SetCVar(CCVars.Render3DRenderScale, scale);
+                message = Loc.GetString("render3d-quality-scale", ("scale", scale.ToString("0.00")));
+            }
+            else
+            {
+                return; // custom settings are the player's choice; nothing left to lower
+            }
+
+            // remembered, so that the next round starts on the highest graphics again
+            _cfg.SetCVar(CCVars.Render3DAutoLowered, true);
         }
-        else if (level == Render3DQuality.Low && _cfg.GetCVar(CCVars.Render3DRenderScale) > 0.55f)
+        finally
         {
-            // last resort once everything is off: draw fewer pixels
-            var scale = _cfg.GetCVar(CCVars.Render3DRenderScale) > 0.8f ? 0.75f : 0.5f;
-            _cfg.SetCVar(CCVars.Render3DRenderScale, scale);
-            message = Loc.GetString("render3d-quality-scale", ("scale", scale.ToString("0.00")));
-        }
-        else
-        {
-            return; // custom settings are the player's choice; nothing left to lower
+            _autoChanging = false;
         }
 
-        _control?.ShowNotice(message);
+        _control?.ShowNotice(message, 12f);
     }
 }

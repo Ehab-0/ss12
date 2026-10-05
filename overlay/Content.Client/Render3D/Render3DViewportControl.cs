@@ -104,10 +104,10 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private TimeSpan _noticeUntil;
 
     /// <summary>Shows a short message at the top of the 3D view for a few seconds (for example: quality was lowered).</summary>
-    public void ShowNotice(string text)
+    public void ShowNotice(string text, float seconds = 8f)
     {
         _notice = text;
-        _noticeUntil = _timing.RealTime + TimeSpan.FromSeconds(8);
+        _noticeUntil = _timing.RealTime + TimeSpan.FromSeconds(seconds);
     }
 
     private void DrawNotice(DrawingHandleScreen screen, Vector2i pixelSize)
@@ -125,13 +125,18 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     public Camera3D Camera { get; } = new();
 
-    /// <summary>Debug view selector: 0 = normal, 1 = raw ground capture, 2 = light target, 3 = fov target, 4+ shader views.</summary>
+    /// <summary>Debug view selector: 0 = normal, 1 = raw ground capture, 2 = light target, 3 = fov target, 4 to 19 shader views, 41 = billboard atlas, 42 = its glow layer.</summary>
     public int DebugView;
 
     /// <summary>Set by the controller: the mouse is captured and moves the camera.</summary>
     public bool RelativeMouse;
 
     public void SetDebugNoGlow(bool off) => _entityPass!.DebugNoGlow = off;
+
+    /// <summary>Developer aid: the billboard atlas and its glow layer as render targets (null before the first frame).</summary>
+    public void RequestAtlasAudit(Action<int, IRenderTexture> save) => _entityPass?.RequestAudit(save);
+
+    public (IRenderTexture? Atlas, IRenderTexture? Glow) AtlasTargets => (_entityPass?.AtlasTarget, _entityPass?.GlowAtlasTarget);
 
     /// <summary>Mouse travel (pixels) accumulated since <see cref="ResetRelativeTravel"/>; used by drag and drop.</summary>
     public float RelativeTravel { get; private set; }
@@ -368,6 +373,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         entityPass.Prepare(Camera, eye.Position.MapId, radius, hide);
         Lap(ref _msPrepare);
         entityPass.DrawAtlas(screen);
+        entityPass.RunAuditIfRequested(screen, _sawmill ??= Logger.GetSawmill("render3d"));
         Lap(ref _msAtlas);
 
         screen.RenderInRenderTarget(_scene, () =>
@@ -441,6 +447,15 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         }
 
         Lap(ref _msScene);
+
+        if (DebugView is 41 or 42
+            && (DebugView == 41 ? entityPass.AtlasTexture : entityPass.GlowAtlasTexture) is { } atlasTex)
+        {
+            // developer aid: show the billboard atlas (41) or its glow layer (42) over the image
+            var side = Math.Min(pixelSize.X, pixelSize.Y);
+            screen.DrawRect(new UIBox2(0, 0, side, side), new Color(0.12f, 0.14f, 0.2f));
+            screen.DrawTextureRect(atlasTex, new UIBox2(0, 0, side, side));
+        }
 
         // 2D screen-space overlays that must draw over the 3D image (flash, blindness, drunk, ...)
         if (ground.Viewport is { } vp)

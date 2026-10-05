@@ -1,0 +1,56 @@
+# The ss12.org block of /etc/caddy/Caddyfile with the stats added (Caddy 2.6 or newer).
+# Replace STATS_PASSWORD_HASH with the output of:  caddy hash-password --plaintext 'a password you choose'
+ss12.org {
+	root * /var/www/ss12
+	encode zstd gzip
+
+	# Access log: cookies and credentials are removed and the visitor's address is cut to its network part (/24, /48).
+	# Requests that carry Do Not Track or Global Privacy Control stay in the log but ss12-stats leaves them out of every count.
+	log {
+		output file /var/log/caddy/ss12.org.log {
+			roll_size 20MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+			}
+		}
+	}
+
+	# the page's action counter (script.js sends these); the answer is empty, the log line is the count
+	@beacon path /a/*
+	respond @beacon 204
+
+	# the stats page, behind a password
+	redir /stats /stats/ 308
+	@stats path /stats/*
+	basicauth @stats {
+		stats STATS_PASSWORD_HASH
+	}
+	handle_path /stats/* {
+		root * /var/lib/ss12-stats/public
+		file_server
+	}
+
+	file_server
+
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+	@assets path /img/* /favicon.svg
+	header @assets Cache-Control "public, max-age=604800"
+}

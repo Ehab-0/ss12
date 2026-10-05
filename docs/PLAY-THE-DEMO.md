@@ -57,6 +57,7 @@ and attach `data/server.log` from the demo folder.
 | `N` | switch between first person and third person |
 | `F12` | switch the 3D view off and on (the normal flat view is still there) |
 | `F11` | graphics settings: turn effects off if it feels slow |
+| `M` | minimap on and off (`-` makes it small or large) |
 | hold `Alt` | free the mouse for a moment (menus free it by themselves) |
 | `Esc` | the game menu |
 

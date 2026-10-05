@@ -2,13 +2,103 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
-## Unreleased
-- **Lamps on windows and grilles hang at ceiling height, and wall-mounted things draw in a stable order.** A lamp on a
-  window or grille tile has no wall behind it in the wall map, so it was treated like a poster and drawn at eye level:
-  its glowing tube sat just above the floor, popped in and out as you moved, and showed up over the feet of your
-  character. Such lamps now hang at the same height as the ones on solid walls. Separately, upright quads (wall lamps,
-  windows, doors, posters, characters) are now ordered by their distance on the ground plane instead of the depth of
-  their 3D centre, so two quads on the same wall at different heights no longer swap places when the camera pitches.
+## 1.3.0
+See-through windows, a minimap, graphics that start high and step down by themselves, and many fixes to how things are drawn.
+- **Objects next to the camera no longer leave a smeared band across the view.** The shader fades out things very close to the
+  camera, by the depth of each pixel. The thickness layers of an object lie behind its front face, so they are further from the
+  camera and faded less: when you stood next to a vending machine or a disposal unit its face went see-through and its layers
+  showed as a long green or yellow band over the screen. Objects closer than about one tile to the camera now get no layers.
+- **A minimap to find the way.** A small map of the station sits in the top left corner of the 3D view: floors, walls and doors
+  from the navigation data the game already sends every client for the station map on the wall, centred on you, with an arrow for
+  where you are and which way you face, and an "N" for north. It turns with the camera, so up on the map is where you look. It
+  shows nothing else, in particular no other players. The `M` key switches it on and off, and the `-` key makes it small or
+  large (about two and a half times as much of the station, with the names of the areas); the 3D settings window has a switch, a size slider and a range, and an option
+  to keep north up (`render3d.minimap_mode`, `minimap_size`, `minimap_range`, `minimap_rotate`, `render3d_minimap`). The small
+  map follows the size of the window (the setting is its side in a 720 pixel tall window) and never takes more than about a third
+  of it. It is hidden
+  in space, where there is no grid to map.
+- **Every round starts on the highest graphics, and says so.** The automatic step-down already measured the frame rate and
+  lowered the preset when it was too low, but what it lowered was saved, so a player whose computer struggled once started every
+  later round on low. Now, when the game itself lowered the graphics last time, the next round puts them back on High before it
+  measures again, and a message at the start tells the player the frame rate is being measured and the graphics may lower by
+  themselves. A preset or effect the player chose in the settings is never overridden, and the message when the graphics are
+  lowered stays on screen longer. The new `render3d.auto_lowered` setting remembers whether the last lowering was the game's.
+- **Docking airlocks fill their doorway.** The docking airlock has a clamp layer one tile below the door, so its sprite is two
+  tiles tall. The whole picture was put on the one-tile doorway, which squeezed the door into the top half and left the rest of
+  the opening empty. Doors, windows and panels now show only their own tile of the picture.
+- **Security cameras hang on their wall.** A camera is rotated to point at its wall, and the 3D view only looked for a wall behind
+  a wall-mounted thing, so it never found it and drew every camera at the open edge of its tile, floating a tile from the wall.
+  It now looks in front as well, hangs the camera on that wall facing the room, and puts cameras near the ceiling like lamps.
+- **Windows are see-through glass in the 3D view.** The picture of a window in the game is a top-down drawing of a bevelled
+  frame around a small pane. Stuck on a standing face (as before) about 62% of it was solid frame, and a grille under every window
+  tile added a dark mesh, so reinforced windows read as walls and hid what 2D players could see through them. Edge windows and
+  window doors were worse: their picture is a thin strip, which showed as a sliver. With the new `glass` effect (on at every quality
+  level) the 3D view draws windows, window doors and grilles itself: a thin frame and a mostly transparent pane tinted for the
+  type (plain, reinforced, plasma, uranium, shuttle, tinted, frosted and so on), a faint highlight, and a sparse mesh for grilles.
+  The cracks of a damaged window are still drawn over it, an open window door keeps its sprite, and corner and diagonal windows
+  keep theirs. The colours and thickness live in the new `glass` list of `rules.yml`. Switch it off in the 3D settings
+  ("See-through glass in windows and grilles") or with `render3d.fx.glass`.
+- **The default wall height is 2.3 tiles (was 1.6).** Players who never changed `render3d.wall_height` get the taller rooms;
+  anyone who set their own value keeps it. The wall picture repeats a whole number of times as the walls get taller, choosing
+  the count whose repeats are closest to the original proportions.
+- **The 3D settings window (`F11`) is reorganised, and has a wall height slider.** It now opens with a **General** section:
+  use the 3D view, the quality preset, the wall height (new, 1 to 4 tiles, the same as `render3d.wall_height`) and the field of
+  view. The other sections follow in this order: **Keys**, **View**, **Graphics**, **Shape of things**.
+- **A tuning window for developers (`render3d_tune`).** It lists every client-side `render3d.*` setting with a slider, a box
+  to type an exact value, or a switch, and applies each change at once, so a value such as the ceiling height can be found by
+  looking at the game. It picks up new settings by itself, has a filter box, "Reset all" (back to the values from when it
+  opened) and "Copy changes" (the changed values as `name = value` lines, on the clipboard and in the log).
+- **A taller roof no longer stretches the wall picture.** The wall picture covers 1.6 tiles of height; when `render3d.wall_height`
+  is raised, the picture is now repeated a whole number of times (2 at 3.2) instead of being stretched, so the pixels stay
+  square. Nothing changes at the default height. Doors, windows and other panels that are drawn as one picture still stretch to
+  the new height.
+- **Wall equipment, characters lying down and rotated sprites no longer paint onto their neighbours in the atlas, and only real
+  lamps hang at the ceiling.** The slot of a sprite in the atlas now follows how the engine really draws it: the sprite's own
+  rotation (which a lying character has) and the "never rotates" and "snaps to quarter turns" flags are counted as well as its
+  offset. The same offset gap also hit security cameras, the APC, air alarms, station maps and potted plants (their art spilled
+  a few pixels onto the next slot), so the first fix cured those too. Separately, anything with a point light was treated as a
+  lamp, so an APC was hung up at the ceiling with a glow halo; now only light fixtures (a bulb in a socket, an emergency light) are.
+  A new developer command, `r3d_audit <name>`, draws every entity of a frame alone in a roomy cell, saves the sheet to
+  `Screenshots/` and logs the slot reserved for each cell, so spills can be measured. Run over the 2,650 prototypes the pool
+  maps use and the station around the spawn, no sprite lay outside its slot. Lying characters could not be exercised in that
+  run, only checked by unit tests.
+- **The 3D view is never added twice.** A gameplay screen that is loaded again (seen once after a respawn through the lobby) now
+  drops any 3D view its host still holds before it adds a new one, so two views cannot end up side by side. The original
+  report could not be reproduced here, so this guards the most likely cause; forcing the screen to reload several times
+  left a single view.
+- **Glowing lamp tubes no longer appear on characters, items and walls that have no lamp.** The 3D view draws every sprite into
+  a shared picture (the atlas) and gives each one a slot sized from the sprite's bounds. Those bounds leave out the offset of the
+  sprite itself, and wall lamps have one (`offset: 0, 1`: their art is drawn one tile from the lamp so that it lands on the
+  wall). The lamp's art was therefore painted one tile outside its own slot, on top of whatever sat next to it in the atlas: a
+  glowing tube with a dark plate showed up on a character's shoulder, lay on the floor on top of a loose item, or hung on another
+  wall fixture, and it jumped to a different thing whenever the nearest-first order of the atlas changed (that is, whenever you
+  walked), while the lamp's own place showed only its glow. The slot now covers the sprite's offset (`AtlasBounds`), and art that
+  is larger than one slot is left out instead of spilling. The developer view `render3d.debug_view` 41 and 42 show the atlas and
+  its glow layer.
+- **Turning the view sends fewer updates to the server.** While you turn with the mouse, the client told the server the
+  new direction up to 30 times a second, and each of those is a message that must arrive in order. On a connection that
+  drops packets, every lost one holds up the messages behind it, including your movement keys. The client now sends at
+  most 12 a second by default (`render3d.yaw_send_rate`, 4 to 30; WASD follows the new direction at that rate). This cuts
+  the traffic to less than half; it is meant to help with a character that stops for a moment and snaps forward on a
+  bad connection, but it has not been shown to cure that by itself.
+- **Far things no longer blink in and out while you walk.** Only the nearest few hundred entities are drawn (200 on Low, 400
+  on the other presets), and the distance of the last one that makes it changes as you move or as lag nudges your
+  position, so everything near that distance, such as lamps and litter at the far end of a corridor, dropped out and came
+  back from frame to frame. An entity that was drawn last frame now counts as closer when the cut is made
+  (`render3d.cap_hysteresis`). In a test walk the number of entities that dropped out and returned fell from about 105 to
+  about 0 at the strongest setting; the default is gentler, so things at the very edge may appear a few tiles later.
+- **A server can open the graphics settings for players when they join.** The new server setting
+  `render3d.settings_on_join` opens the 3D settings window (the one on `F11`) by itself when a player enters a round:
+  `0` never (the default, so nothing changes for existing servers), `1` the first time only on each computer, `2` every
+  round. It lets new players choose a quality level before the game picks one for them.
+- **Wall lamps hang near the ceiling at every quality level, and wall-mounted things draw in a stable order.** Lamps were
+  only hung up there when the "fixtures" effect was on (it is off in the Low preset, which slow computers fall back to)
+  and when a wall was found behind them (lamps on windows and grilles have none). Otherwise they were drawn like
+  posters at eye level, so their glowing tube sat just above the floor, where the thin strip popped in and out as you
+  moved and showed up over the feet of your character. Lamps now always hang near the ceiling; the "fixtures" effect
+  only adds the glow. Separately, upright quads (wall lamps, windows, doors, posters, characters) are now ordered by their
+  distance on the ground plane instead of the depth of their 3D centre, so two quads on the same wall at different
+  heights no longer swap places when the camera pitches.
 - **W A S D follow the camera on every server setup.** With the installer's preset (`render3d.enforced = false` and
   `shuttle.camera_rotation_locked = true`) the server threw away the camera direction, so the camera turned while the
   keys kept walking along the map axes (inverted in some directions, fine in others). The lock only switches off the 90

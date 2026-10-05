@@ -1,0 +1,10 @@
+// Writes the colour of the vertex (alpha included) straight into the billboard atlas, with no blending. The 3D view draws
+// the panes of windows with it: a pane with a low alpha must reach the atlas as "tint colour, low alpha", not as a tint
+// already darkened by its own alpha, which the entity shader would then darken once more.
+light_mode unshaded;
+blend_mode none;
+
+void fragment()
+{
+    COLOR = VtxModulate;
+}

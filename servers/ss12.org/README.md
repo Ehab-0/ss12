@@ -15,6 +15,7 @@ install SS12 never get these files; it is here so the test server can be rebuilt
 | `apply.sh` | Applies the patch and the files to a checkout that already has SS12 installed. |
 | `deploy/` | The server configuration and the systemd units and script used on the host. |
 | `tools/make_lobby_bg.py` | Draws the lobby background in code (no third-party art). |
+| `deploy/analytics/` | Simple private stats for the website and the server (see "Simple stats" below). |
 
 ## What the changes do
 
@@ -46,7 +47,46 @@ connected (the server's reported player count includes admins, so `admin.admins_
 When the server is empty it installs a new build if one is staged in `/opt/ss14/pending/server.zip` (the old build is
 kept in `/opt/ss14/server_prev`) and a new configuration if one is staged in `/opt/ss14/pending/server_config.toml` (checked
 to be valid TOML first; the old one is kept as `server_config.toml.prev`). With nothing staged it restarts for a fresh
-round once the server has been up for an hour. Staging a file never disturbs the running server.
+round once the server has been up for three hours (each restart makes the first player who joins wait while the game compiles its code). Staging a file never disturbs the running server. If the server's status endpoint stops answering (it can wedge when many
+client downloads are abandoned half way), the script counts the players from the server log instead and restarts the
+wedged server as soon as that count is zero. A server that started less than three minutes ago is left alone, since it has not opened the endpoint yet.
+
+## The lighter configuration
+
+The test server runs on a small machine, so it is set up to cost less per tick: `Resources/Prototypes/Maps/Pools/default.yml`
+(part of `ss12.org.patch`) keeps only the four maps with the fewest entities (Elkridge, Packed, Exo, Snowball),
+`Resources/Prototypes/Entities/Stations/base.yml` spawns 2 space wrecks and 1 ruin around the station instead of 12 to 16 and 2
+and no mining asteroid (the asteroid alone was about 50 000 of the round's 81 000 entities and most of the 16 to 25 seconds of
+server time it took to generate the round's extra grids), `nanotrasen.yml` leaves the salvage magnet, expeditions and job
+board out of the station, and the four pool maps have no Salvage Specialist slots, so there is no mining at all,
+`deploy/server_config.toml` turns creature AI off (`npc.enabled = false`), and the restart script waits until the server has
+been up for three hours before it restarts an empty server for a fresh round.
+
+## Simple stats
+
+`deploy/analytics/` counts visits to the website and players on the server without any third-party service, cookies or
+extra daemons.
+
+- **Website.** The web server (Caddy) writes an access log with cookies and credentials removed and every visitor address
+  cut to its network part (`/24` for IPv4, `/48` for IPv6). The page's `script.js` sends a tiny request to `/a/<name>` when a
+  visitor copies the server address, opens a screenshot, or follows the GitHub or Space Station 14 links; the log line is
+  the count. Browsers that send Do Not Track or Global Privacy Control are left out of every count.
+- **Server.** `ss12-stats sample` (run every minute by `ss12-stats-sample.timer`) records the player count from the
+  status endpoint. `ss12-stats report` adds, from the game's own database (opened read only): players per day, new players,
+  joins, rounds and the average play time, leaving out the account names listed in `exclude_names`.
+- **What is kept.** The website log holds the time, the page, the browser's name string, the referring site and the visitor's
+  address cut to its network part (for example `203.0.113.0`); there is no country lookup and no cookie. The server numbers
+  use only the account id, account name and time from the game's database, and the report prints counts, never names or
+  addresses. (The game itself keeps full addresses in its own database and log, as every SS14 server does; the stats do not
+  read or show them.)
+- **Reading it.** `ss12-stats report [--days N]` prints a summary. `ss12-stats-report.timer` also writes an hourly page
+  that Caddy serves at `/stats/` behind a password (`Caddyfile.example` shows how; make the hash with
+  `caddy hash-password`).
+- **Setting up.** Run `deploy/analytics/install.sh` as root on the server, merge `Caddyfile.example` into
+  `/etc/caddy/Caddyfile` (replace `STATS_PASSWORD_HASH`) and copy the page's `script.js`. `ss12-stats selftest` checks the
+  script on made-up data.
+
+The page says how the counting works (a short privacy note in its footer); keep that note in step with these settings.
 
 ## Notes
 
