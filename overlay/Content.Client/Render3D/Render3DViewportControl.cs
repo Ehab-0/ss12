@@ -104,10 +104,10 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private TimeSpan _noticeUntil;
 
     /// <summary>Shows a short message at the top of the 3D view for a few seconds (for example: quality was lowered).</summary>
-    public void ShowNotice(string text)
+    public void ShowNotice(string text, float seconds = 8f)
     {
         _notice = text;
-        _noticeUntil = _timing.RealTime + TimeSpan.FromSeconds(8);
+        _noticeUntil = _timing.RealTime + TimeSpan.FromSeconds(seconds);
     }
 
     private void DrawNotice(DrawingHandleScreen screen, Vector2i pixelSize)

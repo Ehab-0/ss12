@@ -3,6 +3,25 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Objects next to the camera no longer leave a smeared band across the view.** The shader fades out things very close to the
+  camera, by the depth of each pixel. The thickness layers of an object lie behind its front face, so they are further from the
+  camera and faded less: when you stood next to a vending machine or a disposal unit its face went see-through and its layers
+  showed as a long green or yellow band over the screen. Objects closer than about one tile to the camera now get no layers.
+- **A minimap to find the way.** A small map of the station sits in the top left corner of the 3D view: floors, walls and doors
+  from the navigation data the game already sends every client for the station map on the wall, centred on you, with an arrow for
+  where you are and which way you face, and an "N" for north. It turns with the camera, so up on the map is where you look. It
+  shows nothing else, in particular no other players. The `M` key switches it on and off, and the `-` key makes it small or
+  large (about two and a half times as much of the station, with the names of the areas); the 3D settings window has a switch, a size slider and a range, and an option
+  to keep north up (`render3d.minimap_mode`, `minimap_size`, `minimap_range`, `minimap_rotate`, `render3d_minimap`). The small
+  map follows the size of the window (the setting is its side in a 720 pixel tall window) and never takes more than about a third
+  of it. It is hidden
+  in space, where there is no grid to map.
+- **Every round starts on the highest graphics, and says so.** The automatic step-down already measured the frame rate and
+  lowered the preset when it was too low, but what it lowered was saved, so a player whose computer struggled once started every
+  later round on low. Now, when the game itself lowered the graphics last time, the next round puts them back on High before it
+  measures again, and a message at the start tells the player the frame rate is being measured and the graphics may lower by
+  themselves. A preset or effect the player chose in the settings is never overridden, and the message when the graphics are
+  lowered stays on screen longer. The new `render3d.auto_lowered` setting remembers whether the last lowering was the game's.
 - **Docking airlocks fill their doorway.** The docking airlock has a clamp layer one tile below the door, so its sprite is two
   tiles tall. The whole picture was put on the one-tile doorway, which squeezed the door into the top half and left the rest of
   the opening empty. Doors, windows and panels now show only their own tile of the picture.

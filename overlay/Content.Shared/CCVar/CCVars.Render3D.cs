@@ -140,6 +140,30 @@ public sealed partial class CCVars
     public static readonly CVarDef<int> Render3DAutoQualityFps =
         CVarDef.Create("render3d.auto_quality_fps", 45, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     The last time the quality or the render scale was lowered, it was automatic (not the player's choice). The next time the
+    ///     player joins a round the game starts on the highest graphics again and measures the frame rate again. Any change the
+    ///     player makes themselves clears it.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DAutoLowered =
+        CVarDef.Create("render3d.auto_lowered", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>The minimap in a corner of the 3D view: 0 hidden, 1 small, 2 large (with the names of the areas).</summary>
+    public static readonly CVarDef<int> Render3DMinimapMode =
+        CVarDef.Create("render3d.minimap_mode", 1, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Side of the small minimap in pixels.</summary>
+    public static readonly CVarDef<int> Render3DMinimapSize =
+        CVarDef.Create("render3d.minimap_size", 200, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Tiles from the player to the edge of the small minimap (the large one shows about two and a half times as many).</summary>
+    public static readonly CVarDef<float> Render3DMinimapRange =
+        CVarDef.Create("render3d.minimap_range", 20f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>The minimap turns with the camera, so that up on the map is the way the player looks (otherwise north is up).</summary>
+    public static readonly CVarDef<bool> Render3DMinimapRotate =
+        CVarDef.Create("render3d.minimap_rotate", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
     /// <summary>Glow around bright lights and screens.</summary>
     public static readonly CVarDef<bool> Render3DFxBloom =
         CVarDef.Create("render3d.fx.bloom", true, CVar.CLIENTONLY | CVar.ARCHIVE);

@@ -42,6 +42,8 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle first / third person | `N` |
 | Free cursor (hold) | `Alt` (Alt-click keeps its normal meaning) |
 | 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
+| Minimap on and off | `M`, or the console command `render3d_minimap` |
+| Minimap small or large | `-` |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -105,7 +107,8 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
-| `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45) | Preset (0 low, 1 medium, 2 high, 3 custom), and the automatic step-down. |
+| `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
+| `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
 | `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
 | `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
@@ -147,6 +150,10 @@ the preset down one level and tells the player (`render3d.auto_quality`, `render
 already off it lowers the render scale as a last resort. It never steps up and never touches a Custom setup. On a
 Radeon RX 580 at 1600x900 the whole High preset costs about 0.65 ms per frame (342 FPS Low, 280 FPS High with 20 extra
 characters in view).
+
+Every round starts on the highest preset: a round is joined with a short message that the frame rate is being measured, and if the
+game itself had lowered the graphics last time (`render3d.auto_lowered`) they are put back on High first. A preset or effect the
+player chose themselves is never overridden. When it does lower the graphics, it says so on screen for a few seconds.
 
 ## Shape of things: lean and thickness
 

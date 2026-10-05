@@ -19,6 +19,8 @@ public static class Render3DKeys
     public static readonly BoundKeyFunction ToggleCameraMode = Render3DKeyFunctions.Toggle3DCameraMode;
     public static readonly BoundKeyFunction FreeCursor = Render3DKeyFunctions.Render3DFreeCursor;
     public static readonly BoundKeyFunction OpenSettings = Render3DKeyFunctions.Render3DSettings;
+    public static readonly BoundKeyFunction Minimap = Render3DKeyFunctions.Render3DMinimap;
+    public static readonly BoundKeyFunction MinimapSize = Render3DKeyFunctions.Render3DMinimapSize;
 
     /// <summary>Every function with its default key and the locale id of its name, in the order the settings window lists them.</summary>
     public static readonly (BoundKeyFunction Function, Keyboard.Key Key, string LocId)[] All =
@@ -27,6 +29,8 @@ public static class Render3DKeys
         (FreeCursor, Keyboard.Key.Alt, "render3d-key-free-cursor"),
         (ToggleView, Keyboard.Key.F12, "render3d-key-toggle-view"),
         (ToggleCameraMode, Keyboard.Key.N, "render3d-key-toggle-camera"),
+        (Minimap, Keyboard.Key.M, "render3d-key-minimap"),
+        (MinimapSize, Keyboard.Key.Minus, "render3d-key-minimap-size"),
     };
 
     private static bool _registered;

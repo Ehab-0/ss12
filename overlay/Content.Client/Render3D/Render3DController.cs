@@ -59,6 +59,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         load.OnScreenLoad += OnScreenLoad;
         load.OnScreenUnload += OnScreenUnload;
         InitializeQuality();
+        InitializeMinimap();
 
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
             (_, _, _) => ToggleSettingsWindow());
@@ -75,12 +76,15 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleView, new Render3DInputHandler(down => { if (down) ToggleView(); }, consume: true))
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
+            .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
+            .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
             .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
             .Register<Render3DController>();
 
         MaybeOpenSettingsOnJoin();
+        StartAutoQualityOnJoin();
     }
 
     /// <summary>Opens the settings window by itself when the server asks for it (render3d.settings_on_join).</summary>
@@ -157,6 +161,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         };
         _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
         host.AddChild(_control);
+        AddMinimap(_control);
         Active = false;
     }
 
@@ -174,6 +179,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             _control = null;
         }
 
+        _minimap = null;
         _host = null;
         Active = false;
         Render3DPointer.Shown = false;
@@ -263,6 +269,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
         UpdateMouseMode();
         UpdateAutoQuality(args.DeltaSeconds);
+        UpdateMinimap();
     }
 
     private void UpdateMouseMode()

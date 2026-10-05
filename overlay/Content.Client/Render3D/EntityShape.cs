@@ -62,6 +62,16 @@ public static class EntityShape
         => Math.Clamp(0.45f * downPitch, 0f, MaxStandLean);
 
     /// <summary>Number of extra layers to draw behind the front face at this distance from the camera.</summary>
+    /// <summary>
+    ///     Whether an entity is so close to the camera that its thickness layers are left out. The entity shader fades what is
+    ///     close to the camera, by the depth of each pixel, and the layers lie behind the front face, so they are further away and
+    ///     fade less: the face went transparent and its layers showed as a long smeared band across the view.
+    /// </summary>
+    public static bool TooCloseForLayers(float distanceSquaredToCamera) => distanceSquaredToCamera < NearLayerDistance * NearLayerDistance;
+
+    /// <summary>Distance in tiles from the camera inside which an entity gets no thickness layers.</summary>
+    public const float NearLayerDistance = 1.1f;
+
     public static int LayerCount(int maxLayers, float distance)
     {
         if (maxLayers <= 0 || distance > FarRange)

@@ -29,6 +29,8 @@ public sealed partial class Render3DDevChannel : UIController
     [Dependency] private IClyde _clyde = default!;
     [Dependency] private ILogManager _logs = default!;
     [Dependency] private IInputManager _input = default!;
+    [Dependency] private IEntityManager _entMan = default!;
+    [Dependency] private Robust.Client.Player.IPlayerManager _player = default!;
 
     private ResPath CommandFile => new($"/render3d_dev_{_cfg.GetCVar<string>("player.name")}.txt");
     private static readonly ResPath ShotDir = new("/Screenshots");
@@ -41,6 +43,7 @@ public sealed partial class Render3DDevChannel : UIController
         base.Initialize();
         _sawmill = _logs.GetSawmill("render3d.dev");
         _console.RegisterCommand("r3d_shot", "Save a screenshot to user data /Screenshots/<name>.png", "r3d_shot <name>", ShotCommand);
+        _console.RegisterCommand("r3d_areas", "Log the named areas (beacons) of the grid the player is on, with their world position", "r3d_areas", AreasCommand);
         _console.RegisterCommand("r3d_audit", "Draw every entity of the next frame alone in a roomy cell and save the sheet to /Screenshots/audit_<name>_<n>.png; the log lists each cell's atlas slot", "r3d_audit <name>", AuditCommand);
         _console.RegisterCommand("r3d_atlas", "Save the billboard atlas (and its glow layer) to /Screenshots/atlas_<name>.png", "r3d_atlas <name>", AtlasCommand);
         _console.RegisterCommand("r3d_look", "Override the 3D camera look direction (degrees), or 'off'", "r3d_look <yaw> <pitch> | r3d_look off", LookCommand);
@@ -169,6 +172,25 @@ public sealed partial class Render3DDevChannel : UIController
         catch (Exception e)
         {
             _sawmill.Error($"dev channel failed: {e}");
+        }
+    }
+
+    private void AreasCommand(IConsoleShell shell, string argStr, string[] args)
+    {
+        if (_player.LocalEntity is not { } body
+            || !_entMan.TryGetComponent(body, out TransformComponent? xform)
+            || xform.GridUid is not { } grid
+            || !_entMan.TryGetComponent(grid, out Content.Shared.Pinpointer.NavMapComponent? nav))
+        {
+            shell.WriteError("no grid under the player");
+            return;
+        }
+
+        var matrix = _entMan.System<SharedTransformSystem>().GetWorldMatrix(grid);
+        foreach (var beacon in nav.Beacons.Values)
+        {
+            var world = System.Numerics.Vector2.Transform(beacon.Position, matrix);
+            _sawmill.Info($"area '{beacon.Text}' world={world.X:F1},{world.Y:F1}");
         }
     }
 

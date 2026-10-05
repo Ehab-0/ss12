@@ -58,6 +58,10 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
+        AddMinimapShowCheck();
+        AddCheck(CCVars.Render3DMinimapRotate, "render3d-settings-minimap-rotate");
+        AddSlider(CCVars.Render3DMinimapSize, "render3d-settings-minimap-size", 120, 360, "0");
+        AddSlider(CCVars.Render3DMinimapRange, "render3d-settings-minimap-range", 10, 40, "0");
 
         AddHeader("render3d-settings-graphics");
         AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
@@ -88,6 +92,14 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     {
         var box = new CheckBox { Text = Loc.GetString(locId), Pressed = _cfg.GetCVar(cvar) };
         box.OnToggled += args => _cfg.SetCVar(cvar, args.Pressed);
+        _body.AddChild(box);
+    }
+
+    /// <summary>The minimap box: ticked when the minimap is small or large, and ticking it brings back the small one.</summary>
+    private void AddMinimapShowCheck()
+    {
+        var box = new CheckBox { Text = Loc.GetString("render3d-settings-minimap"), Pressed = _cfg.GetCVar(CCVars.Render3DMinimapMode) > 0 };
+        box.OnToggled += args => _cfg.SetCVar(CCVars.Render3DMinimapMode, args.Pressed ? 1 : 0);
         _body.AddChild(box);
     }
 

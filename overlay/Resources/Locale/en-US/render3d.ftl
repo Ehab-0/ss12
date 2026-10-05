@@ -26,15 +26,23 @@ render3d-settings-sensitivity = Mouse sensitivity
 render3d-settings-render-scale = Render scale
 render3d-settings-invert-y = Invert vertical look
 render3d-settings-crosshair-names = Show names under the crosshair
+render3d-settings-minimap = Show the minimap
+render3d-settings-minimap-rotate = Minimap turns with the camera
+render3d-settings-minimap-size = Minimap size
+render3d-settings-minimap-range = Minimap range (tiles)
 render3d-settings-press-key = Press a key... (Esc cancels)
 render3d-settings-unbound = Unbound
 render3d-key-toggle-view = Toggle 3D / 2D view
 render3d-key-toggle-camera = Toggle first / third person
 render3d-key-free-cursor = Free cursor (hold)
 render3d-key-open-settings = Open these settings
+render3d-key-minimap = Minimap (on, off)
+render3d-key-minimap-size = Minimap size (small, large)
 
 render3d-quality-lowered = Graphics quality lowered to { $level } because the frame rate was low. You can change it in the 3D settings (F11).
 render3d-quality-scale = Render scale lowered to { $scale } because the frame rate was low. You can change it in the 3D settings (F11).
+render3d-quality-measuring = Starting on the highest graphics. Your frame rate is being measured, and the graphics will lower by themselves if it is too low.
+render3d-quality-restored = Back on the highest graphics (they were lowered automatically last time). Your frame rate is being measured again.
 
 render3d-settings-graphics = Graphics
 render3d-settings-quality = Quality preset

@@ -427,6 +427,7 @@ public sealed class EntityPass : IDisposable
         var b = e.Bounds;
         _curUid = e.Uid;
         _curPos = pos;
+        _camXy = new Vector2(cam.Position.X, cam.Position.Y);
         _curClickable = _clickable.HasComp(e.Uid);
         // translucent sprites (construction and placement ghosts, fading effects) are alpha blended, not alpha tested
         _curTranslucent = e.Sprite.Color.A < 0.99f;
@@ -613,6 +614,8 @@ public sealed class EntityPass : IDisposable
     };
 
     /// <summary>How many layers of thickness to give this entity this frame (0 = flat).</summary>
+    private Vector2 _camXy;
+
     private int LayerCountFor(ref EntityDraw3D e)
     {
         var on = e.Category switch
@@ -623,6 +626,9 @@ public sealed class EntityPass : IDisposable
         };
 
         if (!on || e.Thickness < 0.01f || _curTranslucent || _extraQuads >= MaxExtraQuads)
+            return 0;
+
+        if (EntityShape.TooCloseForLayers(Vector2.DistanceSquared(e.Pos, _camXy)))
             return 0;
 
         return EntityShape.LayerCount(_thickLayers, MathF.Sqrt(e.Distance2));
