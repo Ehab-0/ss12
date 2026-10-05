@@ -312,7 +312,11 @@ void fragment()
     if (wallHit)
     {
         highp float slot = bestInfo.w;
-        highp float v = clamp(1.0 - hit.z / H, 0.0, 1.0);
+        // The wall picture covers 1.6 tiles of height. A taller wall repeats it (a whole number of times) instead of
+        // stretching it, so the pixels stay square.
+        highp float reps = max(1.0, floor(H / 1.6 + 0.5));
+        highp float v = clamp(1.0 - hit.z / H, 0.0, 1.0) * reps;
+        v = v - floor(min(v, reps - 0.001));
         highp float uu = clamp(bestInfo.z, 0.0, 1.0);
         // sub-rectangle of the icon
         highp vec2 iconUv = vec2(mix(wallUv.x, wallUv.z, uu), mix(wallUv.y, wallUv.w, v));
@@ -321,7 +325,7 @@ void fragment()
         highp float rlen = length(rd);
         highp float facing = max(abs(dot(rd.xy, bestInfo.xy)) / rlen, 0.2);
         highp float fp = bestT * aaParams.x * rlen / facing;           // pixel footprint in tiles
-        highp vec2 fpUv = vec2(fp * (wallUv.z - wallUv.x), fp / H * (wallUv.w - wallUv.y));
+        highp vec2 fpUv = vec2(fp * (wallUv.z - wallUv.x), fp * reps / H * (wallUv.w - wallUv.y));
         highp float limit = 4.0 / 32.0;
         highp vec2 rr = min(fpUv, vec2(limit)) * 0.35;
         highp vec3 albedo = vec3(0.0);

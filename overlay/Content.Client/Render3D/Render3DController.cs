@@ -62,6 +62,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
             (_, _, _) => ToggleSettingsWindow());
+        _console.RegisterCommand("render3d_tune", "Open the developer tuning window: a slider for every client-side render3d.* setting", "render3d_tune",
+            (_, _, _) => ToggleTuneWindow());
 
     }
 
@@ -107,6 +109,19 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
     }
 
     private Render3DSettingsWindow? _settingsWindow;
+    private Render3DTuneWindow? _tuneWindow;
+
+    private void ToggleTuneWindow()
+    {
+        if (_tuneWindow is { Disposed: false, IsOpen: true })
+        {
+            _tuneWindow.Close();
+            return;
+        }
+
+        _tuneWindow = new Render3DTuneWindow();
+        _tuneWindow.OpenToRight();
+    }
 
     private void ToggleSettingsWindow()
     {

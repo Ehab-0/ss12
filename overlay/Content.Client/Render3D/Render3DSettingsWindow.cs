@@ -42,17 +42,24 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         scroll.AddChild(_body);
         ContentsContainer.AddChild(scroll);
 
-        AddHeader("render3d-settings-view");
+        AddHeader("render3d-settings-general");
         AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
-        AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
+        AddQualityRow();
+        AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
         AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
+
+        AddHeader("render3d-settings-keys");
+        foreach (var (function, _, locId) in Render3DKeys.All)
+            AddKeyRow(function, locId);
+
+        AddHeader("render3d-settings-view");
+        AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
         AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
 
         AddHeader("render3d-settings-graphics");
-        AddQualityRow();
         AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
         AddSliderRow("render3d-settings-supersample", 1f, 2f, "0.00", _cfg.GetCVar(CCVars.Render3DSupersample), v =>
         {
@@ -70,10 +77,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         });
         foreach (var effect in Render3DQuality.Effects.Where(e => e.Shape))
             AddEffectCheck(effect);
-
-        AddHeader("render3d-settings-keys");
-        foreach (var (function, _, locId) in Render3DKeys.All)
-            AddKeyRow(function, locId);
     }
 
     private void AddHeader(string locId)

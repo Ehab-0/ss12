@@ -15,11 +15,13 @@ ui-options-3d-crosshair-names = Show names under the crosshair
 ui-options-3d-first-person = Start in first person
 
 render3d-settings-title = 3D view settings
+render3d-settings-general = General
 render3d-settings-view = View
 render3d-settings-keys = Keys
 render3d-settings-use-3d = Use the 3D view
 render3d-settings-first-person = Start in first person
 render3d-settings-fov = Field of view
+render3d-settings-wall-height = Wall height
 render3d-settings-sensitivity = Mouse sensitivity
 render3d-settings-render-scale = Render scale
 render3d-settings-invert-y = Invert vertical look

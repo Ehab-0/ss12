@@ -41,7 +41,7 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle 3D / 2D (when allowed) | `F12` |
 | Toggle first / third person | `N` |
 | Free cursor (hold) | `Alt` (Alt-click keeps its normal meaning) |
-| 3D settings window (look, graphics, keys) | `F11`, or the console command `render3d_settings` |
+| 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -241,6 +241,7 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 | `r3d_cam fp\|tp` | camera mode |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
+| `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |
 | `r3d_atlas <name>` | save the billboard atlas and its glow layer as `atlas_<name>.png` / `atlasglow_<name>.png` |
 | `r3d_audit <name>` | draw every entity of the next frame alone in a roomy cell, save the sheets as `audit_<name>_<n>.png` and log the atlas slot of each cell (art outside its slot is painted onto a neighbour in the real atlas) |
 | `r3d_pick`, `r3d_dump` | what is under the crosshair; every drawn entity with its net id |

@@ -3,6 +3,17 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **The 3D settings window (`F11`) is reorganised, and has a wall height slider.** It now opens with a **General** section:
+  use the 3D view, the quality preset, the wall height (new, 1 to 4 tiles, the same as `render3d.wall_height`) and the field of
+  view. The other sections follow in this order: **Keys**, **View**, **Graphics**, **Shape of things**.
+- **A tuning window for developers (`render3d_tune`).** It lists every client-side `render3d.*` setting with a slider, a box
+  to type an exact value, or a switch, and applies each change at once, so a value such as the ceiling height can be found by
+  looking at the game. It picks up new settings by itself, has a filter box, "Reset all" (back to the values from when it
+  opened) and "Copy changes" (the changed values as `name = value` lines, on the clipboard and in the log).
+- **A taller roof no longer stretches the wall picture.** The wall picture covers 1.6 tiles of height; when `render3d.wall_height`
+  is raised, the picture is now repeated a whole number of times (2 at 3.2) instead of being stretched, so the pixels stay
+  square. Nothing changes at the default height. Doors, windows and other panels that are drawn as one picture still stretch to
+  the new height.
 - **Wall equipment, characters lying down and rotated sprites no longer paint onto their neighbours in the atlas, and only real
   lamps hang at the ceiling.** The slot of a sprite in the atlas now follows how the engine really draws it: the sprite's own
   rotation (which a lying character has) and the "never rotates" and "snaps to quarter turns" flags are counted as well as its
