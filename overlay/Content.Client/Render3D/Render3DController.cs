@@ -1,3 +1,4 @@
+using System.Linq;
 using Content.Client.Administration.Managers;
 using Content.Client.Gameplay;
 using Content.Client.UserInterface.Controls;
@@ -126,6 +127,11 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             return;
 
         OnScreenUnload();
+
+        // A screen that is loaded again must never end up with two 3D views side by side (seen once after a respawn
+        // through the lobby): take away any view this host still has before adding the new one.
+        foreach (var stale in host.Children.OfType<Render3DViewportControl>().ToList())
+            host.RemoveChild(stale);
 
         _host = host;
         _control = new Render3DViewportControl

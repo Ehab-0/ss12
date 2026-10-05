@@ -41,6 +41,8 @@ public sealed partial class Render3DDevChannel : UIController
         base.Initialize();
         _sawmill = _logs.GetSawmill("render3d.dev");
         _console.RegisterCommand("r3d_shot", "Save a screenshot to user data /Screenshots/<name>.png", "r3d_shot <name>", ShotCommand);
+        _console.RegisterCommand("r3d_audit", "Draw every entity of the next frame alone in a roomy cell and save the sheet to /Screenshots/audit_<name>_<n>.png; the log lists each cell's atlas slot", "r3d_audit <name>", AuditCommand);
+        _console.RegisterCommand("r3d_atlas", "Save the billboard atlas (and its glow layer) to /Screenshots/atlas_<name>.png", "r3d_atlas <name>", AtlasCommand);
         _console.RegisterCommand("r3d_look", "Override the 3D camera look direction (degrees), or 'off'", "r3d_look <yaw> <pitch> | r3d_look off", LookCommand);
         _console.RegisterCommand("r3d_dump", "Log the entities the 3D pass drew last frame", "r3d_dump", (shell, _, _) => UIManager.GetUIController<Render3DController>().Control?.DumpEntities());
         _console.RegisterCommand("r3d_press", "Feed a key function through the viewport input path (down|up|tap)", "r3d_press <function> [down|up|tap]", PressCommand);
@@ -168,6 +170,45 @@ public sealed partial class Render3DDevChannel : UIController
         {
             _sawmill.Error($"dev channel failed: {e}");
         }
+    }
+
+    private void AuditCommand(IConsoleShell shell, string argStr, string[] args)
+    {
+        var name = args.Length > 0 ? args[0] : "audit";
+        _res.UserData.CreateDir(ShotDir);
+        UIManager.GetUIController<Render3DController>().Control?.RequestAtlasAudit((sheet, target) =>
+        {
+            target.CopyPixelsToMemory<Rgba32>(image =>
+            {
+                var path = ShotDir / $"audit_{name}_{sheet}.png";
+                using (var file = _res.UserData.OpenWrite(path))
+                    image.SaveAsPng(file);
+
+                _sawmill.Info($"saved {path}");
+                target.Dispose();
+            });
+        });
+    }
+
+    private void AtlasCommand(IConsoleShell shell, string argStr, string[] args)
+    {
+        var name = args.Length > 0 ? args[0] : "atlas";
+        _res.UserData.CreateDir(ShotDir);
+        var (atlas, glow) = UIManager.GetUIController<Render3DController>().Control?.AtlasTargets ?? (null, null);
+
+        void Save(Robust.Client.Graphics.IRenderTexture? target, string prefix)
+        {
+            target?.CopyPixelsToMemory<Rgba32>(image =>
+            {
+                var path = ShotDir / $"{prefix}_{name}.png";
+                using var file = _res.UserData.OpenWrite(path);
+                image.SaveAsPng(file);
+                _sawmill.Info($"saved {path}");
+            });
+        }
+
+        Save(atlas, "atlas");
+        Save(glow, "atlasglow");
     }
 
     private void ShotCommand(IConsoleShell shell, string argStr, string[] args)

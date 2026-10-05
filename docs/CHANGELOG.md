@@ -3,6 +3,29 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Wall equipment, characters lying down and rotated sprites no longer paint onto their neighbours in the atlas, and only real
+  lamps hang at the ceiling.** The slot of a sprite in the atlas now follows how the engine really draws it: the sprite's own
+  rotation (which a lying character has) and the "never rotates" and "snaps to quarter turns" flags are counted as well as its
+  offset. The same offset gap also hit security cameras, the APC, air alarms, station maps and potted plants (their art spilled
+  a few pixels onto the next slot), so the first fix cured those too. Separately, anything with a point light was treated as a
+  lamp, so an APC was hung up at the ceiling with a glow halo; now only light fixtures (a bulb in a socket, an emergency light) are.
+  A new developer command, `r3d_audit <name>`, draws every entity of a frame alone in a roomy cell, saves the sheet to
+  `Screenshots/` and logs the slot reserved for each cell, so spills can be measured. Run over the 2,650 prototypes the pool
+  maps use and the station around the spawn, no sprite lay outside its slot. Lying characters could not be exercised in that
+  run, only checked by unit tests.
+- **The 3D view is never added twice.** A gameplay screen that is loaded again (seen once after a respawn through the lobby) now
+  drops any 3D view its host still holds before it adds a new one, so two views cannot end up side by side. The original
+  report could not be reproduced here, so this guards the most likely cause; forcing the screen to reload several times
+  left a single view.
+- **Glowing lamp tubes no longer appear on characters, items and walls that have no lamp.** The 3D view draws every sprite into
+  a shared picture (the atlas) and gives each one a slot sized from the sprite's bounds. Those bounds leave out the offset of the
+  sprite itself, and wall lamps have one (`offset: 0, 1`: their art is drawn one tile from the lamp so that it lands on the
+  wall). The lamp's art was therefore painted one tile outside its own slot, on top of whatever sat next to it in the atlas: a
+  glowing tube with a dark plate showed up on a character's shoulder, lay on the floor on top of a loose item, or hung on another
+  wall fixture, and it jumped to a different thing whenever the nearest-first order of the atlas changed (that is, whenever you
+  walked), while the lamp's own place showed only its glow. The slot now covers the sprite's offset (`AtlasBounds`), and art that
+  is larger than one slot is left out instead of spilling. The developer view `render3d.debug_view` 41 and 42 show the atlas and
+  its glow layer.
 - **Turning the view sends fewer updates to the server.** While you turn with the mouse, the client told the server the
   new direction up to 30 times a second, and each of those is a message that must arrive in order. On a connection that
   drops packets, every lost one holds up the messages behind it, including your movement keys. The client now sends at

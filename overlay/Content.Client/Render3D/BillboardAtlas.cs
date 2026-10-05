@@ -28,6 +28,10 @@ public sealed class BillboardAtlas : IDisposable
 
     public Texture? Texture => _target?.Texture;
 
+    /// <summary>The atlas render target and its glow twin (a developer aid: <c>r3d_atlas</c> saves them).</summary>
+    public IRenderTexture? Target => _target;
+    public IRenderTexture? GlowTarget => _glow;
+
     /// <summary>Same layout as <see cref="Texture"/>, but holds only the unshaded layers (transparent elsewhere).</summary>
     public Texture? GlowTexture => _glow?.Texture;
     public int Size => _size;
@@ -35,6 +39,13 @@ public sealed class BillboardAtlas : IDisposable
     public BillboardAtlas(IClyde clyde)
     {
         _clyde = clyde;
+    }
+
+    /// <summary>An allocator only, with no render targets, of the given size in pixels (for tests of the slot layout).</summary>
+    public BillboardAtlas(int size)
+    {
+        _clyde = null!;
+        _size = size;
     }
 
     public void EnsureSize(int size)
@@ -63,6 +74,15 @@ public sealed class BillboardAtlas : IDisposable
         _cursorX = 0;
         _cursorY = 0;
         _rowHeight = 0;
+    }
+
+    /// <summary>
+    ///     False for art too big for one slot (more than <see cref="MaxSlotPixels"/> pixels either way). Such a sprite would be
+    ///     drawn past the edge of its slot onto its neighbours, so it is left out instead.
+    /// </summary>
+    public static bool Fits(Box2 bounds)
+    {
+        return bounds.Width * PixelsPerTile <= MaxSlotPixels && bounds.Height * PixelsPerTile <= MaxSlotPixels;
     }
 
     /// <summary>Reserves a slot for sprite bounds <paramref name="bounds"/> (tile units). False when the atlas is full.</summary>

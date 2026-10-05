@@ -318,19 +318,53 @@ public sealed class EntityClassifier
 
     public Render3DComponent? GetRender3D(EntityUid uid) => _render3d.TryComp(uid, out var c) ? c : null;
 
+    /// <summary>The components that make a wall-mounted light a lamp, by name (forks rename or drop them).</summary>
+    private static readonly string[] LampComponents = { "PoweredLight", "EmergencyLight" };
+
+    private Type[]? _lampTypes;
+
     /// <summary>
-    ///     A light on an entity (lamps, emergency lights), whether it is switched on or not. Call it for wall-mounted
-    ///     things: wall lamps are only wall-mounted by draw depth, they have no wall mount component.
+    ///     A lamp: a light that is a light fixture (a bulb in a socket, an emergency light), whether it is switched on or not.
+    ///     Call it for wall-mounted things: wall lamps are only wall-mounted by draw depth, they have no wall mount component.
+    ///     Other things that carry a point light, such as an APC or a charger, only glow a little and are not lamps: they
+    ///     hang at eye level with the rest of the wall equipment. In a codebase that has none of the lamp components every
+    ///     point light counts as a lamp.
     /// </summary>
     public bool TryGetFixture(EntityUid uid, out PointLightComponent light)
     {
-        if (_lights.TryComp(uid, out var found))
+        if (_lights.TryComp(uid, out var found) && IsLamp(uid))
         {
             light = found;
             return true;
         }
 
         light = default!;
+        return false;
+    }
+
+    private bool IsLamp(EntityUid uid)
+    {
+        if (_lampTypes == null)
+        {
+            var types = new List<Type>();
+            foreach (var name in LampComponents)
+            {
+                if (_entMan.ComponentFactory.TryGetRegistration(name, out var reg))
+                    types.Add(reg.Type);
+            }
+
+            _lampTypes = types.ToArray();
+        }
+
+        if (_lampTypes.Length == 0)
+            return true;
+
+        foreach (var type in _lampTypes)
+        {
+            if (_entMan.HasComponent(uid, type))
+                return true;
+        }
+
         return false;
     }
 

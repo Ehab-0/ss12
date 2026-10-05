@@ -124,6 +124,14 @@ public sealed partial class CCVars
     public static readonly CVarDef<float> Render3DYawSendRate =
         CVarDef.Create("render3d.yaw_send_rate", 12f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     A developer aid: whether the billboard atlas slot of a sprite covers the offset of the sprite itself (wall lamps have
+    ///     one). Off gives the old behaviour, where the art of such a sprite lands outside its slot, on top of its neighbours;
+    ///     it exists to compare the two (<c>r3d_atlas</c>) and should stay on.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DDevAtlasOffset =
+        CVarDef.Create("render3d.dev_atlas_offset", true, CVar.CLIENTONLY);
+
     /// <summary>Step the quality down automatically when the frame rate is low (never steps up).</summary>
     public static readonly CVarDef<bool> Render3DAutoQuality =
         CVarDef.Create("render3d.auto_quality", true, CVar.CLIENTONLY | CVar.ARCHIVE);

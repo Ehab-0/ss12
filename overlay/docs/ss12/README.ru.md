@@ -107,7 +107,7 @@ Options > 3D: поле зрения, чувствительность мыши, 
 | `render3d.first_person` (false) | Начинать от первого лица. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45) | Пресет (0 низкий, 1 средний, 2 высокий, 3 пользовательский) и автоматическое понижение. |
 | `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | Отдельные эффекты (см. выше). |
-| `render3d.dev_channel` (false), `render3d.debug_view` (0), `render3d.cap_hysteresis` (0.6) | Средства для разработчиков. `cap_hysteresis` показывает, насколько ближе считается сущность, нарисованная в прошлом кадре, когда выбираются ближайшие `billboard_cap` (1 = без преимущества). |
+| `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 снимок пола, 2 свет, 3 поле зрения, 41 атлас спрайтов, 42 его слой свечения), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Средства для разработчиков. `cap_hysteresis` показывает, насколько ближе считается сущность, нарисованная в прошлом кадре, когда выбираются ближайшие `billboard_cap` (1 = без преимущества). |
 
 ## Графика и отключение эффектов для старых ПК
 
@@ -240,6 +240,8 @@ Radeon RX 580 при 1600x900 весь пресет High стоит около 0
 | `r3d_cam fp\|tp` | режим камеры |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | синтетический ввод через настоящий путь вьюпорта (для предметов ближнего боя используйте `down`, паузу, `up`) |
 | `r3d_capture on\|off` | принудительно включить путь захваченной мыши без фокуса окна |
+| `r3d_atlas <name>` | сохранить атлас спрайтов и его слой свечения как `atlas_<name>.png` / `atlasglow_<name>.png` |
+| `r3d_audit <name>` | нарисовать каждую сущность следующего кадра отдельно в просторной ячейке, сохранить листы как `audit_<name>_<n>.png` и записать в лог ячейку атласа для каждой (рисунок за пределами ячейки в настоящем атласе ложится на соседа) |
 | `r3d_pick`, `r3d_dump` | что находится под прицелом; все отрисованные сущности с их net id |
 | `r3d_noself on\|off`, `r3d_glow on\|off` | исключить собственное тело из выбора; сравнить с атласом свечения и без него |
 | `render3d_fx <effect> on\|off`, `render3d_quality ...` | переключение эффектов (также настоящие команды игрока), использовались для A/B-скриншотов в `docs/ss12/screenshots/visual_*` |

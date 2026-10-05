@@ -108,7 +108,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45) | Preset (0 low, 1 medium, 2 high, 3 custom), and the automatic step-down. |
 | `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
-| `render3d.dev_channel` (false), `render3d.debug_view` (0), `render3d.cap_hysteresis` (0.6) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
+| `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
 
 ## Graphics, and turning things off for older PCs
 
@@ -241,6 +241,8 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 | `r3d_cam fp\|tp` | camera mode |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
+| `r3d_atlas <name>` | save the billboard atlas and its glow layer as `atlas_<name>.png` / `atlasglow_<name>.png` |
+| `r3d_audit <name>` | draw every entity of the next frame alone in a roomy cell, save the sheets as `audit_<name>_<n>.png` and log the atlas slot of each cell (art outside its slot is painted onto a neighbour in the real atlas) |
 | `r3d_pick`, `r3d_dump` | what is under the crosshair; every drawn entity with its net id |
 | `r3d_noself on\|off`, `r3d_glow on\|off` | exclude the own body from picks; compare with/without the glow atlas |
 | `render3d_fx <effect> on\|off`, `render3d_quality ...` | switch effects (also real player commands), used for the A/B screenshots in `docs/ss12/screenshots/visual_*` |

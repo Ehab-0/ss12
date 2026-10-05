@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Content.Client.Clickable;
 using Content.Shared.CCVar;
@@ -43,6 +44,7 @@ public sealed class EntityPass : IDisposable
     private bool _fxOutline;
     private bool _fxSharp;
     private bool _fxFixtures;
+    private bool _atlasOffset = true;
     private bool _curOutline;
 
     // shape of things (lean and thickness per category), read once per frame in Prepare
@@ -96,6 +98,15 @@ public sealed class EntityPass : IDisposable
     public int DrawCount => _drawCount;
 
     public int LastEntityCount { get; private set; }
+
+    /// <summary>The billboard atlas as drawn last frame (a developer aid: debug view 41).</summary>
+    public Texture? AtlasTexture => _atlas.Texture;
+
+    public IRenderTexture? AtlasTarget => _atlas.Target;
+    public IRenderTexture? GlowAtlasTarget => _atlas.GlowTarget;
+
+    /// <summary>The unshaded layers of the billboard atlas (a developer aid: debug view 42).</summary>
+    public Texture? GlowAtlasTexture => _atlas.GlowTexture;
     public int LastQuadCount => _quads.QuadCount;
 
     public EntityPass(IEntityManager entMan, IClyde clyde, IPrototypeManager protos, IConfigurationManager cfg)
@@ -125,6 +136,7 @@ public sealed class EntityPass : IDisposable
         _fxOutline = _cfg.GetCVar(CCVars.Render3DFxOutline);
         _fxSharp = _cfg.GetCVar(CCVars.Render3DFxSharp);
         _fxFixtures = _cfg.GetCVar(CCVars.Render3DFxFixtures);
+        _atlasOffset = _cfg.GetCVar(CCVars.Render3DDevAtlasOffset);
         _fxItemLift = _cfg.GetCVar(CCVars.Render3DFxItemLift);
         _fxItemLean = _cfg.GetCVar(CCVars.Render3DFxItemLean);
         _fxItemThick = _cfg.GetCVar(CCVars.Render3DFxItemThick);
@@ -211,7 +223,9 @@ public sealed class EntityPass : IDisposable
             e.Pos = pos;
             e.WorldRot = rot;
             e.Distance2 = dist2;
-            e.Bounds = local;
+            // the art of a sprite with an offset (wall lamps) or its own rotation (lying characters) lies outside the plain
+            // local bounds, so the slot has to cover it
+            e.Bounds = ReservedBounds(local, sprite, Angle.Zero);
             e.Glow = HasGlowLayer(uid, sprite);
 
             e.Category = _classifier.IsMob(uid) ? EntityCategory.Character
@@ -251,17 +265,17 @@ public sealed class EntityPass : IDisposable
                     e.Z = (onTable ? tableHeight + 0.01f : 0.01f)
                         + (_fxItemLift && e.Category == EntityCategory.Item ? ItemLiftHeight : 0f);
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 case Render3DMode.FlatAir:
                     e.Z = effectHeight;
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 case Render3DMode.TableBox:
                     e.Z = tableHeight;
                     e.DrawRotated = true;
-                    e.Bounds = RotatedBounds(local, rot);
+                    e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 default:
                     // Panel, EdgePanel, GlassBox, WallDecal: the front of the live sprite
@@ -278,6 +292,8 @@ public sealed class EntityPass : IDisposable
         for (var i = 0; i < _drawCount; i++)
         {
             ref var e = ref _draws[i];
+            if (!BillboardAtlas.Fits(e.Bounds))
+                continue;
             if (!_atlas.TryAllocate(e.Bounds, out e.Slot, out e.SlotOrigin))
                 break;
             e.Placed = true;
@@ -295,6 +311,12 @@ public sealed class EntityPass : IDisposable
 
             BuildQuads(ref e, cam, atlasSize, wallHeight, tableHeight);
         }
+    }
+
+    /// <summary>The area to reserve in the atlas for a sprite drawn with the entity rotation <paramref name="entityRotation"/>.</summary>
+    private Box2 ReservedBounds(Box2 local, SpriteComponent sprite, Angle entityRotation)
+    {
+        return AtlasBounds.Drawn(local, _atlasOffset ? sprite.Offset : Vector2.Zero, sprite.Rotation, entityRotation);
     }
 
     /// <summary>
@@ -359,11 +381,6 @@ public sealed class EntityPass : IDisposable
         }
 
         results.Sort((a, b) => a.T.CompareTo(b.T));
-    }
-
-    private static Box2 RotatedBounds(Box2 local, Angle rot)
-    {
-        return new Box2Rotated(local, rot, Vector2.Zero).CalcBoundingBox();
     }
 
     private void BuildQuads(ref EntityDraw3D e, Camera3D cam, float atlasSize, float wallHeight, float tableHeight)
@@ -756,6 +773,86 @@ public sealed class EntityPass : IDisposable
     {
         _glowShader ??= _protos.Index(GlowShader).InstanceUnique();
         _atlas.Draw(screen, _draws, _drawCount, _glowShader);
+    }
+
+    private Action<int, IRenderTexture>? _auditSave;
+
+    /// <summary>
+    ///     Developer aid (<c>r3d_audit</c>): the next <see cref="DrawAtlas"/> also draws every placed entity on its own into a
+    ///     roomy cell of a sheet and hands each finished sheet to <paramref name="save"/> (which owns and disposes it), see
+    ///     <see cref="AtlasAudit"/>.
+    /// </summary>
+    public void RequestAudit(Action<int, IRenderTexture> save) => _auditSave = save;
+
+    /// <summary>
+    ///     Draws the entities of the frame one per cell, so that the art of each can be compared with the slot the atlas
+    ///     reserved for it, and logs one line per cell with that slot. Call it right after <see cref="DrawAtlas"/>.
+    /// </summary>
+    public void RunAuditIfRequested(DrawingHandleScreen screen, ISawmill log)
+    {
+        if (_auditSave is not { } save)
+            return;
+
+        _auditSave = null;
+
+        var placed = new List<int>();
+        for (var i = 0; i < _drawCount; i++)
+        {
+            ref var e = ref _draws[i];
+            if (e.Placed && e.Impostor == null && !_entMan.Deleted(e.Uid))
+                placed.Add(i);
+        }
+
+        const int side = 4096;
+        var perRow = AtlasAudit.CellsPerRow(side);
+        var perSheet = perRow * perRow;
+        log.Info($"atlas audit: {placed.Count} placed entities, cell {AtlasAudit.CellPixels}px, {perRow} per row, {(placed.Count + perSheet - 1) / perSheet} sheet(s)");
+
+        for (var first = 0; first < placed.Count; first += perSheet)
+        {
+            var sheet = first / perSheet;
+            var count = Math.Min(perSheet, placed.Count - first);
+            var target = _clyde.CreateRenderTarget(
+                new Vector2i(side, side),
+                new RenderTargetFormatParameters(RenderTargetColorFormat.Rgba8Srgb),
+                new TextureSampleParameters { Filter = false },
+                "render3d-atlas-audit");
+
+            for (var k = 0; k < count; k++)
+            {
+                ref var e = ref _draws[placed[first + k]];
+                var proto = _entMan.TryGetComponent(e.Uid, out MetaDataComponent? meta) ? meta.EntityPrototype?.ID ?? "?" : "?";
+                var sp = e.Sprite;
+                var slot = AtlasAudit.SlotInCell(e.Bounds, k % perRow, k / perRow, e.Slot.Width, e.Slot.Height);
+                log.Info($"atlas audit cell {sheet}:{k} slot={slot.Left},{slot.Top},{slot.Right},{slot.Bottom} {proto} {e.Mode} bounds={e.Bounds} rot={sp.Rotation.Degrees:F0} offset={sp.Offset} scale={sp.Scale} noRot={sp.NoRotation} snap={sp.SnapCardinals} layers={sp.AllLayers.Count()} granular={sp.GranularLayersRendering} drawRot={e.DrawRotated} dir={e.DrawDirection}");
+            }
+
+            var items = new EntityDraw3D[count];
+            for (var k = 0; k < count; k++)
+                items[k] = _draws[placed[first + k]];
+
+            screen.RenderInRenderTarget(target, () =>
+            {
+                for (var k = 0; k < count; k++)
+                {
+                    ref var e = ref items[k];
+                    var centre = new Vector2(
+                        k % perRow * AtlasAudit.CellPixels + AtlasAudit.CellPixels / 2,
+                        k / perRow * AtlasAudit.CellPixels + AtlasAudit.CellPixels / 2);
+                    try
+                    {
+                        screen.DrawEntity(e.Uid, centre, Vector2.One, e.DrawRotated ? null : Angle.Zero, Angle.Zero,
+                            e.DrawDirection, e.Sprite);
+                    }
+                    catch (Exception)
+                    {
+                        // deleted meanwhile: its cell stays empty
+                    }
+                }
+            }, Color.Transparent);
+
+            save(sheet, target);
+        }
     }
 
     /// <summary>
