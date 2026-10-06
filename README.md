@@ -33,6 +33,7 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
 | **try it on my own computer** (no server needed) | [Play the demo](docs/PLAY-THE-DEMO.md) (Windows and Linux) |
 | **add 3D to my own SS14 server** | [Install it on your server](docs/INSTALL-ON-YOUR-SERVER.md) |
 | **see it done on a real server first** | [Worked example: Wizard's Den](docs/EXAMPLE-WIZARDS-DEN.md) |
+| **make my fork look right, host it and welcome players** | [Porting your server](docs/PORTING-YOUR-SERVER.md) |
 | **add 3D to a server with lots of custom code** (let an AI assistant adapt it) | [Use it with an AI assistant](docs/USE-WITH-AI.md) |
 | **play on a server that already has it** (there is a test server) | [Joining a 3D server](#joining-a-3d-server) |
 | **read the short version, with the server address** | the website: [ss12.org](https://ss12.org) |
@@ -50,8 +51,10 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
 - **It looks good, and you can turn the looks down.** Soft lighting, glowing lamps, shadows under people and
   things, a starry sky outside. Every extra can be switched off one by one, for older computers. Press `F11`.
 - **Things have a body.** Items on the floor are lifted, tilted towards you and drawn with thickness, so a crowbar
-  does not look like a sticker or a stain; people and machines get a thin slab of depth too. Each of these can be
-  switched off on its own.
+  does not look like a sticker or a stain; they rest on the tops of tables and racks. Furniture and machines stay where
+  they are as you walk round them, and people get a thin slab of depth too. Each of these can be switched off on its own.
+- **A list of what you point at.** Several things on one spot (a pile on a table)? Press `L` for a short list, pick
+  one with `Up` / `Down` and `Space`, and `Space` again to use it.
 - **A minimap to find your way.** A small map of the station in the corner, with an arrow for where you look. It shows no
   other players. `M` switches it on and off, `-` makes it larger.
 - **It starts on the best looks and protects slow computers.** Every round starts on the highest graphics and measures the
@@ -98,13 +101,11 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Walk | `W` `A` `S` `D` |
 | Switch between first and third person | `N` |
 | **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
-| Minimap on and off, small or large | `M`, `-` |
+| Minimap on and off; small or large | `M`; `-` |
 | List of what you point at, on and off | `L` |
 | Choose from that list: select, then act | `Up` `Down`, `Space`, `Space` again; or `Alt` + click a row |
 | Open the 3D settings (looks, speed, keys) | `F11` |
 | Switch between 3D and the old flat view, if the server allows it | `F12` |
-| Minimap on and off | `M` |
-| Minimap small or large | `-` |
 | Everything else (use, throw, talk, combat mode...) | the same keys as in normal SS14 |
 
 The little cross in the middle of the screen is where you point. It turns **green** when what you are pointing at is
@@ -115,7 +116,7 @@ close enough to touch.
 ## Joining a 3D server
 
 Nothing to install. Open the normal Space Station 14 launcher, join the server like any other, and the 3D version
-loads automatically. Tell the people on the server to press `F11` the first time to check the settings.
+loads automatically. Press `F11` the first time to check the settings.
 
 **Test server:** the project runs one so you can try SS12 without setting anything up. It is a test server, so it may
 restart or be down at times.
@@ -164,7 +165,7 @@ and changes nothing.
 ## Something is broken or confusing
 
 - Look at [Troubleshooting](docs/TROUBLESHOOTING.md): it answers the common ones in plain words.
-- Still stuck? [Open an issue](../../issues/new/choose) and attach the report file the installer or the game made.
+- Still stuck? [Open an issue](https://github.com/Ehab-0/ss12/issues/new/choose) and attach the report file the installer or the game made.
   Nobody will mind if you are not technical; just say what you did and what you saw.
 
 ---

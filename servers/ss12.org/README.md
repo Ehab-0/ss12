@@ -30,6 +30,8 @@ install SS12 never get these files; it is here so the test server can be rebuilt
   characters along the bottom. The scene is kept inside the left 72% of the image, because the lobby draws its chat panel over
   the right side, crops a little from the top and bottom and puts its own buttons in the top left and its credits in the
   bottom left corner. When a key changes, change the table in the script and draw it again.
+- **The name.** `deploy/server_config.toml` names the server "[3D] Join for a ..." and spells SURPRISE with letter emoji, one
+  space between the letters (two letter emoji side by side fuse into a country flag).
 
 ## Using it
 

@@ -26,7 +26,7 @@ Everything below was tried on real code in October 2026 with this project's inst
 | Stalker | 286 | Exactly the minimum. Not tried. |
 | Delta-V, Einstein Engines, Goob Station, Floofstation, RMC14 and others | 239 to 277 | **Not possible yet**: the engine is too old. The installer refuses and changes nothing. |
 
-Of the 18 most-played public servers I looked at, 14 had a readable version, and 5 of those run engine 286 or newer. The
+Of the 18 most-played public servers we looked at, 14 had a readable version, and 5 of those run engine 286 or newer. The
 rest are on older engines, because their teams have not updated yet. When they do (they all do eventually), 3D can be
 added.
 

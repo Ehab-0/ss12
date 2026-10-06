@@ -55,6 +55,10 @@ No. It is made for keyboard and mouse.
 3D needs features of the game engine that were added in engine version **286**. Servers on older engines have to update
 first. This is checked for you: the helper tells you and changes nothing. See [COMPATIBILITY](COMPATIBILITY.md).
 
+### I run a fork. What should I check after installing?
+Which prototypes your fork renamed (the 3D view has rules for upstream's names), what the server host should look like, and what new
+players will see first. [Porting your server](PORTING-YOUR-SERVER.md) walks through it, with the problems we hit on the test server.
+
 ### Which servers have been tested?
 The code of several of the most-played servers: the main "Wizard's Den" code, Starlight, and a Marine Corps server,
 among others. Results are in [COMPATIBILITY](COMPATIBILITY.md).

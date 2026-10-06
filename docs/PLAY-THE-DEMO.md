@@ -68,7 +68,7 @@ bottom bar for your hands and inventory.
 ## If something goes wrong
 
 - **Windows asks whether to allow "Content.Server" through the firewall.** The demo only talks to itself, so you should be
-  able to answer *Cancel*. (The demo asks Windows for a connection from your own computer only. I saw this question
+  able to answer *Cancel*. (The demo asks Windows for a connection from your own computer only. We saw this question
   during testing, before that setting was added, and could not test every answer, so if the demo does not start after
   you press Cancel, try again and press Allow.)
 - **"I cannot find the game files."** You started it from inside the zip. Unzip first.

@@ -128,6 +128,11 @@ after changing client code.
   degrade a feature (if optional). Never "fall back" to guessing a location.
 - Windows packaging copies `Content.Packaging` before running it (the running tool locks its own files).
 - Engine versions older than 286 are refused on purpose (no relative mouse mode or FOV render target).
+- `ss12 doctor` has read-only content checks (`installer/ContentCheck.cs`): rule names that the codebase does not define, and
+  mouse aiming that bypasses `Render3DPointer`. They only warn and never make the doctor fail, and they must stay silent on an
+  unmodified upstream codebase (check that when you change them: a false alarm on a healthy install costs more than a miss).
+- A fork's own 3D rules belong in their own file under `Resources/Prototypes/Render3D/`, not in the shipped `rules.yml`: `update`
+  replaces that file and refuses to touch it if it was edited. `docs/PORTING-YOUR-SERVER.md` is the guide for server owners.
 
 ### What is verified, and what is not
 Verified: building and playing on a local server, joining a packaged local server with the official launcher over

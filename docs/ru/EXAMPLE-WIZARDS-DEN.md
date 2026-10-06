@@ -79,7 +79,7 @@ Engine 291.0.0: tested.
 [apply]   health-bars (optional): Draw health bars over mobs in 3D
 
 == Summary
-52 file(s) to add or update, 10 existing file(s) to edit, engine 291.0.0.
+97 file(s) to add or update, 10 existing file(s) to edit, engine 291.0.0.
 Dry run: nothing was written.
 ```
 
@@ -90,8 +90,8 @@ Dry run: nothing was written.
   пометкой *required* (обязательная правка) нужны для работы 3D-вида: без них он не заработает. Если вместо этого в
   такой строке написано **MISSING** (не найдено), установщик останавливается и ничего не меняет. Это значит, что код
   вашего сервера в этом месте изменён; смотрите [Используйте ИИ-ассистента](USE-WITH-AI.md).
-- **52 файла для добавления** это целиком новые файлы (код 3D, его шейдеры и заметки). **10 файлов для правки** это
-  десять существующих игровых файлов, в каждый из которых вносится крошечное изменение. Например, в `GunSystem.cs`
+- **97 файлов для добавления** это целиком новые файлы (код 3D, его шейдеры, тесты и заметки). **10 правок** вносятся в **девять**
+  существующих игровых файлов (в один из них две), каждая крошечная. Например, в `GunSystem.cs`
   меняется одна строка, чтобы оружие целилось в прицел:
 
   ```diff
@@ -119,15 +119,18 @@ Committed to git (not pushed).
 3D is installed. Next steps:
   1. Server: apply the preset (see Resources/ConfigPresets/Build/render3d.toml) ... `render3d.enforced` is OFF (players choose with F12).
   2. Publish a server build with `ss12 package`; ...
-  3. Read docs/ss12/ONBOARDING.md, run `ss12 doctor`.
+  3. Read docs/ss12/ONBOARDING.md, run `ss12 doctor`. It also lists names in the 3D rules that your fork does not have;
+     rules for your own prototypes go in Resources/Prototypes/Render3D/<yourserver>.yml (see PORTING-YOUR-SERVER.md ...).
 ```
 
 (Перевод: «Клиент и сервер собираются. Закоммичено в git (не отправлено). Готово. 3D установлен. Дальше: 1. На сервере
 примените пресет ... `render3d.enforced` ВЫКЛЮЧЕН (игроки выбирают клавишей F12). 2. Опубликуйте сборку сервера
-командой `ss12 package`; ... 3. Прочитайте docs/ss12/ONBOARDING.md, запустите `ss12 doctor`.»)
+командой `ss12 package`; ... 3. Прочитайте docs/ss12/ONBOARDING.md, запустите `ss12 doctor`. Он также перечисляет названия из правил 3D, которых нет в
+вашем форке; правила для собственных прототипов кладите в Resources/Prototypes/Render3D/<yourserver>.yml (см.
+PORTING-YOUR-SERVER.md).»)
 
-В коммите 63 изменённых файла: 52 новых файла, 10 изменённых и небольшая запись (`.ss12/manifest.json`), благодаря
-которой установщик позже сможет точно всё откатить. Посмотреть коммит можно командой `git show --stat`. Никуда ничего
+В коммите 108 изменённых файлов: 99 новых (97 выше, серверный пресет и небольшая запись `.ss12/manifest.json`, благодаря
+которой установщик позже сможет точно всё откатить) и 9 изменённых. Посмотреть коммит можно командой `git show --stat`. Никуда ничего
 не отправлялось; установщик никогда не обращается к удалённым репозиториям.
 
 По умолчанию каждый игрок может выключить 3D клавишей `F12`. Чтобы сделать 3D обязательным для живых игроков,
@@ -147,6 +150,9 @@ ss12 doctor path\to\space-station-14 --build
 [ok]      pointer-aim
 ...
 [ok]      health-bars
+
+== Your content
+Every prototype the rules name exists, and no other code aims with the real cursor.
 
 == Server configuration
 Resources/ConfigPresets/Build/render3d.toml present.

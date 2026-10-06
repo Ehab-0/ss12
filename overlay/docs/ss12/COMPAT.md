@@ -2,7 +2,7 @@
 
 *[Русская версия](COMPAT.ru.md)*
 
-The installer (`Tools/ss12`, see [ONBOARDING.md](ONBOARDING.md)) was tried on real codebases. This page says what
+The installer (`ss12`, see [ONBOARDING.md](ONBOARDING.md)) was tried on real codebases. This page says what
 was found, honestly, including what does **not** work yet.
 
 Terms: "dry run" = the edits were planned against the code to see whether their anchors are found (nothing written);

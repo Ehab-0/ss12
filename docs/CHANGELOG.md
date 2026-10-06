@@ -3,6 +3,11 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in
+  the pages that ship into a server (`Tools/ss12/...`) now describe the real installer (`ss12 install ...`), links to files that were
+  never shipped are gone, the numbers in the Wizard's Den example are the current ones (97 files added, 10 edits in 9 files, 108 in
+  the commit), the README controls table no longer lists the minimap twice, and the thickness, test and mouse-capture notes are up
+  to date.
 - **Potted plants stand up.** A potted plant can be picked up, so the 3D view treated it as an item and drew it lying flat on the floor.
   It is now drawn standing, like the rest of the furniture (it keeps turning to face you, since a plant has no front).
 - **What lies in an open locker lies on the floor.** An open locker, closet or crate counted as a surface, so its contents were
@@ -16,7 +21,14 @@
 - **Window doors are easier to read.** A brighter, thicker frame and a push bar across the middle, and an open window door is drawn
   as its frame only, so the doorway no longer vanishes when it opens (`bar: true` in the glass rules of `rules.yml`).
 - **Chairs are thinner.** Chairs, stools and benches get a thin slab (0.05 tile) instead of the plank-like default.
-- **The server's name** shows the dark glasses and an ice cube instead of "[3D]".
+- **The server's name** starts with "[3D]" and spells SURPRISE in letter emoji.
+- **`ss12 doctor` checks your content.** A new "Your content" section lists the prototypes the 3D rules name that your codebase does not
+  define (a fork that renamed them), and the places that still aim with the real cursor (`_eyeManager.PixelToMap(... MouseScreenPosition)`)
+  after the install. Warnings only: they never make the doctor fail, and a codebase that matches upstream gets none. The install's
+  last lines now point to your own rules file.
+- **A guide for server owners: [Porting your server](PORTING-YOUR-SERVER.md).** What we learned turning Wizard's Den into the test
+  server: putting your own rules in your own file (updates leave it alone), the symptoms to look for on a fork and the rule that fixes
+  each, packaging and server settings, restarts that never kick anyone, and what to show new players.
 - **Clicking a row of the list works.** With `Alt` held the engine does not send a plain click: Alt + left button is its own
   binding and wins over the plain one, so the row never saw a click. It now takes that one as a click too.
 - **After alt+tab the mouse is taken back.** The cursor could stay free, and the camera not follow the mouse, until another
