@@ -1,4 +1,4 @@
-"""Draws the SS12 lobby background (pixel art, SS13 vibes) and writes it as a 1920x1080 image.
+"""Draws the SS12 lobby background (pixel art, SS13 vibes, with the controls and a few tips) as a 1920x1080 image.
 
 Everything is drawn in code at 480x270 and scaled 4x with nearest-neighbour, so no third-party art is used.
 Font: Boxfont Round from the SS14 repo (see Resources/Fonts/Boxfont-round/credits.txt).
@@ -8,9 +8,10 @@ import math, random, sys
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H, S = 480, 270, 4
-# The lobby draws its chat panel over the right ~28% and crops a little from the top and bottom, so everything that
-# matters stays inside the left 72% (x < SAFE_R) and between y = 14 and y = 256.
-CX, SAFE_R = 178, 346
+# The lobby shows only the left ~72% of the image (the rest is under its chat panel) and crops a little from the top and
+# bottom, so everything that matters stays inside x < SAFE_R and between y = 14 and y = 256. The lobby's own buttons sit in
+# the top left corner (x < 100, y < 34) and its credits in the bottom left (x < 72, y > 244).
+CX, SAFE_R = 173, 346
 root = sys.argv[1]
 FONT = root + "/Resources/Fonts/Boxfont-round/Boxfont Round.ttf"
 rnd = random.Random(1213)
@@ -43,7 +44,7 @@ for _ in range(14):
         d.point((x + dx, y + dy), fill=(160, 160, 220))
 
 
-# ---- the singularity (loose)
+# ---- the singularity (loose), small, top right
 def singulo(cx, cy, r):
     for i in range(r + 22, 0, -1):
         t = i / (r + 22)
@@ -64,26 +65,28 @@ def singulo(cx, cy, r):
                 fill=rnd.choice([(200, 200, 210), (255, 190, 60), (120, 255, 160)]))
 
 
-SX, SY = 332, 150
-singulo(SX, SY, 20)
-
-# station tiles being eaten
-for i in range(9):
-    ang = 2.7 + i * 0.08
-    dist = 50 + i * 6
+SX, SY = 328, 70
+singulo(SX, SY, 14)
+for i in range(7):
+    ang = 2.9 + i * 0.09
+    dist = 40 + i * 5
     x = SX + math.cos(ang) * dist
     y = SY + math.sin(ang) * dist * 0.7
-    d.rectangle([x, y, x + 4, y + 3], fill=(120, 124, 135), outline=(60, 62, 72))
+    d.rectangle([x, y, x + 3, y + 2], fill=(120, 124, 135), outline=(60, 62, 72))
     d.point((x + 1, y + 1), fill=(255, 230, 120))
 
-# ---- corridor floor (SS13 white tile checker, real perspective)
-FLOOR_Y = 196
-VPX, VPY = 240, 120
+# ---- corridor floor along the bottom (SS13 white tile checker, real perspective)
+FLOOR_Y = 218
+VPX, VPY = 200, 120
 d.rectangle([0, FLOOR_Y - 4, W, FLOOR_Y], fill=(70, 74, 86))
 d.rectangle([0, FLOOR_Y - 8, W, FLOOR_Y - 5], fill=(40, 42, 52))
 rows = [FLOOR_Y + (H - FLOOR_Y) * (k / 7) ** 1.8 for k in range(8)]
+
+
 def fx(x0, y):  # x on screen of the floor line that is x0 at the bottom edge
     return VPX + (x0 - VPX) * (y - VPY) / (H - VPY)
+
+
 cols = list(range(-640, 1120, 80))
 for r in range(7):
     y0, y1 = rows[r], rows[r + 1]
@@ -99,7 +102,7 @@ for x0 in cols:
     d.line([fx(x0, FLOOR_Y), FLOOR_Y, fx(x0, H), H], fill=(96, 100, 114))
 
 
-# ---- characters
+# ---- characters (drawn at 1x, standing on the strip of floor)
 def shadow(cx, y, w):
     d.ellipse([cx - w, y - 2, cx + w, y + 2], fill=(60, 62, 74))
 
@@ -165,16 +168,15 @@ def security(cx, base):
     d.point((cx + 21, base - 24), fill=(255, 240, 80))
 
 
-main_draw = d
-layer = Image.new("RGBA", (W // 2, H // 2), (0, 0, 0, 0))
-d = ImageDraw.Draw(layer)
-assistant(35, 110)
-clown(85, 112)
-security(135, 111)
-img.paste(layer.resize((W, H), Image.NEAREST), (0, 0), layer.resize((W, H), Image.NEAREST))
-d = main_draw = ImageDraw.Draw(img)
-for i in range(3):
-    d.line([212 - i * 6, 205 + i * 4, 222 - i * 6, 205 + i * 4], fill=(230, 230, 240))
+assistant(112, 253)
+clown(172, 254)
+security(232, 253)
+# a little speech bubble for the clown
+ft = f(8)
+d.rectangle([186, 214, 215, 224], fill=(250, 250, 250), outline=(10, 10, 10))
+d.polygon([(190, 224), (195, 224), (191, 229)], fill=(250, 250, 250), outline=(10, 10, 10))
+d.line([191, 224, 194, 224], fill=(250, 250, 250))
+d.text((190, 215), "HONK", font=ft, fill=(10, 10, 10))
 
 
 # ---- title with 3D-glasses (red/cyan) offset
@@ -190,42 +192,75 @@ def title(text, y, size, off):
     d.text((x, y), text, font=ft, fill=(255, 255, 255))
 
 
-title("SPACE STATION 12", 38, 30, 2)
+title("SPACE STATION 12", 36, 25, 2)
 sub = "SS13, BUT NOW WITH A THIRD DIMENSION"
-ft = f(11)
-wid = d.textlength(sub, font=ft)
-d.text((CX - wid / 2 + 1, 79), sub, font=ft, fill=(0, 0, 0))
-d.text((CX - wid / 2, 78), sub, font=ft, fill=(255, 225, 90))
-sub2 = "(please put on your 3D glasses)"
 ft = f(10)
-wid = d.textlength(sub2, font=ft)
-d.text((CX - wid / 2, 97), sub2, font=ft, fill=(150, 160, 200))
-
-
-# ---- speech bubbles
-def bubble(x, y, text, tail_x):
-    ft = f(10)
-    wid = int(d.textlength(text, font=ft)) + 8
-    d.rectangle([x, y, x + wid, y + 14], fill=(250, 250, 250), outline=(10, 10, 10))
-    d.polygon([(tail_x, y + 14), (tail_x + 5, y + 14), (tail_x + 2, y + 20)], fill=(250, 250, 250), outline=(10, 10, 10))
-    d.line([tail_x + 1, y + 14, tail_x + 4, y + 14], fill=(250, 250, 250))
-    d.text((x + 4, y + 2), text, font=ft, fill=(10, 10, 10))
-
-
-bubble(8, 136, "WHY IS THERE A Z AXIS", 66)
-bubble(150, 130, "HONK", 166)
-bubble(198, 130, "FREEZE, CRIMINAL SCUM", 266)
-
-# ---- fake SS13 chat log
-panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-ImageDraw.Draw(panel).rectangle([96, 238, 346, 255], fill=(10, 12, 20, 200), outline=(80, 90, 120, 255))
-img.paste(panel, (0, 0), panel)
-d = ImageDraw.Draw(img)
+wid = d.textlength(sub, font=ft)
+d.text((CX - wid / 2 + 1, 66), sub, font=ft, fill=(0, 0, 0))
+d.text((CX - wid / 2, 65), sub, font=ft, fill=(255, 225, 90))
+sub2 = "(please put on your 3D glasses)"
 ft = f(8)
-name = "Urist McAssistant"
-d.text((100, 240), name, font=ft, fill=(190, 190, 200))
-d.text((100 + d.textlength(name, font=ft), 240), ' says, "i only wanted a toolbox"', font=ft, fill=(235, 235, 235))
-d.text((100, 247), "Singularity released. Engineering is on break.", font=ft, fill=(255, 90, 90))
+wid = d.textlength(sub2, font=ft)
+d.text((CX - wid / 2, 79), sub2, font=ft, fill=(150, 160, 200))
+
+# ---- panels
+panels = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+pd = ImageDraw.Draw(panels)
+pd.rectangle([10, 92, 336, 164], fill=(8, 10, 24, 205), outline=(90, 100, 140, 255))
+pd.rectangle([10, 168, 336, 215], fill=(8, 10, 24, 205), outline=(90, 100, 140, 255))
+img.paste(panels, (0, 0), panels)
+d = ImageDraw.Draw(img)
+
+HEAD = (255, 225, 90)
+TEXT = (232, 234, 245)
+CAP_FACE, CAP_EDGE, CAP_LOW = (66, 72, 100), (160, 168, 205), (24, 26, 42)
+
+
+HOT_FACE, HOT_EDGE, HOT_LOW = (235, 150, 20), (255, 225, 120), (120, 60, 0)
+
+
+def keycap(x, y, label, hot=False):
+    """A small key (an amber one when it is highlighted), returns the x where it ends."""
+    ft = f(8)
+    w = int(d.textlength(label, font=ft)) + 6
+    face, edge, low = (HOT_FACE, HOT_EDGE, HOT_LOW) if hot else (CAP_FACE, CAP_EDGE, CAP_LOW)
+    d.rectangle([x, y + 1, x + w, y + 11], fill=low)
+    d.rectangle([x, y, x + w, y + 9], fill=face, outline=edge)
+    d.text((x + 3, y + 1), label, font=ft, fill=(25, 12, 0) if hot else (255, 255, 255))
+    return x + w + 2
+
+
+def control(x, y, keys, label, hot=False):
+    for k in keys:
+        x = keycap(x, y, k, hot)
+    d.text((x + 3, y + 1), label, font=f(8), fill=(255, 225, 90) if hot else TEXT)
+
+
+d.text((16, 95), "CONTROLS", font=f(8), fill=HEAD)
+LX, RX = 16, 178
+control(LX, 108, ["W", "A", "S", "D"], "walk")
+control(LX, 122, ["MOUSE"], "look around")
+control(LX, 136, ["N"], "first / third person")
+# the one thing a new player gets stuck on: the mouse turns the camera, so menus need Alt
+hl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+hd = ImageDraw.Draw(hl)
+hd.rectangle([13, 148, 173, 162], fill=(235, 150, 20, 70), outline=(255, 210, 80, 255))
+img.paste(hl, (0, 0), hl)
+d = ImageDraw.Draw(img)
+control(LX, 150, ["ALT"], "HOLD: FREE THE MOUSE", hot=True)
+control(RX, 108, ["M"], "minimap on / off")
+control(RX, 122, ["-"], "minimap small / large")
+control(RX, 136, ["F11"], "3D settings")
+control(RX, 150, ["F12"], "3D / flat view")
+
+d.text((16, 171), "TIPS", font=f(8), fill=HEAD)
+tips = [
+    "Aim with the cross; it turns green when it is in reach.",
+    "Slow? F11, Quality preset: Low (it also lowers itself).",
+    "Windows are real glass: you can look through them.",
+]
+for i, t in enumerate(tips):
+    d.text((16, 182 + i * 10), t, font=f(8), fill=TEXT)
 
 tag = "ss12.org"
 ft = f(10)
@@ -240,5 +275,9 @@ out = Image.composite(out, Image.new("RGB", out.size, (0, 0, 0)), vg.point(lambd
 sl = ImageDraw.Draw(out)
 for y in range(0, out.height, S):
     sl.line([0, y + S - 1, out.width, y + S - 1], fill=(0, 0, 0))
-out.save(sys.argv[2] if len(sys.argv) > 2 else "lobby_preview.png")
+path = sys.argv[2] if len(sys.argv) > 2 else "lobby_preview.png"
+if path.lower().endswith(".webp"):
+    out.save(path, quality=90, method=6)
+else:
+    out.save(path)
 print("ok", out.size)
