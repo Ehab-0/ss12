@@ -117,4 +117,35 @@ public sealed class GlassLookTest
         Assert.That(look.Mesh, Is.EqualTo(2));
         Assert.That(new GlassLook(new Render3DGlassRule { Alpha = -1f, FrameWidth = -4 }).FrameWidth, Is.EqualTo(0));
     }
+
+    [Test]
+    public void ABarCrossesTheMiddleOfADoorAndStaysInsideTheFrame()
+    {
+        var parts = Layout(new Render3DGlassRule { FrameWidth = 3, Bar = true });
+        Assert.That(Covers(parts, GlassPart.Frame, 16, 14), Is.True);
+        Assert.That(Covers(parts, GlassPart.Frame, 16, 15), Is.True);
+        Assert.That(Covers(parts, GlassPart.Frame, 16, 10), Is.False);
+        Assert.That(Covers(parts, GlassPart.Frame, 16, 20), Is.False);
+    }
+
+    [Test]
+    public void NoBarWithoutTheSetting()
+    {
+        var parts = Layout(new Render3DGlassRule { FrameWidth = 3 });
+        Assert.That(Covers(parts, GlassPart.Frame, 16, 14), Is.False);
+    }
+
+    [Test]
+    public void AnOpenDoorIsItsFrameOnly()
+    {
+        var closed = new GlassLook(new Render3DGlassRule { FrameWidth = 3, Bar = true, Alpha = 0.3f, Mesh = 6 });
+        var open = closed.Opened;
+        Assert.That(open.Alpha, Is.EqualTo(0f));
+        Assert.That(open.Bar, Is.False);
+        Assert.That(open.Mesh, Is.EqualTo(0));
+        Assert.That(open.Shine, Is.False);
+        Assert.That(open.FrameWidth, Is.GreaterThanOrEqualTo(3));
+        Assert.That(open.Opened, Is.SameAs(open));
+        Assert.That(closed.Opened, Is.SameAs(open));
+    }
 }

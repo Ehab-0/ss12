@@ -117,21 +117,24 @@
   - parents:
     - BaseWindoorGeneric
     tint: "#9cc8e0"
-    alpha: 0.20
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.26
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   - parents:
     - WindoorPlasma
     tint: "#c050d0"
-    alpha: 0.26
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.30
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   - parents:
     - WindoorUranium
     tint: "#30c8b0"
-    alpha: 0.26
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.30
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   # grilles: no pane, a frame and a fine mesh of wires (the colour of the mesh may carry an alpha: #rrggbbaa)
   - parents:
     - Grille
@@ -178,6 +181,10 @@
   - parents:
     - ToolboxBase
     thickness: 0.12
+  # chairs, stools and benches are thin: a thick slab of a chair looks like a plank
+  - parents:
+    - SeatBase
+    thickness: 0.05
 
   # Standing things stay fixed in the world, facing the way they point (the "object_fixed" effect), unless a rule here says
   # "fixed: false": trees, statues and other things that are round or have no front keep turning to face the camera.

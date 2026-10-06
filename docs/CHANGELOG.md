@@ -3,6 +3,18 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **What lies in an open locker lies on the floor.** An open locker, closet or crate counted as a surface, so its contents were
+  drawn standing on top of it. An open one is no longer a surface: what is in it is on the floor, drawn in front of it.
+- **Machines face the right way.** Vending machines and similar machines never rotate in the game, so the fixed card faced south
+  whatever wall they stood against. They now face away from the wall they stand against (when exactly one side has a wall);
+  things that can rotate, such as chairs, face the way they are rotated. Seen from behind, a fixed thing shows its back (the north
+  picture of a chair is its back) instead of its front mirrored.
+- **Menus open next to the cursor.** A window that opens because you used something (a vending machine, a console) is moved next to
+  the cursor, which is where the mouse comes back to, instead of a fixed place on the screen.
+- **Window doors are easier to read.** A brighter, thicker frame and a push bar across the middle, and an open window door is drawn
+  as its frame only, so the doorway no longer vanishes when it opens (`bar: true` in the glass rules of `rules.yml`).
+- **Chairs are thinner.** Chairs, stools and benches get a thin slab (0.05 tile) instead of the plank-like default.
+- **The server's name** shows the dark glasses and an ice cube instead of "[3D]".
 - **Clicking a row of the list works.** With `Alt` held the engine does not send a plain click: Alt + left button is its own
   binding and wins over the plain one, so the row never saw a click. It now takes that one as a click too.
 - **After alt+tab the mouse is taken back.** The cursor could stay free, and the camera not follow the mouse, until another

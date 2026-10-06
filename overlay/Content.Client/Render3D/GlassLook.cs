@@ -19,6 +19,7 @@ public enum GlassPart
     Shine,
 }
 
+
 /// <summary>
 ///     How one kind of glass is drawn into the billboard atlas (see <see cref="Render3DGlassRule"/>): the pane and the lines
 ///     over it are built here as plain rectangles, so the layout can be tested without a screen.
@@ -32,9 +33,32 @@ public sealed class GlassLook
     public readonly int Mesh;
     public readonly Color MeshColor;
     public readonly bool Shine;
+    public readonly bool Bar;
+
+    /// <summary>
+    ///     This glass as it looks when the door is open: the frame only, so the doorway stays in place and does not vanish.
+    ///     The look itself returns itself.
+    /// </summary>
+    public GlassLook Opened => _opened ??= new GlassLook(this);
+
+    private GlassLook? _opened;
+
+    private GlassLook(GlassLook closed)
+    {
+        Tint = closed.Tint;
+        Alpha = 0f;
+        Frame = closed.Frame;
+        FrameWidth = Math.Max(2, closed.FrameWidth);
+        Mesh = 0;
+        MeshColor = closed.MeshColor;
+        Shine = false;
+        Bar = false;
+        _opened = this;
+    }
 
     public GlassLook(Render3DGlassRule rule)
     {
+        Bar = rule.Bar;
         Tint = rule.Tint;
         Alpha = Math.Clamp(rule.Alpha, 0f, 1f);
         Frame = rule.Frame;
@@ -81,6 +105,14 @@ public sealed class GlassLook
                     parts.Add((new UIBox2(x, y, x + streak, y + 1), GlassPart.Shine));
                 }
             }
+        }
+
+        if (Bar && width >= 16 && height >= 16)
+        {
+            // a push bar at about the middle of the door, a little in from the frame
+            var y = height * 11 / 24;
+            var inset = FrameWidth + 3;
+            parts.Add((new UIBox2(inset, y, width - inset, y + 2), GlassPart.Frame));
         }
 
         if (FrameWidth > 0)

@@ -148,4 +148,8 @@ public sealed partial class Render3DGlassRule
     /// <summary>A faint diagonal highlight, which makes a clear pane read as glass.</summary>
     [DataField]
     public bool Shine = true;
+
+    /// <summary>A horizontal push bar across the middle, in the colour of the frame: it makes a window door read as a door.</summary>
+    [DataField]
+    public bool Bar;
 }

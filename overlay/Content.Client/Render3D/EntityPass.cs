@@ -272,12 +272,11 @@ public sealed class EntityPass : IDisposable
             e.Glow = HasGlowLayer(uid, sprite);
 
             // windows, window doors and grilles: a pane drawn here (see GlassLook) in place of the sprite. A window door that is
-            // open keeps its sprite, which shows it open.
+            // not closed is drawn as its frame only, so the doorway does not vanish when it opens.
             if (_fxGlass && mode is Render3DMode.GlassBox or Render3DMode.EdgePanel
-                && !(_classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid))
                 && _classifier.GetGlass(uid) is { } glass)
             {
-                e.Glass = glass;
+                e.Glass = _classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid) ? glass.Opened : glass;
                 e.Glow = false;
                 e.Bounds = new Box2(-0.5f, -0.5f, 0.5f, 0.5f);
             }
@@ -329,8 +328,12 @@ public sealed class EntityPass : IDisposable
 
                     if (facing != Vector2.Zero)
                     {
-                        e.FixedFacing = facing;
-                        e.DrawDirection = Direction.South;
+                        // The card stays where it is. A viewer in front of it sees the front (the south state of the sprite); one behind
+                        // it sees the card turned round, showing the back (the north state of a chair, which is its back). The card
+                        // never turns gradually: it flips only when the camera crosses the plane of the thing.
+                        var behind = Vector2.Dot(camXy - pos, facing) < 0f;
+                        e.FixedFacing = behind ? -facing : facing;
+                        e.DrawDirection = behind ? Direction.North : Direction.South;
                     }
                     else
                     {
@@ -736,13 +739,15 @@ public sealed class EntityPass : IDisposable
 
     /// <summary>
     ///     The way a fixed standing object faces, as a unit vector on the ground, or zero when that cannot be told (then it keeps
-    ///     turning to the camera). Something that can be rotated faces the way it is rotated. Machines and the like that never rotate
-    ///     (vending machines, wall cabinets: the 2D game always draws their front to the viewer) face away from the wall they stand
-    ///     against, when exactly one of the four tiles round them is a wall.
+    ///     turning to the camera). Something that can be rotated (chairs, beds, consoles) faces the way it is rotated. Machines and the
+    ///     like whose transform never rotates (vending machines, wall cabinets: the 2D game always draws their front to the viewer) face
+    ///     away from the wall they stand against, when exactly one of the four tiles round them is a wall.
     /// </summary>
     private Vector2 FixedFacingFor(SpriteComponent sprite, TransformComponent xform, Angle rot)
     {
-        if (!xform.NoLocalRotation && !sprite.NoRotation)
+        // A transform that cannot rotate says nothing about where the thing faces; a sprite that does not rotate (a chair) still
+        // chooses its picture by the rotation of the entity, so the rotation is the facing.
+        if (!xform.NoLocalRotation)
         {
             var v = rot.ToWorldVec();
             return v.LengthSquared() < 1e-4f ? Vector2.Zero : Vector2.Normalize(v);
