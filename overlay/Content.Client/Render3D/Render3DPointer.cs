@@ -12,7 +12,7 @@ using Robust.Shared.Timing;
 namespace Content.Client.Render3D;
 
 // Everything the few edited upstream call sites need lives in this file, so each edit is a one-line call (written
-// with fully qualified names, so no `using` edits) that the installer (Tools/ss12) can apply to any codebase.
+// with fully qualified names, so no `using` edits) that the SS12 installer can apply to any codebase.
 
 /// <summary>
 ///     Where "the mouse" points in the world. While the 3D view has the mouse captured the OS cursor is not what the

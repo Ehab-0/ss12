@@ -38,7 +38,7 @@ public static class BuiltIn
             Title: "Let the 3D crosshair pick decide what is under the cursor",
             Required: true,
             Impact: "Clicking, examining, the context menu and interaction would not find anything in the 3D view.",
-            Manual: "In GameplayStateBase.GetClickableEntities, right after `if (eye == null) return Array.Empty<EntityUid>();` add the block shown in Tools/ss12/BuiltIn.cs (pick-merge): ask Render3DPicking.TryBegin(_eyeManager, coordinates, out var picked3D); if it succeeds append the 2D results with Render3DPicking.AddMissing and return picked3D.",
+            Manual: "In GameplayStateBase.GetClickableEntities, right after `if (eye == null) return Array.Empty<EntityUid>();` add the block shown in installer/BuiltIn.cs of the SS12 repository (pick-merge): ask Render3DPicking.TryBegin(_eyeManager, coordinates, out var picked3D); if it succeeds append the 2D results with Render3DPicking.AddMissing and return picked3D.",
             Include: new[] { "Content.Client/Gameplay/GameplayStateBase.cs" },
             Exclude: Array.Empty<string>(),
             MinFiles: 1,
