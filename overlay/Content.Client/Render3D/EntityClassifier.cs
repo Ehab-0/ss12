@@ -62,6 +62,17 @@ public struct EntityDraw3D
     /// <summary>Glass to draw in place of the sprite (windows, window doors, grilles), or null.</summary>
     public GlassLook? Glass;
 
+    /// <summary>Height of the top of the surface (table, rack, bed, locker) this item lies on, or 0 on the floor.</summary>
+    public float SurfaceZ;
+
+    /// <summary>The grid the entity stands on and its position in that grid (tile units), for spreading items apart. Grid is invalid when it has no grid parent.</summary>
+    public EntityUid Grid;
+
+    public Vector2 GridLocal;
+
+    /// <summary>True for an item lying loose on a grid, which may be moved a little to show items stacked on one spot.</summary>
+    public bool CanSpread;
+
     /// <summary>Pre-rendered impostor frame to draw instead of the live sprite (Phase 8), if any.</summary>
     public Robust.Client.Graphics.Texture? Impostor;
 
@@ -104,6 +115,10 @@ public sealed class EntityClassifier
     // shape rules: prototype id -> (thickness, lean) from the render3dRules prototypes, plus component rules
     private readonly Dictionary<string, (float Thickness, bool Lean)?> _shapeCache = new();
     private Dictionary<string, (float Thickness, bool Lean)>? _shapeParents;
+
+    // surface heights: prototype id -> height of the top (null = no rule), computed once per prototype
+    private readonly Dictionary<string, float?> _surfaceCache = new();
+    private Dictionary<string, float>? _surfaceParents;
 
     // glass looks: prototype id -> look (null = keep the sprite), computed once per prototype
     private readonly Dictionary<string, GlassLook?> _glassCache = new();
@@ -238,6 +253,7 @@ public sealed class EntityClassifier
         _shapeParents = new Dictionary<string, (float, bool)>();
         _shapeComponents = new List<(float, bool, List<Type>)>();
         _glassParents = new Dictionary<string, Content.Shared.Render3D.Render3DGlassRule>();
+        _surfaceParents = new Dictionary<string, float>();
         var factory = _entMan.ComponentFactory;
 
         foreach (var set in _protos.EnumeratePrototypes<Render3DRulesPrototype>())
@@ -262,6 +278,12 @@ public sealed class EntityClassifier
             {
                 foreach (var parent in glass.Parents)
                     _glassParents[parent] = glass;
+            }
+
+            foreach (var surface in set.Surfaces)
+            {
+                foreach (var parent in surface.Parents)
+                    _surfaceParents[parent] = surface.Height;
             }
 
             foreach (var shape in set.Shapes)
@@ -353,6 +375,33 @@ public sealed class EntityClassifier
 
         _glassCache[proto.ID] = look;
         return look;
+    }
+
+    /// <summary>
+    ///     The height of the top of this surface from the <c>surfaces</c> rules (the nearest matching ancestor), or null when no
+    ///     rule names it.
+    /// </summary>
+    public float? GetSurfaceHeight(EntityUid uid)
+    {
+        if (!_meta.TryComp(uid, out var meta) || meta.EntityPrototype is not { } proto)
+            return null;
+
+        if (_surfaceCache.TryGetValue(proto.ID, out var cached))
+            return cached;
+
+        BuildRules();
+        float? height = null;
+        foreach (var (ancestorId, _) in _protos.EnumerateAllParents<EntityPrototype>(proto.ID, includeSelf: true))
+        {
+            if (_surfaceParents!.TryGetValue(ancestorId, out var h))
+            {
+                height = h;
+                break;
+            }
+        }
+
+        _surfaceCache[proto.ID] = height;
+        return height;
     }
 
     public bool IsDoor(EntityUid uid) => _doors.HasComp(uid);

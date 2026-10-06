@@ -496,10 +496,19 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private bool? GetReach()
     {
         if (Pick(CrosshairPixel).FirstEntity is not { } target || !_entMan.EntityExists(target)
-            || _player.LocalEntity is not { } self || _xformSys == null)
+            || _player.LocalEntity == null || _xformSys == null)
         {
             return null;
         }
+
+        return InReach(target);
+    }
+
+    /// <summary>Whether this entity is within hand reach of the local player (held and worn things always are).</summary>
+    private bool InReach(EntityUid target)
+    {
+        if (_player.LocalEntity is not { } self || _xformSys == null)
+            return false;
 
         var xform = _entMan.GetComponent<TransformComponent>(target);
         if (xform.ParentUid != xform.GridUid && xform.ParentUid != xform.MapUid)
@@ -507,6 +516,69 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         var delta = _xformSys.GetWorldPosition(target) - _xformSys.GetWorldPosition(self);
         return delta.LengthSquared() <= SharedInteractionSystem.InteractionRangeSquared;
+    }
+
+    private readonly List<(EntityUid Uid, float Distance)> _pointNear = new();
+    private readonly List<EntityUid> _pointed = new();
+
+    /// <summary>
+    ///     What the crosshair points at, for the list at the side of the view: the entities its ray crosses (nearest first), then the
+    ///     ones that lie within half a tile of where it lands, which is the pile on a table. The names are the ones the label under
+    ///     the crosshair uses; things with the same name are counted. At most <paramref name="max"/> lines; the rest is
+    ///     <paramref name="hidden"/>.
+    /// </summary>
+    public void DescribePointed(List<(string Text, bool InReach)> lines, int max, out int hidden)
+    {
+        lines.Clear();
+        hidden = 0;
+        if (!RelativeMouse)
+            return;
+
+        var pick = Pick(CrosshairPixel);
+        _pointed.Clear();
+        foreach (var uid in pick.Entities)
+            _pointed.Add(uid);
+
+        if (_entityPass != null && pick.Coords.MapId == _lastMap)
+        {
+            _entityPass.Nearby(pick.Coords.Position, 0.5f, _pointNear);
+            foreach (var (uid, _) in _pointNear)
+            {
+                if (!_pointed.Contains(uid))
+                    _pointed.Add(uid);
+            }
+        }
+
+        var self = _player.LocalEntity;
+        var names = new List<(string Name, int Count, bool Reach)>();
+        foreach (var uid in _pointed)
+        {
+            if (uid == self || !_entMan.EntityExists(uid))
+                continue;
+
+            var name = Identity.Name(uid, _entMan);
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var reach = InReach(uid);
+            var index = names.FindIndex(n => n.Name == name && n.Reach == reach);
+            if (index >= 0)
+                names[index] = (name, names[index].Count + 1, reach);
+            else
+                names.Add((name, 1, reach));
+        }
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            if (i >= max)
+            {
+                hidden += names[i].Count;
+                continue;
+            }
+
+            var (name, count, reach) = names[i];
+            lines.Add((count > 1 ? $"{count} x {name}" : name, reach));
+        }
     }
 
     private void DrawHoverLabel(DrawingHandleScreen screen, Vector2i pixelSize, bool? reach)

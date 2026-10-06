@@ -22,6 +22,7 @@
   - mode: TableBox
     parents:
     - TableBase
+    - Rack
   - mode: WallDecal
     parents:
     - BaseWallmount
@@ -177,3 +178,16 @@
   - parents:
     - ToolboxBase
     thickness: 0.12
+
+  # How high the top of a surface is, for the items that lie on it (the "item surface" effect). Items on a table, a rack or
+  # any other placeable surface rest on its top; a standing object without a rule (a locker, a crate) counts as high as its
+  # drawn picture, a table as high as render3d.table_height. A low one is listed here so things on it do not hover.
+  surfaces:
+  - parents:
+    - BaseBed
+    height: 0.28
+  - parents:
+    - SinkEmpty
+    - Sink
+    - SinkWide
+    height: 0.5

@@ -60,6 +60,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         load.OnScreenUnload += OnScreenUnload;
         InitializeQuality();
         InitializeMinimap();
+        InitializePointList();
 
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
             (_, _, _) => ToggleSettingsWindow());
@@ -78,6 +79,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
             .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
             .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
+            .Bind(Render3DKeys.PointList, new Render3DInputHandler(down => { if (down) TogglePointList(); }, consume: true))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
             .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
@@ -162,6 +164,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
         host.AddChild(_control);
         AddMinimap(_control);
+        AddPointList(_control);
         Active = false;
     }
 
@@ -270,6 +273,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         UpdateMouseMode();
         UpdateAutoQuality(args.DeltaSeconds);
         UpdateMinimap();
+        UpdatePointList();
     }
 
     private void UpdateMouseMode()

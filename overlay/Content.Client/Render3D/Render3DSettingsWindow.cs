@@ -49,6 +49,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
 
         AddHeader("render3d-settings-keys");
+        AddFreeMouseHint();
         foreach (var (function, _, locId) in Render3DKeys.All)
             AddKeyRow(function, locId);
 
@@ -58,6 +59,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
+        AddCheck(CCVars.Render3DPointList, "render3d-settings-point-list");
         AddMinimapShowCheck();
         AddCheck(CCVars.Render3DMinimapRotate, "render3d-settings-minimap-rotate");
         AddSlider(CCVars.Render3DMinimapSize, "render3d-settings-minimap-size", 120, 360, "0");
@@ -183,10 +185,42 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
             RefreshGraphics();
     }
 
+    private static readonly Color HintColor = new(1f, 0.82f, 0.25f);
+
+    /// <summary>
+    ///     A highlighted note above the keys: the mouse turns the camera, so menus, buttons and the inventory need the free
+    ///     cursor key held, which is what new players get stuck on.
+    /// </summary>
+    private void AddFreeMouseHint()
+    {
+        var panel = new PanelContainer
+        {
+            PanelOverride = new Robust.Client.Graphics.StyleBoxFlat
+            {
+                BackgroundColor = new Color(0.92f, 0.59f, 0.08f, 0.22f),
+                BorderColor = new Color(1f, 0.82f, 0.3f, 0.9f),
+                BorderThickness = new Thickness(1),
+                ContentMarginLeftOverride = 8,
+                ContentMarginRightOverride = 8,
+                ContentMarginTopOverride = 5,
+                ContentMarginBottomOverride = 5,
+            },
+        };
+        var lines = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
+        foreach (var id in new[] { "render3d-settings-free-mouse-hint-1", "render3d-settings-free-mouse-hint-2", "render3d-settings-free-mouse-hint-3" })
+            lines.AddChild(new Label { Text = Loc.GetString(id), FontColorOverride = HintColor });
+
+        panel.AddChild(lines);
+        _body.AddChild(panel);
+    }
+
     private void AddKeyRow(BoundKeyFunction function, string locId)
     {
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
-        row.AddChild(new Label { Text = Loc.GetString(locId), MinWidth = 220 });
+        var name = new Label { Text = Loc.GetString(locId), MinWidth = 220 };
+        if (function == Render3DKeys.FreeCursor)
+            name.FontColorOverride = HintColor;
+        row.AddChild(name);
         var button = new Button { MinWidth = 120, HorizontalExpand = true };
         button.OnPressed += _ => BeginCapture(function);
         row.AddChild(button);

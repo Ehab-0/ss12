@@ -43,6 +43,8 @@ public static class Render3DQuality
         new("head_bob", CCVars.Render3DFxHeadBob, false, false, false, "render3d-fx-head-bob"),
         new("item_lift", CCVars.Render3DFxItemLift, false, true, true, "render3d-fx-item-lift", true),
         new("item_lean", CCVars.Render3DFxItemLean, false, true, true, "render3d-fx-item-lean", true),
+        new("item_surface", CCVars.Render3DFxItemSurface, true, true, true, "render3d-fx-item-surface", true),
+        new("item_spread", CCVars.Render3DFxItemSpread, true, true, true, "render3d-fx-item-spread", true),
         new("item_thick", CCVars.Render3DFxItemThick, false, true, true, "render3d-fx-item-thick", true),
         new("char_lean", CCVars.Render3DFxCharLean, false, true, true, "render3d-fx-char-lean", true),
         new("char_thick", CCVars.Render3DFxCharThick, false, false, true, "render3d-fx-char-thick", true),

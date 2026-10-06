@@ -25,6 +25,10 @@ public sealed partial class Render3DRulesPrototype : IPrototype
     /// <summary>How windows, window doors and grilles are drawn (see <see cref="Render3DGlassRule"/>).</summary>
     [DataField]
     public List<Render3DGlassRule> Glass = new();
+
+    /// <summary>How high the top of a surface is, for the items that lie on it (see <see cref="Render3DSurfaceRule"/>).</summary>
+    [DataField]
+    public List<Render3DSurfaceRule> Surfaces = new();
 }
 
 /// <summary>
@@ -72,6 +76,23 @@ public sealed partial class Render3DShapeRule
     /// <summary>False keeps the thing from tilting towards the camera (it stays exactly flat or upright).</summary>
     [DataField]
     public bool Lean = true;
+}
+
+/// <summary>
+///     The height of the top of a surface that items lie on, in tiles above the floor. Without a rule a table is as high as the
+///     <c>render3d.table_height</c> setting and a standing object (a locker, a crate) as high as its drawn picture. Matched like
+///     <see cref="Render3DRule"/> by prototype and ancestors (nearest wins). Only has an effect where the item_surface effect is on.
+/// </summary>
+[DataDefinition]
+public sealed partial class Render3DSurfaceRule
+{
+    /// <summary>Entity prototype ids (matched against the entity's prototype and all its parents).</summary>
+    [DataField]
+    public List<string> Parents = new();
+
+    /// <summary>Height of the top of the surface above the floor, in tiles.</summary>
+    [DataField]
+    public float Height = 0.45f;
 }
 
 /// <summary>

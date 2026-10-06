@@ -18,4 +18,5 @@ public static class Render3DKeyFunctions
     public static readonly BoundKeyFunction Render3DSettings = "Render3DSettings";
     public static readonly BoundKeyFunction Render3DMinimap = "Render3DMinimap";
     public static readonly BoundKeyFunction Render3DMinimapSize = "Render3DMinimapSize";
+    public static readonly BoundKeyFunction Render3DPointList = "Render3DPointList";
 }

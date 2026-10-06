@@ -57,6 +57,20 @@ public static class EntityShape
     public static float FlatLean(float downPitch)
         => Math.Clamp(0.4f * (MathF.PI * 0.5f - downPitch), 0f, MaxFlatLean);
 
+    /// <summary>
+    ///     Limits the tilt of a card lying on a surface so its far edge rises by at most <paramref name="maxRise"/> tiles: a card
+    ///     <paramref name="span"/> tiles deep that tilts by an angle rises by span x sin(angle), which for a one tile sprite at
+    ///     the full 20 degrees is a third of a tile, enough to make a bedsheet hover over the table it lies on. A small card
+    ///     keeps the whole tilt. A <paramref name="maxRise"/> of 0 or less means no limit.
+    /// </summary>
+    public static float CapFlatLean(float lean, float span, float maxRise)
+    {
+        if (maxRise <= 0f || span <= 0.0001f)
+            return lean;
+
+        return MathF.Min(lean, MathF.Asin(Math.Clamp(maxRise / span, 0f, 1f)));
+    }
+
     /// <summary>Backwards tilt of a standing card: grows with how far the camera looks down.</summary>
     public static float StandLean(float downPitch)
         => Math.Clamp(0.45f * downPitch, 0f, MaxStandLean);
