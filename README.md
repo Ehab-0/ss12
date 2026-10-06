@@ -73,11 +73,11 @@ All of these were taken on the **highest** graphics setting, in a game window of
 | | |
 |---|---|
 | ![A station room](docs/screenshots/hero_high.webp) | ![Chemistry](docs/screenshots/glass_windows.webp) |
-| Botany: lamps, a ceiling, items and beds with thickness | Chemistry: machines, lamps and people |
+| The kitchen: a tiled floor, lamps, counters, a vending machine and a pig | Chemistry: machines, chairs, lamps and the room next door |
 | ![First person](docs/screenshots/first_person.webp) | ![Engineering](docs/screenshots/engineering_3d.webp) |
-| First person (`N`): you look through the character's eyes | Engineering: lockers, signs and lamps |
+| First person (`N`), in Botany: you look through the character's eyes | Engineering: lockers and signs that stay where they are as you walk round them |
 | ![Large minimap](docs/screenshots/minimap_large.webp) | |
-| The large minimap (`-`): the whole station, with the names of the areas | |
+| The large minimap (`-`) in Medical: the whole station, with the names of the areas. `M` switches it off | |
 
 ### Low and High
 
