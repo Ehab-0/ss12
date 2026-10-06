@@ -58,7 +58,8 @@ and attach `data/server.log` from the demo folder.
 | `F12` | switch the 3D view off and on (the normal flat view is still there) |
 | `F11` | graphics settings: turn effects off if it feels slow |
 | `M` | minimap on and off (`-` makes it small or large) |
-| hold `Alt` | free the mouse for a moment (menus free it by themselves) |
+| **hold `Alt`** | **free the mouse to click menus, buttons and the inventory (the mouse turns the camera, so hold it while you click)** |
+| `L` | list of what the crosshair points at, on and off |
 | `Esc` | the game menu |
 
 The rest of the game is Space Station 14 as you know it: `T` to talk, `E` or click to use things, number keys and

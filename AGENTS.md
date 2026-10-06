@@ -71,6 +71,11 @@ Things to know before touching `overlay/`:
   type in `rules.yml` (`glass:`), and `BillboardAtlas.DrawGlass` draws that into the atlas slot with the `Render3DGlassPane`
   shader (straight alpha, no blending). Damage and other overlay layers are still drawn from the sprite. Rules match a prototype
   or any of its parents; one under no listed parent keeps its drawn sprite.
+- Items lying on a surface (a table, a rack, a bed, a locker) rest at the surface's top: `surfaces` in `rules.yml` names the
+  height, a table uses `render3d.table_height` and a standing object its drawn height. An item on a surface sorts after it
+  (`SurfaceItemSortBias`), otherwise a rack or a locker, which is drawn as a standing card at the same spot, hides it. Do not
+  raise the lean of flat items without checking `CapFlatLean`: a one tile sprite tilted 20 degrees lifts its far edge a third
+  of a tile.
 - A sprite's bounds are its whole rectangle, not its opaque pixels. A 1x1 sprite can hold a small drawing.
 - Indoors the camera cannot rise above the ceiling (wall height 2.3 tiles by default), so things close to it look huge. Test
   visual changes with the default third-person distance, not a far-away camera.

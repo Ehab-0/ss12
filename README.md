@@ -100,7 +100,9 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Look around | Move the mouse |
 | Walk | `W` `A` `S` `D` |
 | Switch between first and third person | `N` |
-| Free the mouse (to click menus), hold | `Alt` |
+| **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
+| Minimap on and off, small or large | `M`, `-` |
+| List of what you point at, on and off | `L` |
 | Open the 3D settings (looks, speed, keys) | `F11` |
 | Switch between 3D and the old flat view, if the server allows it | `F12` |
 | Minimap on and off | `M` |

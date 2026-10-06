@@ -2,6 +2,23 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
+## Unreleased
+- **Items rest on what they lie on.** A big sprite such as a bedsheet or a pile of clothes tilted towards the camera by up to
+  20 degrees, which lifted its far edge by a third of a tile and made it hover over the table. The far edge of a lying item now
+  rises by at most 0.1 tile (`render3d.item_max_rise`, 0 = no limit), so a small item still tilts fully and a big one hardly at
+  all. Items also rest on the real top of what they lie on: a table as before, a bed lower (0.28), a sink at 0.5, a locker or a
+  crate as high as its picture, and a rack is drawn as a table top so what lies on it is seen. Where a rule is missing the
+  `surfaces` list of `rules.yml` names the height. The new `item_surface` effect (on at every quality level) also draws an item
+  after the surface it lies on, so a rack or a locker no longer hides it, and puts its shadow on the surface.
+- **Items piled on one spot are spread apart.** A pile of clothes, a tray of tools or the contents of an emptied box all land on
+  one spot, so each hid the one below it. Items closer than about a quarter tile are now moved apart inside their tile, only in
+  the picture, always the same way for the same item (`item_spread`, on at every quality level).
+- **A list of what you point at (`L`).** A small panel to the right of the view lists what the crosshair points at: the thing
+  under it first, then the others that lie on the same spot, such as a pile on a table, with those out of reach greyed and
+  equal names counted. It is off by default; `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
+- **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the `F11` keys section starts with
+  a highlighted note and the key's name says what it is for, and the README and the demo guide print the row in bold.
+
 ## 1.3.0
 See-through windows, a minimap, graphics that start high and step down by themselves, and many fixes to how things are drawn.
 - **Objects next to the camera no longer leave a smeared band across the view.** The shader fades out things very close to the
