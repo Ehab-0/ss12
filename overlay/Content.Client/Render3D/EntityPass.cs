@@ -82,6 +82,9 @@ public sealed class EntityPass : IDisposable
     /// <summary>The tiles that have a surface (table, rack, bed...) on them, with the height of the highest top.</summary>
     private readonly Dictionary<(EntityUid, int, int), float> _surfaceTiles = new();
 
+    /// <summary>The tiles with an open locker, closet or crate on them: what lies there is in it, not on top of it.</summary>
+    private readonly HashSet<(EntityUid, int, int)> _openStorageTiles = new();
+
     // work space of SpreadItems, kept between frames
     private readonly Dictionary<(EntityUid, int, int), List<int>> _spreadGroups = new();
     private readonly Stack<List<int>> _spreadLists = new();
@@ -176,6 +179,7 @@ public sealed class EntityPass : IDisposable
         _pick.Clear();
         _drawCount = 0;
         _surfaceTiles.Clear();
+        _openStorageTiles.Clear();
         _tileWorld.ClosedDoors.Clear();
         _tileWorld.GlassTiles.Clear();
 
@@ -199,6 +203,17 @@ public sealed class EntityPass : IDisposable
             {
                 var dp = xform.LocalPosition;
                 _tileWorld.ClosedDoors.Add((doorGrid, new Vector2i((int) MathF.Floor(dp.X), (int) MathF.Floor(dp.Y))));
+            }
+
+            if (_fxItemSurface && _classifier.IsOpenStorage(uid))
+            {
+                if (xform.GridUid is { } storageGrid && xform.ParentUid == storageGrid)
+                {
+                    var sp = xform.LocalPosition;
+                    _openStorageTiles.Add((storageGrid, (int) MathF.Floor(sp.X), (int) MathF.Floor(sp.Y)));
+                }
+
+                continue;
             }
 
             var ruleHeight = _fxItemSurface ? _classifier.GetSurfaceHeight(uid) : null;
@@ -291,6 +306,9 @@ public sealed class EntityPass : IDisposable
             if (onTable && e.Category == EntityCategory.Item)
                 e.SurfaceZ = surfaceZ;
 
+            if (!onTable && _openStorageTiles.Count > 0 && e.Grid.IsValid())
+                e.InOpenStorage = _openStorageTiles.Contains((e.Grid, (int) MathF.Floor(e.GridLocal.X), (int) MathF.Floor(e.GridLocal.Y)));
+
             // an item lying loose on a grid may be moved a little to show the ones that lie on the same spot
             e.CanSpread = _fxItemSpread && e.Category == EntityCategory.Item && e.Grid.IsValid()
                 && mode == Render3DMode.FlatFloor && !_classifier.IsThrown(uid);
@@ -302,14 +320,16 @@ public sealed class EntityPass : IDisposable
                     // Furniture and machines stay fixed in the world, facing the way they point: a card that faces that way, drawn with
                     // the front of the sprite (the same picture a door panel shows). Anything that has no front, and everything
                     // that has a pre-rendered impostor, keeps turning to face the camera.
+                    var facing = Vector2.Zero;
                     if (_fxObjectFixed && e.Category == EntityCategory.Object && xform.Anchored
                         && _classifier.GetRender3D(uid)?.Impostor == null && !_classifier.TurnsToCamera(uid))
                     {
-                        e.FixedFacing = sprite.NoRotation ? new Vector2(0f, -1f) : rot.ToWorldVec();
-                        if (e.FixedFacing.LengthSquared() < 1e-4f)
-                            e.FixedFacing = new Vector2(0f, -1f);
+                        facing = FixedFacingFor(sprite, xform, rot);
+                    }
 
-                        e.FixedFacing = Vector2.Normalize(e.FixedFacing);
+                    if (facing != Vector2.Zero)
+                    {
+                        e.FixedFacing = facing;
                         e.DrawDirection = Direction.South;
                     }
                     else
@@ -519,7 +539,7 @@ public sealed class EntityPass : IDisposable
         // drawn in sprite draw depth order, not in whatever order the sort leaves ties in, which flickered.
         _curSortBias = -SortBiasPerDepth * e.Sprite.DrawDepth;
         // an item on a surface is drawn after the surface (a rack, a locker, a table), so it is never hidden inside it
-        if (_fxItemSurface && e.SurfaceZ > 0f)
+        if (_fxItemSurface && (e.SurfaceZ > 0f || e.InOpenStorage))
             _curSortBias -= SurfaceItemSortBias;
         _curOutline = (_fxOutline || _fxItemLift && e.Category == EntityCategory.Item)
             && !_curTranslucent && e.Mode is Render3DMode.Billboard or Render3DMode.FlatFloor;
@@ -713,6 +733,44 @@ public sealed class EntityPass : IDisposable
     }
 
     private const float ShadowRange = 14f;
+
+    /// <summary>
+    ///     The way a fixed standing object faces, as a unit vector on the ground, or zero when that cannot be told (then it keeps
+    ///     turning to the camera). Something that can be rotated faces the way it is rotated. Machines and the like that never rotate
+    ///     (vending machines, wall cabinets: the 2D game always draws their front to the viewer) face away from the wall they stand
+    ///     against, when exactly one of the four tiles round them is a wall.
+    /// </summary>
+    private Vector2 FixedFacingFor(SpriteComponent sprite, TransformComponent xform, Angle rot)
+    {
+        if (!xform.NoLocalRotation && !sprite.NoRotation)
+        {
+            var v = rot.ToWorldVec();
+            return v.LengthSquared() < 1e-4f ? Vector2.Zero : Vector2.Normalize(v);
+        }
+
+        if (xform.GridUid is not { } grid || xform.ParentUid != grid)
+            return Vector2.Zero;
+
+        var lp = xform.LocalPosition;
+        var tile = new Vector2i((int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y));
+        Vector2i? wall = null;
+        foreach (var d in new[] { new Vector2i(1, 0), new Vector2i(-1, 0), new Vector2i(0, 1), new Vector2i(0, -1) })
+        {
+            if (!_tileWorld.TryGetWall(grid, tile + d))
+                continue;
+
+            if (wall != null)
+                return Vector2.Zero; // walls on more than one side: no clear front
+
+            wall = d;
+        }
+
+        if (wall is not { } w)
+            return Vector2.Zero;
+
+        var away = _xform.GetWorldRotation(grid).RotateVec(new Vector2(-w.X, -w.Y));
+        return away.LengthSquared() < 1e-4f ? Vector2.Zero : Vector2.Normalize(away);
+    }
 
     /// <summary>The tilt (radians, about 11 degrees) of a floor item that does not turn towards the camera; item_max_rise still caps it.</summary>
     private const float FixedItemLean = 0.2f;

@@ -6,6 +6,7 @@ using Content.Shared.Mobs;
 using Content.Shared.Mobs.Components;
 using Content.Shared.Placeable;
 using Content.Shared.Projectiles;
+using Content.Shared.Storage.Components;
 using Content.Shared.Render3D;
 using Content.Shared.Standing;
 using Content.Shared.Throwing;
@@ -79,6 +80,9 @@ public struct EntityDraw3D
     /// <summary>A floor item that keeps a fixed tilt instead of tilting towards the camera.</summary>
     public bool FixedItem;
 
+    /// <summary>The thing lies in an open locker or crate: on the floor, but drawn after it so it is not hidden in it.</summary>
+    public bool InOpenStorage;
+
     /// <summary>Pre-rendered impostor frame to draw instead of the live sprite (Phase 8), if any.</summary>
     public Robust.Client.Graphics.Texture? Impostor;
 
@@ -108,6 +112,7 @@ public sealed class EntityClassifier
     private readonly EntityQuery<PointLightComponent> _lights;
     private readonly EntityQuery<DoorComponent> _doors;
     private readonly EntityQuery<PlaceableSurfaceComponent> _surfaces;
+    private readonly EntityQuery<EntityStorageComponent> _storages;
 
     private readonly IEntityManager _entMan;
     private readonly IPrototypeManager _protos;
@@ -151,9 +156,13 @@ public sealed class EntityClassifier
         _lights = entMan.GetEntityQuery<PointLightComponent>();
         _doors = entMan.GetEntityQuery<DoorComponent>();
         _surfaces = entMan.GetEntityQuery<PlaceableSurfaceComponent>();
+        _storages = entMan.GetEntityQuery<EntityStorageComponent>();
     }
 
     public bool IsSurface(EntityUid uid) => _surfaces.HasComp(uid);
+
+    /// <summary>A locker, closet or crate that is open: what it held lies on the floor in it, not on top of it.</summary>
+    public bool IsOpenStorage(EntityUid uid) => _storages.TryComp(uid, out var storage) && storage.Open;
 
     public Render3DMode Classify(EntityUid uid, SpriteComponent sprite, TransformComponent xform)
     {

@@ -95,13 +95,13 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.PointList, new Render3DInputHandler(down => { if (down) TogglePointList(); }, consume: true))
             .Bind(Render3DKeys.PointListUp, new Render3DInputHandler(down => { if (down) MovePointList(-1); }, () => PointListVisible))
             .Bind(Render3DKeys.PointListDown, new Render3DInputHandler(down => { if (down) MovePointList(1); }, () => PointListVisible))
-            .Bind(EngineKeyFunctions.Use, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(EngineKeyFunctions.UseSecondary, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(ContentKeyFunctions.UseItemInHand, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(ContentKeyFunctions.AltUseItemInHand, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(ContentKeyFunctions.ActivateItemInWorld, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(ContentKeyFunctions.AltActivateItemInWorld, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
-            .Bind(ContentKeyFunctions.TryPullObject, new Render3DInputHandler(down => { if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(EngineKeyFunctions.Use, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(EngineKeyFunctions.UseSecondary, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.UseItemInHand, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.AltUseItemInHand, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.ActivateItemInWorld, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.AltActivateItemInWorld, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.TryPullObject, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
             .Bind(Render3DKeys.PointListSelect, new Render3DInputHandler(down => { if (down) SelectInPointList(); }, () => PointListVisible))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
@@ -294,6 +294,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         }
 
         UpdateMouseMode();
+        UpdateWindowPlacement();
         UpdateAutoQuality(args.DeltaSeconds);
         UpdateMinimap();
         UpdatePointList();
