@@ -2,7 +2,7 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
-## Unreleased
+## 1.4.0
 - **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in
   the pages that ship into a server (`Tools/ss12/...`) now describe the real installer (`ss12 install ...`), links to files that were
   never shipped are gone, the numbers in the Wizard's Den example are the current ones (97 files added, 10 edits in 9 files, 108 in
