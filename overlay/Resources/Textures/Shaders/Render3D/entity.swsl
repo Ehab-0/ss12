@@ -68,11 +68,11 @@ void fragment()
     if (nearFade < 0.02)
         discard;
 
-    // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow; +0.5 = draw the edge outline
+    // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow, 3 lamp halo, 4 layer of a slab (alpha tested, no smoothing); +0.5 = draw the edge outline
     highp float kind = floor(vData.w + 0.1);
     highp float outline = (vData.w - kind) > 0.25 ? 1.0 : 0.0;
 
-    if (kind > 2.5)
+    if (kind > 2.5 && kind < 3.5)
     {
         // lamp halo: a soft round glow tinted with the colour of the light at the lamp
         highp float r = length(uv);
@@ -87,7 +87,7 @@ void fragment()
 
         COLOR = vec4(tint, k * vData.z * nearFade * haloFade);
     }
-    else if (kind > 1.5)
+    else if (kind > 1.5 && kind < 2.5)
     {
         // a soft round shadow: the quad's uv is -1..1 across it
         highp float r = length(uv);
@@ -103,7 +103,7 @@ void fragment()
         // width of one screen pixel. Removes the shimmer and stair-steps plain nearest sampling shows on tilted and
         // distant sprites without blurring the pixel art. With sharpOn = 0 it is plain nearest sampling.
         highp vec2 suv = (floor(texPx) + 0.5) / atlasSize;
-        if (sharpOn > 0.5)
+        if (sharpOn > 0.5 && kind < 3.5)
         {
             highp vec2 base = floor(texPx - 0.5) + 0.5;
             highp vec2 f = texPx - base;
@@ -113,8 +113,9 @@ void fragment()
 
         highp vec4 tex = zTextureSpec(TEXTURE, suv);
         highp float a = tex.a;
-        if (kind < 0.5)
+        if (kind < 0.5 || kind > 3.5)
         {
+            // alpha tested; kind 4 is a layer of a slab, which is sampled with plain nearest (no smoothing along its edge)
             if (a < 0.5)
                 discard;
             a = nearFade;

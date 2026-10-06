@@ -59,9 +59,11 @@ public sealed class EntityPass : IDisposable
     private int _extraQuads;
     private float _downPitch;
     private Vector2 _fwd = Vector2.UnitY;
+    private Vector3 _camPos3;
+    private float _pixelAtOneTile; // size in tiles of one screen pixel one tile from the camera
 
     /// <summary>Most extra quads (thickness layers) added per frame, so a crowded room cannot overload the draw.</summary>
-    private const int MaxExtraQuads = 3000;
+    private const int MaxExtraQuads = 7000;
 
     /// <summary>How far an item on the ground is raised so its contact shadow shows around it.</summary>
     private const float ItemLiftHeight = 0.02f;
@@ -165,6 +167,8 @@ public sealed class EntityPass : IDisposable
         _thickLayers = Math.Clamp(_cfg.GetCVar(CCVars.Render3DThicknessLayers), 0, 8);
         _extraQuads = 0;
         _downPitch = EntityShape.DownPitch(cam.Forward);
+        _camPos3 = cam.Position;
+        _pixelAtOneTile = 2f * cam.TanHalfFov / MathF.Max(cam.Size.Y, 1f);
         _fwd = cam.ForwardGround;
         _quads.Clear();
         _pick.Clear();
@@ -392,13 +396,14 @@ public sealed class EntityPass : IDisposable
 
     private void AddQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
         Vector2 uv0, Vector2 uv1, Vector2 uv2, Vector2 uv3,
-        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true)
+        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true, bool layer = false)
     {
         if (HighlightUid == _curUid)
             shade *= 1.6f;
         var translucent = blend || _curTranslucent;
+        // a layer of a slab (kind 4) is alpha tested like a plain quad but sampled without smoothing, which left bright dots along its edge
         _quads.Add(p0, p1, p2, p3, uv0, uv1, uv2, uv3, foot, shade, alpha, translucent,
-            flags: translucent ? 1f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
+            flags: translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
         if (pick && _curClickable)
             _pick.Add(new PickQuad { Uid = _curUid, P0 = p0, P1 = p1, P3 = p3, Pos = _curPos });
     }
@@ -811,14 +816,25 @@ public sealed class EntityPass : IDisposable
         if (layers <= 0)
             return;
 
+        // As many layers as it takes for the slab to look solid at this distance and angle (EntityShape.AdaptiveLayers); the
+        // quality setting only says how many at the most.
+        var centre = (p0 + p1 + p2 + p3) * 0.25f;
+        var toCard = centre - _camPos3;
+        var distance = toCard.Length();
+        var cosView = distance > 1e-3f ? MathF.Abs(Vector3.Dot(toCard / distance, normal)) : 1f;
+        var count = EntityShape.AdaptiveLayers(e.Thickness, distance, cosView, _pixelAtOneTile * distance,
+            Math.Min(layers * EntityShape.LayersPerQuality, MaxExtraQuads - _extraQuads));
+        if (count <= 0)
+            return;
+
         var outline = _curOutline;
         _curOutline = false;
-        var step = e.Thickness / layers;
-        for (var k = layers; k >= 1; k--)
+        var step = e.Thickness / count;
+        for (var k = count; k >= 1; k--)
         {
             var off = -normal * (step * k);
             AddQuad(p0 + off, p1 + off, p2 + off, p3 + off, uv0, uv1, uv2, uv3, foot,
-                EntityShape.LayerShade(k, layers), pick: false);
+                EntityShape.LayerShade(k, count), pick: false, layer: true);
             _extraQuads++;
         }
 

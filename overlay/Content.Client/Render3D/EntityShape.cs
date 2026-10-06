@@ -86,6 +86,31 @@ public static class EntityShape
     /// <summary>Distance in tiles from the camera inside which an entity gets no thickness layers.</summary>
     public const float NearLayerDistance = 1.1f;
 
+    /// <summary>How many layers per step of the quality setting (the Low / Medium / High presets use 0 / 3 / 4) a thick thing may be given.</summary>
+    public const int LayersPerQuality = 6;
+
+    /// <summary>
+    ///     How many stacked layers a slab needs to look solid: the layers are cut off from the front face by the thickness, and seen at
+    ///     an angle two neighbouring ones are about <c>spacing x tan(angle)</c> apart on the screen, which opens gaps. This gives the
+    ///     count at which that gap is one screen pixel.
+    /// </summary>
+    /// <param name="thickness">Depth of the slab in tiles.</param>
+    /// <param name="distance">Distance of the card from the camera in tiles.</param>
+    /// <param name="cosView">Cosine of the angle between the view ray and the card's normal (1 = head on).</param>
+    /// <param name="pixelSize">Size in tiles of one screen pixel at that distance.</param>
+    /// <param name="maxLayers">The most layers allowed (the budget).</param>
+    public static int AdaptiveLayers(float thickness, float distance, float cosView, float pixelSize, int maxLayers)
+    {
+        if (maxLayers <= 0 || thickness <= 0.001f)
+            return 0;
+
+        var cos = Math.Clamp(cosView, 0.2f, 1f); // beyond 78 degrees the slab is seen edge on
+        var tan = MathF.Sqrt(1f - cos * cos) / cos;
+        var step = MathF.Max(pixelSize, 1e-4f) / MathF.Max(tan, 0.3f);
+        var needed = (int) MathF.Ceiling(thickness / step);
+        return Math.Clamp(needed, Math.Min(2, maxLayers), maxLayers);
+    }
+
     public static int LayerCount(int maxLayers, float distance)
     {
         if (maxLayers <= 0 || distance > FarRange)
