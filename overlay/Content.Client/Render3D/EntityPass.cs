@@ -51,7 +51,7 @@ public sealed class EntityPass : IDisposable
     private bool _curOutline;
 
     // shape of things (lean and thickness per category), read once per frame in Prepare
-    private bool _fxItemLift, _fxItemLean, _fxItemThick, _fxItemSurface, _fxItemSpread;
+    private bool _fxItemLift, _fxItemLean, _fxItemThick, _fxItemSurface, _fxItemSpread, _fxItemFixed, _fxObjectFixed;
     private float _itemMaxRise;
     private bool _fxCharLean, _fxCharThick;
     private bool _fxObjectLean, _fxObjectThick;
@@ -160,6 +160,8 @@ public sealed class EntityPass : IDisposable
         _fxItemSurface = _cfg.GetCVar(CCVars.Render3DFxItemSurface);
         _fxItemSpread = _cfg.GetCVar(CCVars.Render3DFxItemSpread);
         _itemMaxRise = _cfg.GetCVar(CCVars.Render3DItemMaxRise);
+        _fxItemFixed = _cfg.GetCVar(CCVars.Render3DFxItemFixed);
+        _fxObjectFixed = _cfg.GetCVar(CCVars.Render3DFxObjectFixed);
         _fxCharLean = _cfg.GetCVar(CCVars.Render3DFxCharLean);
         _fxCharThick = _cfg.GetCVar(CCVars.Render3DFxCharThick);
         _fxObjectLean = _cfg.GetCVar(CCVars.Render3DFxObjectLean);
@@ -297,7 +299,24 @@ public sealed class EntityPass : IDisposable
             {
                 case Render3DMode.Billboard:
                     e.Z = _classifier.IsThrown(uid) ? 0.4f : onTable && _classifier.IsItem(uid) ? surfaceZ : 0f;
-                    e.DrawDirection = CameraYawMath.SpriteDirection(rot, camXy, pos);
+                    // Furniture and machines stay fixed in the world, facing the way they point: a card that faces that way, drawn with
+                    // the front of the sprite (the same picture a door panel shows). Anything that has no front, and everything
+                    // that has a pre-rendered impostor, keeps turning to face the camera.
+                    if (_fxObjectFixed && e.Category == EntityCategory.Object && xform.Anchored
+                        && _classifier.GetRender3D(uid)?.Impostor == null && !_classifier.TurnsToCamera(uid))
+                    {
+                        e.FixedFacing = sprite.NoRotation ? new Vector2(0f, -1f) : rot.ToWorldVec();
+                        if (e.FixedFacing.LengthSquared() < 1e-4f)
+                            e.FixedFacing = new Vector2(0f, -1f);
+
+                        e.FixedFacing = Vector2.Normalize(e.FixedFacing);
+                        e.DrawDirection = Direction.South;
+                    }
+                    else
+                    {
+                        e.DrawDirection = CameraYawMath.SpriteDirection(rot, camXy, pos);
+                    }
+
                     // Optional pre-rendered 8-direction impostor in place of the live sprite
                     if (_classifier.GetRender3D(uid)?.Impostor is { } impostor)
                     {
@@ -313,6 +332,7 @@ public sealed class EntityPass : IDisposable
 
                     break;
                 case Render3DMode.FlatFloor:
+                    e.FixedItem = _fxItemFixed && e.Category == EntityCategory.Item;
                     e.Z = (onTable ? surfaceZ + 0.01f : 0.01f)
                         + (_fxItemLift && e.Category == EntityCategory.Item ? ItemLiftHeight : 0f);
                     e.DrawRotated = true;
@@ -507,6 +527,22 @@ public sealed class EntityPass : IDisposable
         {
             case Render3DMode.Billboard:
             {
+                if (e.FixedFacing != Vector2.Zero)
+                {
+                    // a card fixed in the world, facing the way the object points (its normal), spanning across that direction
+                    var facing = e.FixedFacing;
+                    var along = new Vector2(-facing.Y, facing.X);
+                    var fl = pos + along * b.Left;
+                    var fr = pos + along * b.Right;
+                    var fzb = e.Z;
+                    var fzt = e.Z + b.Height;
+                    AddCard(ref e, new Vector3(fl, fzt), new Vector3(fr, fzt), new Vector3(fr, fzb), new Vector3(fl, fzb),
+                        uvTl, uvTr, uvBr, uvBl, pos, new Vector3(facing, 0f), LayerCountFor(ref e));
+                    if (_fxShadows && !_curTranslucent && e.Distance2 < ShadowRange * ShadowRange)
+                        AddShadow(ref e);
+                    break;
+                }
+
                 var right = new Vector2(cam.Right.X, cam.Right.Y);
                 if (right.LengthSquared() < 1e-6f)
                     right = Vector2.UnitX;
@@ -540,16 +576,18 @@ public sealed class EntityPass : IDisposable
                 if (_fxItemLift && e.Category == EntityCategory.Item && !_curTranslucent && e.Distance2 < ShadowRange * ShadowRange)
                     AddItemShadow(ref e);
 
-                var lean = LeanOn(ref e) ? EntityShape.FlatLean(_downPitch) : 0f;
+                // a fixed item tilts towards the south by a fixed amount, whatever the camera does
+                var fwd = e.FixedItem ? Vector2.UnitY : _fwd;
+                var lean = LeanOn(ref e) ? (e.FixedItem ? FixedItemLean : EntityShape.FlatLean(_downPitch)) : 0f;
                 var layers = LayerCountFor(ref e);
                 var z = e.Z + (layers > 0 ? e.Thickness : 0f);
                 if (lean > 0.01f && e.Category == EntityCategory.Item && _itemMaxRise > 0f)
                 {
                     // a big sprite tilts less, so its far edge does not hover over the surface it lies on
-                    var near = MathF.Min(MathF.Min(Vector2.Dot(new Vector2(b.Left, b.Top), _fwd), Vector2.Dot(new Vector2(b.Right, b.Top), _fwd)),
-                        MathF.Min(Vector2.Dot(new Vector2(b.Right, b.Bottom), _fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), _fwd)));
-                    var far = MathF.Max(MathF.Max(Vector2.Dot(new Vector2(b.Left, b.Top), _fwd), Vector2.Dot(new Vector2(b.Right, b.Top), _fwd)),
-                        MathF.Max(Vector2.Dot(new Vector2(b.Right, b.Bottom), _fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), _fwd)));
+                    var near = MathF.Min(MathF.Min(Vector2.Dot(new Vector2(b.Left, b.Top), fwd), Vector2.Dot(new Vector2(b.Right, b.Top), fwd)),
+                        MathF.Min(Vector2.Dot(new Vector2(b.Right, b.Bottom), fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), fwd)));
+                    var far = MathF.Max(MathF.Max(Vector2.Dot(new Vector2(b.Left, b.Top), fwd), Vector2.Dot(new Vector2(b.Right, b.Top), fwd)),
+                        MathF.Max(Vector2.Dot(new Vector2(b.Right, b.Bottom), fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), fwd)));
                     lean = EntityShape.CapFlatLean(lean, far - near, _itemMaxRise);
                 }
                 if (lean > 0.01f)
@@ -559,19 +597,19 @@ public sealed class EntityPass : IDisposable
                     var o1 = new Vector2(b.Right, b.Top);
                     var o2 = new Vector2(b.Right, b.Bottom);
                     var o3 = new Vector2(b.Left, b.Bottom);
-                    var s0 = Vector2.Dot(o0, _fwd);
-                    var s1 = Vector2.Dot(o1, _fwd);
-                    var s2 = Vector2.Dot(o2, _fwd);
-                    var s3 = Vector2.Dot(o3, _fwd);
+                    var s0 = Vector2.Dot(o0, fwd);
+                    var s1 = Vector2.Dot(o1, fwd);
+                    var s2 = Vector2.Dot(o2, fwd);
+                    var s3 = Vector2.Dot(o3, fwd);
                     var sMin = MathF.Min(MathF.Min(s0, s1), MathF.Min(s2, s3));
                     var sMax = MathF.Max(MathF.Max(s0, s1), MathF.Max(s2, s3));
 
                     AddCard(ref e,
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o0, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o1, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o2, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o3, z, _fwd, sMin, sMax, lean)),
-                        uvTl, uvTr, uvBr, uvBl, pos, EntityShape.FlatNormal(_fwd, lean), layers);
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o0, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o1, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o2, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o3, z, fwd, sMin, sMax, lean)),
+                        uvTl, uvTr, uvBr, uvBl, pos, EntityShape.FlatNormal(fwd, lean), layers);
                 }
                 else
                 {
@@ -675,6 +713,9 @@ public sealed class EntityPass : IDisposable
     }
 
     private const float ShadowRange = 14f;
+
+    /// <summary>The tilt (radians, about 11 degrees) of a floor item that does not turn towards the camera; item_max_rise still caps it.</summary>
+    private const float FixedItemLean = 0.2f;
 
     /// <summary>How much nearer than its surface an item on it sorts, so it is drawn after a rack or a locker it lies on.</summary>
     private const float SurfaceItemSortBias = 0.3f;

@@ -258,6 +258,17 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> Render3DPointList =
         CVarDef.Create("render3d.pointlist", false, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     Furniture and machines (anchored standing objects) stay where they are, facing the way they point, instead of turning
+    ///     to face the camera as you walk round them. Characters and animals still turn.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DFxObjectFixed =
+        CVarDef.Create("render3d.fx.object_fixed", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Items on the floor and on tables keep a fixed tilt (towards the south) instead of tilting towards the camera.</summary>
+    public static readonly CVarDef<bool> Render3DFxItemFixed =
+        CVarDef.Create("render3d.fx.item_fixed", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
     /// <summary>Characters lean back slightly so they are less squashed when seen from above.</summary>
     public static readonly CVarDef<bool> Render3DFxCharLean =
         CVarDef.Create("render3d.fx.char_lean", true, CVar.CLIENTONLY | CVar.ARCHIVE);

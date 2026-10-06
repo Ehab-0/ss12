@@ -76,6 +76,13 @@ public sealed partial class Render3DShapeRule
     /// <summary>False keeps the thing from tilting towards the camera (it stays exactly flat or upright).</summary>
     [DataField]
     public bool Lean = true;
+
+    /// <summary>
+    ///     False makes a standing object turn to face the camera as you walk round it (a tree, a statue, anything round or without
+    ///     a front); the default keeps furniture and machines fixed in the world, facing the way they point.
+    /// </summary>
+    [DataField]
+    public bool Fixed = true;
 }
 
 /// <summary>

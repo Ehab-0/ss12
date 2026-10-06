@@ -73,6 +73,12 @@ public struct EntityDraw3D
     /// <summary>True for an item lying loose on a grid, which may be moved a little to show items stacked on one spot.</summary>
     public bool CanSpread;
 
+    /// <summary>The way a fixed standing object faces (unit, on the ground), or zero when it turns to face the camera.</summary>
+    public Vector2 FixedFacing;
+
+    /// <summary>A floor item that keeps a fixed tilt instead of tilting towards the camera.</summary>
+    public bool FixedItem;
+
     /// <summary>Pre-rendered impostor frame to draw instead of the live sprite (Phase 8), if any.</summary>
     public Robust.Client.Graphics.Texture? Impostor;
 
@@ -115,6 +121,10 @@ public sealed class EntityClassifier
     // shape rules: prototype id -> (thickness, lean) from the render3dRules prototypes, plus component rules
     private readonly Dictionary<string, (float Thickness, bool Lean)?> _shapeCache = new();
     private Dictionary<string, (float Thickness, bool Lean)>? _shapeParents;
+
+    // standing objects that keep turning to face the camera: prototype id -> true when a shape rule opts it out of "fixed"
+    private readonly Dictionary<string, bool> _turnCache = new();
+    private HashSet<string>? _turnParents;
 
     // surface heights: prototype id -> height of the top (null = no rule), computed once per prototype
     private readonly Dictionary<string, float?> _surfaceCache = new();
@@ -254,6 +264,7 @@ public sealed class EntityClassifier
         _shapeComponents = new List<(float, bool, List<Type>)>();
         _glassParents = new Dictionary<string, Content.Shared.Render3D.Render3DGlassRule>();
         _surfaceParents = new Dictionary<string, float>();
+        _turnParents = new HashSet<string>();
         var factory = _entMan.ComponentFactory;
 
         foreach (var set in _protos.EnumeratePrototypes<Render3DRulesPrototype>())
@@ -289,7 +300,11 @@ public sealed class EntityClassifier
             foreach (var shape in set.Shapes)
             {
                 foreach (var parent in shape.Parents)
+                {
                     _shapeParents[parent] = (shape.Thickness, shape.Lean);
+                    if (!shape.Fixed)
+                        _turnParents.Add(parent);
+                }
 
                 var types = new List<Type>();
                 foreach (var name in shape.Components)
@@ -402,6 +417,33 @@ public sealed class EntityClassifier
 
         _surfaceCache[proto.ID] = height;
         return height;
+    }
+
+    /// <summary>
+    ///     True when this standing object keeps turning to face the camera: a shape rule with <c>fixed: false</c> names its prototype
+    ///     or one it inherits from (trees, statues, anything round).
+    /// </summary>
+    public bool TurnsToCamera(EntityUid uid)
+    {
+        if (!_meta.TryComp(uid, out var meta) || meta.EntityPrototype is not { } proto)
+            return false;
+
+        if (_turnCache.TryGetValue(proto.ID, out var cached))
+            return cached;
+
+        BuildRules();
+        var turns = false;
+        foreach (var (ancestorId, _) in _protos.EnumerateAllParents<EntityPrototype>(proto.ID, includeSelf: true))
+        {
+            if (_turnParents!.Contains(ancestorId))
+            {
+                turns = true;
+                break;
+            }
+        }
+
+        _turnCache[proto.ID] = turns;
+        return turns;
     }
 
     public bool IsDoor(EntityUid uid) => _doors.HasComp(uid);
