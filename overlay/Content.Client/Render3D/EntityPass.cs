@@ -281,8 +281,9 @@ public sealed class EntityPass : IDisposable
                 e.Bounds = new Box2(-0.5f, -0.5f, 0.5f, 0.5f);
             }
 
+            // a thing that is an item but stands up (a potted plant, which can be picked up) is an object, as far as its shape goes
             e.Category = _classifier.IsMob(uid) ? EntityCategory.Character
-                : _classifier.IsItem(uid) ? EntityCategory.Item
+                : _classifier.IsItem(uid) && (mode != Render3DMode.Billboard || _classifier.IsThrown(uid)) ? EntityCategory.Item
                 : EntityCategory.Object;
             var shape = _classifier.GetShape(uid);
             e.Thickness = shape.Thickness >= 0f ? shape.Thickness : EntityShape.DefaultThickness(e.Category);

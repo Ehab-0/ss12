@@ -3,6 +3,8 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Potted plants stand up.** A potted plant can be picked up, so the 3D view treated it as an item and drew it lying flat on the floor.
+  It is now drawn standing, like the rest of the furniture (it keeps turning to face you, since a plant has no front).
 - **What lies in an open locker lies on the floor.** An open locker, closet or crate counted as a surface, so its contents were
   drawn standing on top of it. An open one is no longer a surface: what is in it is on the floor, drawn in front of it.
 - **Machines face the right way.** Vending machines and similar machines never rotate in the game, so the fixed card faced south

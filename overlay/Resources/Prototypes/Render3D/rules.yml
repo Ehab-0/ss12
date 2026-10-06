@@ -26,6 +26,10 @@
   - mode: WallDecal
     parents:
     - BaseWallmount
+  # things that are items (they can be picked up) but stand upright, and so are not drawn lying on the floor
+  - mode: Billboard
+    parents:
+    - PottedPlantBase
 
   # How glass is drawn (the "glass" effect in the 3D settings). The picture of a window in the game is a top-down drawing, a frame
   # with a small pane in the middle, which looked like a solid wall on a standing face. With the effect on, the 3D view draws
