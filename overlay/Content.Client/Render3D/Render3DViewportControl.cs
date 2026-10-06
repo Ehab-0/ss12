@@ -496,10 +496,19 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private bool? GetReach()
     {
         if (Pick(CrosshairPixel).FirstEntity is not { } target || !_entMan.EntityExists(target)
-            || _player.LocalEntity is not { } self || _xformSys == null)
+            || _player.LocalEntity == null || _xformSys == null)
         {
             return null;
         }
+
+        return InReach(target);
+    }
+
+    /// <summary>Whether this entity is within hand reach of the local player (held and worn things always are).</summary>
+    private bool InReach(EntityUid target)
+    {
+        if (_player.LocalEntity is not { } self || _xformSys == null)
+            return false;
 
         var xform = _entMan.GetComponent<TransformComponent>(target);
         if (xform.ParentUid != xform.GridUid && xform.ParentUid != xform.MapUid)
@@ -507,6 +516,89 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         var delta = _xformSys.GetWorldPosition(target) - _xformSys.GetWorldPosition(self);
         return delta.LengthSquared() <= SharedInteractionSystem.InteractionRangeSquared;
+    }
+
+    /// <summary>
+    ///     The entity the player chose from the list of what they point at. While it is set, what the crosshair is "on" is this entity
+    ///     (use, attack, pull, the name under the crosshair and the outline all follow it). Cleared when it is gone or far away.
+    /// </summary>
+    public EntityUid? PinnedTarget;
+
+    private readonly List<(EntityUid Uid, float Distance)> _pointNear = new();
+    private readonly List<EntityUid> _pointed = new();
+
+    /// <summary>
+    ///     What the crosshair points at, for the list at the side of the view: the entities its ray crosses (nearest first), then the
+    ///     ones that lie within half a tile of where it lands, which is the pile on a table. The names are the ones the label under
+    ///     the crosshair uses; things with the same name are counted. At most <paramref name="max"/> lines; the rest is
+    ///     <paramref name="hidden"/>.
+    /// </summary>
+    public void DescribePointed(List<(EntityUid Uid, string Text, bool InReach)> lines, int max, out int hidden)
+    {
+        lines.Clear();
+        hidden = 0;
+        if (!RelativeMouse)
+            return;
+
+        var pick = Pick(CrosshairPixel);
+        _pointed.Clear();
+        foreach (var uid in pick.Entities)
+            _pointed.Add(uid);
+
+        if (_entityPass != null && pick.Coords.MapId == _lastMap)
+        {
+            _entityPass.Nearby(pick.Coords.Position, 0.5f, _pointNear);
+            foreach (var (uid, _) in _pointNear)
+            {
+                if (!_pointed.Contains(uid))
+                    _pointed.Add(uid);
+            }
+        }
+
+        var self = _player.LocalEntity;
+        var names = new List<(string Name, int Count, bool Reach, EntityUid First)>();
+        foreach (var uid in _pointed)
+        {
+            if (uid == self || !_entMan.EntityExists(uid))
+                continue;
+
+            var name = Identity.Name(uid, _entMan);
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var reach = InReach(uid);
+            var index = names.FindIndex(n => n.Name == name && n.Reach == reach);
+            if (index >= 0)
+                names[index] = (name, names[index].Count + 1, reach, names[index].First);
+            else
+                names.Add((name, 1, reach, uid));
+        }
+
+        // what the player can touch comes first, and in each group loose things (items, a pile) before fixtures (a window, a table, a
+        // wall), because the list is for reaching what is stacked; inside a group the order is the order the ray crosses them
+        var ordered = new List<(string Name, int Count, bool Reach, EntityUid First)>(names.Count);
+        for (var bucket = 0; bucket < 4; bucket++)
+        {
+            foreach (var n in names)
+            {
+                var anchored = _entMan.TryGetComponent(n.First, out TransformComponent? xf) && xf.Anchored;
+                if ((n.Reach ? 0 : 2) + (anchored ? 1 : 0) == bucket)
+                    ordered.Add(n);
+            }
+        }
+
+        names = ordered;
+        for (var i = 0; i < names.Count; i++)
+        {
+            if (i >= max)
+            {
+                hidden += names[i].Count;
+                continue;
+            }
+
+            var (name, count, reach, first) = names[i];
+            lines.Add((first, count > 1 ? $"{count} x {name}" : name, reach));
+        }
     }
 
     private void DrawHoverLabel(DrawingHandleScreen screen, Vector2i pixelSize, bool? reach)
@@ -897,10 +989,39 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             }
         }
 
+        ApplyPinnedTarget(result, origin);
         _pickCache = (frame, localPixel, result);
         LastPick = result;
         return result;
     }
+
+    /// <summary>Puts the entity chosen from the list of what the player points at in front of whatever the ray found.</summary>
+    private void ApplyPinnedTarget(PickResult result, Vector3 origin)
+    {
+        if (PinnedTarget is not { } target)
+            return;
+
+        if (!_entMan.EntityExists(target) || _xformSys == null || _entMan.GetComponent<TransformComponent>(target).MapID != _lastMap)
+        {
+            PinnedTarget = null;
+            return;
+        }
+
+        var world = _xformSys.GetWorldPosition(target);
+        if (Vector2.DistanceSquared(world, new Vector2(origin.X, origin.Y)) > PinnedTargetRange * PinnedTargetRange)
+        {
+            PinnedTarget = null;
+            return;
+        }
+
+        result.Entities.Remove(target);
+        result.Entities.Insert(0, target);
+        result.FirstEntity = target;
+        result.Coords = new MapCoordinates(world, _lastMap);
+    }
+
+    /// <summary>A chosen target further than this (tiles) from the camera is let go.</summary>
+    private const float PinnedTargetRange = 9f;
 
     /// <summary>
     ///     The entities under the last pick, if <paramref name="coordinates"/> is exactly the position that pick

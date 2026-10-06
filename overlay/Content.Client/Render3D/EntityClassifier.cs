@@ -6,6 +6,7 @@ using Content.Shared.Mobs;
 using Content.Shared.Mobs.Components;
 using Content.Shared.Placeable;
 using Content.Shared.Projectiles;
+using Content.Shared.Storage.Components;
 using Content.Shared.Render3D;
 using Content.Shared.Standing;
 using Content.Shared.Throwing;
@@ -62,6 +63,26 @@ public struct EntityDraw3D
     /// <summary>Glass to draw in place of the sprite (windows, window doors, grilles), or null.</summary>
     public GlassLook? Glass;
 
+    /// <summary>Height of the top of the surface (table, rack, bed, locker) this item lies on, or 0 on the floor.</summary>
+    public float SurfaceZ;
+
+    /// <summary>The grid the entity stands on and its position in that grid (tile units), for spreading items apart. Grid is invalid when it has no grid parent.</summary>
+    public EntityUid Grid;
+
+    public Vector2 GridLocal;
+
+    /// <summary>True for an item lying loose on a grid, which may be moved a little to show items stacked on one spot.</summary>
+    public bool CanSpread;
+
+    /// <summary>The way a fixed standing object faces (unit, on the ground), or zero when it turns to face the camera.</summary>
+    public Vector2 FixedFacing;
+
+    /// <summary>A floor item that keeps a fixed tilt instead of tilting towards the camera.</summary>
+    public bool FixedItem;
+
+    /// <summary>The thing lies in an open locker or crate: on the floor, but drawn after it so it is not hidden in it.</summary>
+    public bool InOpenStorage;
+
     /// <summary>Pre-rendered impostor frame to draw instead of the live sprite (Phase 8), if any.</summary>
     public Robust.Client.Graphics.Texture? Impostor;
 
@@ -91,6 +112,7 @@ public sealed class EntityClassifier
     private readonly EntityQuery<PointLightComponent> _lights;
     private readonly EntityQuery<DoorComponent> _doors;
     private readonly EntityQuery<PlaceableSurfaceComponent> _surfaces;
+    private readonly EntityQuery<EntityStorageComponent> _storages;
 
     private readonly IEntityManager _entMan;
     private readonly IPrototypeManager _protos;
@@ -104,6 +126,14 @@ public sealed class EntityClassifier
     // shape rules: prototype id -> (thickness, lean) from the render3dRules prototypes, plus component rules
     private readonly Dictionary<string, (float Thickness, bool Lean)?> _shapeCache = new();
     private Dictionary<string, (float Thickness, bool Lean)>? _shapeParents;
+
+    // standing objects that keep turning to face the camera: prototype id -> true when a shape rule opts it out of "fixed"
+    private readonly Dictionary<string, bool> _turnCache = new();
+    private HashSet<string>? _turnParents;
+
+    // surface heights: prototype id -> height of the top (null = no rule), computed once per prototype
+    private readonly Dictionary<string, float?> _surfaceCache = new();
+    private Dictionary<string, float>? _surfaceParents;
 
     // glass looks: prototype id -> look (null = keep the sprite), computed once per prototype
     private readonly Dictionary<string, GlassLook?> _glassCache = new();
@@ -126,9 +156,13 @@ public sealed class EntityClassifier
         _lights = entMan.GetEntityQuery<PointLightComponent>();
         _doors = entMan.GetEntityQuery<DoorComponent>();
         _surfaces = entMan.GetEntityQuery<PlaceableSurfaceComponent>();
+        _storages = entMan.GetEntityQuery<EntityStorageComponent>();
     }
 
     public bool IsSurface(EntityUid uid) => _surfaces.HasComp(uid);
+
+    /// <summary>A locker, closet or crate that is open: what it held lies on the floor in it, not on top of it.</summary>
+    public bool IsOpenStorage(EntityUid uid) => _storages.TryComp(uid, out var storage) && storage.Open;
 
     public Render3DMode Classify(EntityUid uid, SpriteComponent sprite, TransformComponent xform)
     {
@@ -238,6 +272,8 @@ public sealed class EntityClassifier
         _shapeParents = new Dictionary<string, (float, bool)>();
         _shapeComponents = new List<(float, bool, List<Type>)>();
         _glassParents = new Dictionary<string, Content.Shared.Render3D.Render3DGlassRule>();
+        _surfaceParents = new Dictionary<string, float>();
+        _turnParents = new HashSet<string>();
         var factory = _entMan.ComponentFactory;
 
         foreach (var set in _protos.EnumeratePrototypes<Render3DRulesPrototype>())
@@ -264,10 +300,20 @@ public sealed class EntityClassifier
                     _glassParents[parent] = glass;
             }
 
+            foreach (var surface in set.Surfaces)
+            {
+                foreach (var parent in surface.Parents)
+                    _surfaceParents[parent] = surface.Height;
+            }
+
             foreach (var shape in set.Shapes)
             {
                 foreach (var parent in shape.Parents)
+                {
                     _shapeParents[parent] = (shape.Thickness, shape.Lean);
+                    if (!shape.Fixed)
+                        _turnParents.Add(parent);
+                }
 
                 var types = new List<Type>();
                 foreach (var name in shape.Components)
@@ -353,6 +399,60 @@ public sealed class EntityClassifier
 
         _glassCache[proto.ID] = look;
         return look;
+    }
+
+    /// <summary>
+    ///     The height of the top of this surface from the <c>surfaces</c> rules (the nearest matching ancestor), or null when no
+    ///     rule names it.
+    /// </summary>
+    public float? GetSurfaceHeight(EntityUid uid)
+    {
+        if (!_meta.TryComp(uid, out var meta) || meta.EntityPrototype is not { } proto)
+            return null;
+
+        if (_surfaceCache.TryGetValue(proto.ID, out var cached))
+            return cached;
+
+        BuildRules();
+        float? height = null;
+        foreach (var (ancestorId, _) in _protos.EnumerateAllParents<EntityPrototype>(proto.ID, includeSelf: true))
+        {
+            if (_surfaceParents!.TryGetValue(ancestorId, out var h))
+            {
+                height = h;
+                break;
+            }
+        }
+
+        _surfaceCache[proto.ID] = height;
+        return height;
+    }
+
+    /// <summary>
+    ///     True when this standing object keeps turning to face the camera: a shape rule with <c>fixed: false</c> names its prototype
+    ///     or one it inherits from (trees, statues, anything round).
+    /// </summary>
+    public bool TurnsToCamera(EntityUid uid)
+    {
+        if (!_meta.TryComp(uid, out var meta) || meta.EntityPrototype is not { } proto)
+            return false;
+
+        if (_turnCache.TryGetValue(proto.ID, out var cached))
+            return cached;
+
+        BuildRules();
+        var turns = false;
+        foreach (var (ancestorId, _) in _protos.EnumerateAllParents<EntityPrototype>(proto.ID, includeSelf: true))
+        {
+            if (_turnParents!.Contains(ancestorId))
+            {
+                turns = true;
+                break;
+            }
+        }
+
+        _turnCache[proto.ID] = turns;
+        return turns;
     }
 
     public bool IsDoor(EntityUid uid) => _doors.HasComp(uid);

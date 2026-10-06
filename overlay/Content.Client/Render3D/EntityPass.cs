@@ -51,16 +51,19 @@ public sealed class EntityPass : IDisposable
     private bool _curOutline;
 
     // shape of things (lean and thickness per category), read once per frame in Prepare
-    private bool _fxItemLift, _fxItemLean, _fxItemThick;
+    private bool _fxItemLift, _fxItemLean, _fxItemThick, _fxItemSurface, _fxItemSpread, _fxItemFixed, _fxObjectFixed;
+    private float _itemMaxRise;
     private bool _fxCharLean, _fxCharThick;
     private bool _fxObjectLean, _fxObjectThick;
     private int _thickLayers;
     private int _extraQuads;
     private float _downPitch;
     private Vector2 _fwd = Vector2.UnitY;
+    private Vector3 _camPos3;
+    private float _pixelAtOneTile; // size in tiles of one screen pixel one tile from the camera
 
     /// <summary>Most extra quads (thickness layers) added per frame, so a crowded room cannot overload the draw.</summary>
-    private const int MaxExtraQuads = 3000;
+    private const int MaxExtraQuads = 7000;
 
     /// <summary>How far an item on the ground is raised so its contact shadow shows around it.</summary>
     private const float ItemLiftHeight = 0.02f;
@@ -75,7 +78,20 @@ public sealed class EntityPass : IDisposable
     private readonly HashSet<EntityUid> _wasDrawn = new();
     private int _drawCount;
     private readonly List<Entity<SpriteComponent, TransformComponent>> _query = new();
-    private readonly HashSet<(EntityUid, int, int)> _surfaceTiles = new();
+
+    /// <summary>The tiles that have a surface (table, rack, bed...) on them, with the height of the highest top.</summary>
+    private readonly Dictionary<(EntityUid, int, int), float> _surfaceTiles = new();
+
+    /// <summary>The tiles with an open locker, closet or crate on them: what lies there is in it, not on top of it.</summary>
+    private readonly HashSet<(EntityUid, int, int)> _openStorageTiles = new();
+
+    // work space of SpreadItems, kept between frames
+    private readonly Dictionary<(EntityUid, int, int), List<int>> _spreadGroups = new();
+    private readonly Stack<List<int>> _spreadLists = new();
+    private readonly Dictionary<EntityUid, Angle> _gridRotation = new();
+    private Vector2[] _spreadPos = new Vector2[16];
+    private Vector2[] _spreadOff = new Vector2[16];
+    private int[] _spreadKey = new int[16];
 
     /// <summary>A quad an entity is drawn as, kept for CPU picking.</summary>
     public struct PickQuad
@@ -144,6 +160,11 @@ public sealed class EntityPass : IDisposable
         _fxItemLift = _cfg.GetCVar(CCVars.Render3DFxItemLift);
         _fxItemLean = _cfg.GetCVar(CCVars.Render3DFxItemLean);
         _fxItemThick = _cfg.GetCVar(CCVars.Render3DFxItemThick);
+        _fxItemSurface = _cfg.GetCVar(CCVars.Render3DFxItemSurface);
+        _fxItemSpread = _cfg.GetCVar(CCVars.Render3DFxItemSpread);
+        _itemMaxRise = _cfg.GetCVar(CCVars.Render3DItemMaxRise);
+        _fxItemFixed = _cfg.GetCVar(CCVars.Render3DFxItemFixed);
+        _fxObjectFixed = _cfg.GetCVar(CCVars.Render3DFxObjectFixed);
         _fxCharLean = _cfg.GetCVar(CCVars.Render3DFxCharLean);
         _fxCharThick = _cfg.GetCVar(CCVars.Render3DFxCharThick);
         _fxObjectLean = _cfg.GetCVar(CCVars.Render3DFxObjectLean);
@@ -151,11 +172,14 @@ public sealed class EntityPass : IDisposable
         _thickLayers = Math.Clamp(_cfg.GetCVar(CCVars.Render3DThicknessLayers), 0, 8);
         _extraQuads = 0;
         _downPitch = EntityShape.DownPitch(cam.Forward);
+        _camPos3 = cam.Position;
+        _pixelAtOneTile = 2f * cam.TanHalfFov / MathF.Max(cam.Size.Y, 1f);
         _fwd = cam.ForwardGround;
         _quads.Clear();
         _pick.Clear();
         _drawCount = 0;
         _surfaceTiles.Clear();
+        _openStorageTiles.Clear();
         _tileWorld.ClosedDoors.Clear();
         _tileWorld.GlassTiles.Clear();
 
@@ -181,12 +205,27 @@ public sealed class EntityPass : IDisposable
                 _tileWorld.ClosedDoors.Add((doorGrid, new Vector2i((int) MathF.Floor(dp.X), (int) MathF.Floor(dp.Y))));
             }
 
-            if (!_classifier.IsSurface(uid))
+            if (_fxItemSurface && _classifier.IsOpenStorage(uid))
+            {
+                if (xform.GridUid is { } storageGrid && xform.ParentUid == storageGrid)
+                {
+                    var sp = xform.LocalPosition;
+                    _openStorageTiles.Add((storageGrid, (int) MathF.Floor(sp.X), (int) MathF.Floor(sp.Y)));
+                }
+
+                continue;
+            }
+
+            var ruleHeight = _fxItemSurface ? _classifier.GetSurfaceHeight(uid) : null;
+            if (!_classifier.IsSurface(uid) && ruleHeight == null)
                 continue;
             if (xform.GridUid is { } grid && xform.ParentUid == grid)
             {
                 var lp = xform.LocalPosition;
-                _surfaceTiles.Add((grid, (int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y)));
+                var key = (grid, (int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y));
+                var top = SurfaceTop(uid, sprite, xform, ruleHeight, tableHeight);
+                if (!_surfaceTiles.TryGetValue(key, out var known) || top > known)
+                    _surfaceTiles[key] = top;
             }
         }
 
@@ -233,35 +272,75 @@ public sealed class EntityPass : IDisposable
             e.Glow = HasGlowLayer(uid, sprite);
 
             // windows, window doors and grilles: a pane drawn here (see GlassLook) in place of the sprite. A window door that is
-            // open keeps its sprite, which shows it open.
+            // not closed is drawn as its frame only, so the doorway does not vanish when it opens.
             if (_fxGlass && mode is Render3DMode.GlassBox or Render3DMode.EdgePanel
-                && !(_classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid))
                 && _classifier.GetGlass(uid) is { } glass)
             {
-                e.Glass = glass;
+                e.Glass = _classifier.IsDoor(uid) && !_classifier.IsClosedDoor(uid) ? glass.Opened : glass;
                 e.Glow = false;
                 e.Bounds = new Box2(-0.5f, -0.5f, 0.5f, 0.5f);
             }
 
+            // a thing that is an item but stands up (a potted plant, which can be picked up) is an object, as far as its shape goes
             e.Category = _classifier.IsMob(uid) ? EntityCategory.Character
-                : _classifier.IsItem(uid) ? EntityCategory.Item
+                : _classifier.IsItem(uid) && (mode != Render3DMode.Billboard || _classifier.IsThrown(uid)) ? EntityCategory.Item
                 : EntityCategory.Object;
             var shape = _classifier.GetShape(uid);
             e.Thickness = shape.Thickness >= 0f ? shape.Thickness : EntityShape.DefaultThickness(e.Category);
             e.CanLean = shape.Lean;
 
             var onTable = false;
-            if (xform.GridUid is { } g && xform.ParentUid == g && _surfaceTiles.Count > 0)
+            var surfaceZ = tableHeight;
+            if (xform.GridUid is { } g && xform.ParentUid == g)
             {
                 var lp = xform.LocalPosition;
-                onTable = _surfaceTiles.Contains((g, (int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y)));
+                e.Grid = g;
+                e.GridLocal = lp;
+                if (_surfaceTiles.Count > 0 && _surfaceTiles.TryGetValue((g, (int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y)), out var top))
+                {
+                    onTable = true;
+                    surfaceZ = top;
+                }
             }
+
+            if (onTable && e.Category == EntityCategory.Item)
+                e.SurfaceZ = surfaceZ;
+
+            if (!onTable && _openStorageTiles.Count > 0 && e.Grid.IsValid())
+                e.InOpenStorage = _openStorageTiles.Contains((e.Grid, (int) MathF.Floor(e.GridLocal.X), (int) MathF.Floor(e.GridLocal.Y)));
+
+            // an item lying loose on a grid may be moved a little to show the ones that lie on the same spot
+            e.CanSpread = _fxItemSpread && e.Category == EntityCategory.Item && e.Grid.IsValid()
+                && mode == Render3DMode.FlatFloor && !_classifier.IsThrown(uid);
 
             switch (mode)
             {
                 case Render3DMode.Billboard:
-                    e.Z = _classifier.IsThrown(uid) ? 0.4f : onTable && _classifier.IsItem(uid) ? tableHeight : 0f;
-                    e.DrawDirection = CameraYawMath.SpriteDirection(rot, camXy, pos);
+                    e.Z = _classifier.IsThrown(uid) ? 0.4f : onTable && _classifier.IsItem(uid) ? surfaceZ : 0f;
+                    // Furniture and machines stay fixed in the world, facing the way they point: a card that faces that way, drawn with
+                    // the front of the sprite (the same picture a door panel shows). Anything that has no front, and everything
+                    // that has a pre-rendered impostor, keeps turning to face the camera.
+                    var facing = Vector2.Zero;
+                    if (_fxObjectFixed && e.Category == EntityCategory.Object && xform.Anchored
+                        && _classifier.GetRender3D(uid)?.Impostor == null && !_classifier.TurnsToCamera(uid))
+                    {
+                        facing = FixedFacingFor(sprite, xform, rot);
+                    }
+
+                    if (facing != Vector2.Zero)
+                    {
+                        // The card stays where it is. A viewer in front of it sees the front (the south state of the sprite); one behind
+                        // it sees the card turned round, showing the back (the north state of a chair, which is its back). The card
+                        // never turns gradually: it flips only when the camera crosses the plane of the thing.
+                        var behind = Vector2.Dot(camXy - pos, facing) < 0f;
+                        e.FixedFacing = behind ? -facing : facing;
+                        e.DrawDirection = behind ? Direction.North : Direction.South;
+                    }
+                    else
+                    {
+                        e.DrawDirection = CameraYawMath.SpriteDirection(rot, camXy, pos);
+                    }
+
                     // Optional pre-rendered 8-direction impostor in place of the live sprite
                     if (_classifier.GetRender3D(uid)?.Impostor is { } impostor)
                     {
@@ -277,7 +356,8 @@ public sealed class EntityPass : IDisposable
 
                     break;
                 case Render3DMode.FlatFloor:
-                    e.Z = (onTable ? tableHeight + 0.01f : 0.01f)
+                    e.FixedItem = _fxItemFixed && e.Category == EntityCategory.Item;
+                    e.Z = (onTable ? surfaceZ + 0.01f : 0.01f)
                         + (_fxItemLift && e.Category == EntityCategory.Item ? ItemLiftHeight : 0f);
                     e.DrawRotated = true;
                     e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
@@ -288,7 +368,7 @@ public sealed class EntityPass : IDisposable
                     e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
                 case Render3DMode.TableBox:
-                    e.Z = tableHeight;
+                    e.Z = _fxItemSurface && _classifier.GetSurfaceHeight(uid) is { } boxTop ? boxTop : tableHeight;
                     e.DrawRotated = true;
                     e.Bounds = ReservedBounds(local, sprite, AtlasBounds.DrawnRotation(rot, sprite.NoRotation, sprite.SnapCardinals));
                     break;
@@ -298,6 +378,9 @@ public sealed class EntityPass : IDisposable
                     break;
             }
         }
+
+        if (_fxItemSpread)
+            SpreadItems();
 
         // nearest first, capped
         var cap = Math.Max(16, _cfg.GetCVar(CCVars.Render3DBillboardCap));
@@ -324,7 +407,7 @@ public sealed class EntityPass : IDisposable
             if (!e.Placed)
                 continue;
 
-            BuildQuads(ref e, cam, atlasSize, wallHeight, tableHeight);
+            BuildQuads(ref e, cam, atlasSize, wallHeight);
         }
     }
 
@@ -357,13 +440,14 @@ public sealed class EntityPass : IDisposable
 
     private void AddQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
         Vector2 uv0, Vector2 uv1, Vector2 uv2, Vector2 uv3,
-        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true)
+        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true, bool layer = false)
     {
         if (HighlightUid == _curUid)
             shade *= 1.6f;
         var translucent = blend || _curTranslucent;
+        // a layer of a slab (kind 4) is alpha tested like a plain quad but sampled without smoothing, which left bright dots along its edge
         _quads.Add(p0, p1, p2, p3, uv0, uv1, uv2, uv3, foot, shade, alpha, translucent,
-            flags: translucent ? 1f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
+            flags: translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
         if (pick && _curClickable)
             _pick.Add(new PickQuad { Uid = _curUid, P0 = p0, P1 = p1, P3 = p3, Pos = _curPos });
     }
@@ -398,7 +482,31 @@ public sealed class EntityPass : IDisposable
         results.Sort((a, b) => a.T.CompareTo(b.T));
     }
 
-    private void BuildQuads(ref EntityDraw3D e, Camera3D cam, float atlasSize, float wallHeight, float tableHeight)
+    /// <summary>
+    ///     The clickable entities drawn this frame within <paramref name="radius"/> tiles of a point, nearest first (each once). Used
+    ///     for the list of what the crosshair points at: the pile of items on a table all lie around the spot the ray lands on.
+    /// </summary>
+    public void Nearby(Vector2 point, float radius, List<(EntityUid Uid, float Distance)> results)
+    {
+        results.Clear();
+        var r2 = radius * radius;
+        foreach (var q in _pick)
+        {
+            var d2 = Vector2.DistanceSquared(q.Pos, point);
+            if (d2 > r2)
+                continue;
+
+            var existing = results.FindIndex(r => r.Uid == q.Uid);
+            if (existing >= 0)
+                continue;
+
+            results.Add((q.Uid, MathF.Sqrt(d2)));
+        }
+
+        results.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+    }
+
+    private void BuildQuads(ref EntityDraw3D e, Camera3D cam, float atlasSize, float wallHeight)
     {
         var slot = e.Slot;
         const float inset = 0.5f;
@@ -434,12 +542,31 @@ public sealed class EntityPass : IDisposable
         // Things that share a plane (a window and the grille in the same tile, a table and what stands on it) are
         // drawn in sprite draw depth order, not in whatever order the sort leaves ties in, which flickered.
         _curSortBias = -SortBiasPerDepth * e.Sprite.DrawDepth;
+        // an item on a surface is drawn after the surface (a rack, a locker, a table), so it is never hidden inside it
+        if (_fxItemSurface && (e.SurfaceZ > 0f || e.InOpenStorage))
+            _curSortBias -= SurfaceItemSortBias;
         _curOutline = (_fxOutline || _fxItemLift && e.Category == EntityCategory.Item)
             && !_curTranslucent && e.Mode is Render3DMode.Billboard or Render3DMode.FlatFloor;
         switch (e.Mode)
         {
             case Render3DMode.Billboard:
             {
+                if (e.FixedFacing != Vector2.Zero)
+                {
+                    // a card fixed in the world, facing the way the object points (its normal), spanning across that direction
+                    var facing = e.FixedFacing;
+                    var along = new Vector2(-facing.Y, facing.X);
+                    var fl = pos + along * b.Left;
+                    var fr = pos + along * b.Right;
+                    var fzb = e.Z;
+                    var fzt = e.Z + b.Height;
+                    AddCard(ref e, new Vector3(fl, fzt), new Vector3(fr, fzt), new Vector3(fr, fzb), new Vector3(fl, fzb),
+                        uvTl, uvTr, uvBr, uvBl, pos, new Vector3(facing, 0f), LayerCountFor(ref e));
+                    if (_fxShadows && !_curTranslucent && e.Distance2 < ShadowRange * ShadowRange)
+                        AddShadow(ref e);
+                    break;
+                }
+
                 var right = new Vector2(cam.Right.X, cam.Right.Y);
                 if (right.LengthSquared() < 1e-6f)
                     right = Vector2.UnitX;
@@ -464,18 +591,29 @@ public sealed class EntityPass : IDisposable
                 }
 
                 if (_fxShadows && !_curTranslucent && e.Distance2 < ShadowRange * ShadowRange)
-                    AddShadow(ref e, tableHeight);
+                    AddShadow(ref e);
                 break;
             }
 
             case Render3DMode.FlatFloor:
             {
                 if (_fxItemLift && e.Category == EntityCategory.Item && !_curTranslucent && e.Distance2 < ShadowRange * ShadowRange)
-                    AddItemShadow(ref e, tableHeight);
+                    AddItemShadow(ref e);
 
-                var lean = LeanOn(ref e) ? EntityShape.FlatLean(_downPitch) : 0f;
+                // a fixed item tilts towards the south by a fixed amount, whatever the camera does
+                var fwd = e.FixedItem ? Vector2.UnitY : _fwd;
+                var lean = LeanOn(ref e) ? (e.FixedItem ? FixedItemLean : EntityShape.FlatLean(_downPitch)) : 0f;
                 var layers = LayerCountFor(ref e);
                 var z = e.Z + (layers > 0 ? e.Thickness : 0f);
+                if (lean > 0.01f && e.Category == EntityCategory.Item && _itemMaxRise > 0f)
+                {
+                    // a big sprite tilts less, so its far edge does not hover over the surface it lies on
+                    var near = MathF.Min(MathF.Min(Vector2.Dot(new Vector2(b.Left, b.Top), fwd), Vector2.Dot(new Vector2(b.Right, b.Top), fwd)),
+                        MathF.Min(Vector2.Dot(new Vector2(b.Right, b.Bottom), fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), fwd)));
+                    var far = MathF.Max(MathF.Max(Vector2.Dot(new Vector2(b.Left, b.Top), fwd), Vector2.Dot(new Vector2(b.Right, b.Top), fwd)),
+                        MathF.Max(Vector2.Dot(new Vector2(b.Right, b.Bottom), fwd), Vector2.Dot(new Vector2(b.Left, b.Bottom), fwd)));
+                    lean = EntityShape.CapFlatLean(lean, far - near, _itemMaxRise);
+                }
                 if (lean > 0.01f)
                 {
                     // corners relative to the centre, tilted about the edge nearest the camera
@@ -483,19 +621,19 @@ public sealed class EntityPass : IDisposable
                     var o1 = new Vector2(b.Right, b.Top);
                     var o2 = new Vector2(b.Right, b.Bottom);
                     var o3 = new Vector2(b.Left, b.Bottom);
-                    var s0 = Vector2.Dot(o0, _fwd);
-                    var s1 = Vector2.Dot(o1, _fwd);
-                    var s2 = Vector2.Dot(o2, _fwd);
-                    var s3 = Vector2.Dot(o3, _fwd);
+                    var s0 = Vector2.Dot(o0, fwd);
+                    var s1 = Vector2.Dot(o1, fwd);
+                    var s2 = Vector2.Dot(o2, fwd);
+                    var s3 = Vector2.Dot(o3, fwd);
                     var sMin = MathF.Min(MathF.Min(s0, s1), MathF.Min(s2, s3));
                     var sMax = MathF.Max(MathF.Max(s0, s1), MathF.Max(s2, s3));
 
                     AddCard(ref e,
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o0, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o1, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o2, z, _fwd, sMin, sMax, lean)),
-                        PlaceOn(pos, EntityShape.LeanFlatPoint(o3, z, _fwd, sMin, sMax, lean)),
-                        uvTl, uvTr, uvBr, uvBl, pos, EntityShape.FlatNormal(_fwd, lean), layers);
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o0, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o1, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o2, z, fwd, sMin, sMax, lean)),
+                        PlaceOn(pos, EntityShape.LeanFlatPoint(o3, z, fwd, sMin, sMax, lean)),
+                        uvTl, uvTr, uvBr, uvBl, pos, EntityShape.FlatNormal(fwd, lean), layers);
                 }
                 else
                 {
@@ -520,16 +658,16 @@ public sealed class EntityPass : IDisposable
             {
                 var half = 0.5f;
                 var tb = new Box2(-half, -half, half, half);
-                AddFlat(pos, tb, tableHeight, uvTl, uvTr, uvBr, uvBl, pos, 1f);
+                AddFlat(pos, tb, e.Z, uvTl, uvTr, uvBr, uvBl, pos, 1f);
                 // sides: a thin strip of the same art, darkened
                 var sTop = Vector2.Lerp(uvTl, uvBl, 0.80f);
                 var sBot = Vector2.Lerp(uvTl, uvBl, 0.95f);
                 var sTopR = Vector2.Lerp(uvTr, uvBr, 0.80f);
                 var sBotR = Vector2.Lerp(uvTr, uvBr, 0.95f);
-                AddVerticalFace(pos + new Vector2(0, half), Vector2.UnitX, 1f, 0f, tableHeight, sTop, sTopR, sBotR, sBot, pos, 0.55f);
-                AddVerticalFace(pos + new Vector2(0, -half), Vector2.UnitX, 1f, 0f, tableHeight, sTop, sTopR, sBotR, sBot, pos, 0.55f);
-                AddVerticalFace(pos + new Vector2(half, 0), Vector2.UnitY, 1f, 0f, tableHeight, sTop, sTopR, sBotR, sBot, pos, 0.55f);
-                AddVerticalFace(pos + new Vector2(-half, 0), Vector2.UnitY, 1f, 0f, tableHeight, sTop, sTopR, sBotR, sBot, pos, 0.55f);
+                AddVerticalFace(pos + new Vector2(0, half), Vector2.UnitX, 1f, 0f, e.Z, sTop, sTopR, sBotR, sBot, pos, 0.55f);
+                AddVerticalFace(pos + new Vector2(0, -half), Vector2.UnitX, 1f, 0f, e.Z, sTop, sTopR, sBotR, sBot, pos, 0.55f);
+                AddVerticalFace(pos + new Vector2(half, 0), Vector2.UnitY, 1f, 0f, e.Z, sTop, sTopR, sBotR, sBot, pos, 0.55f);
+                AddVerticalFace(pos + new Vector2(-half, 0), Vector2.UnitY, 1f, 0f, e.Z, sTop, sTopR, sBotR, sBot, pos, 0.55f);
                 break;
             }
 
@@ -600,6 +738,143 @@ public sealed class EntityPass : IDisposable
 
     private const float ShadowRange = 14f;
 
+    /// <summary>
+    ///     The way a fixed standing object faces, as a unit vector on the ground, or zero when that cannot be told (then it keeps
+    ///     turning to the camera). Something that can be rotated (chairs, beds, consoles) faces the way it is rotated. Machines and the
+    ///     like whose transform never rotates (vending machines, wall cabinets: the 2D game always draws their front to the viewer) face
+    ///     away from the wall they stand against, when exactly one of the four tiles round them is a wall.
+    /// </summary>
+    private Vector2 FixedFacingFor(SpriteComponent sprite, TransformComponent xform, Angle rot)
+    {
+        // A transform that cannot rotate says nothing about where the thing faces; a sprite that does not rotate (a chair) still
+        // chooses its picture by the rotation of the entity, so the rotation is the facing.
+        if (!xform.NoLocalRotation)
+        {
+            var v = rot.ToWorldVec();
+            return v.LengthSquared() < 1e-4f ? Vector2.Zero : Vector2.Normalize(v);
+        }
+
+        if (xform.GridUid is not { } grid || xform.ParentUid != grid)
+            return Vector2.Zero;
+
+        var lp = xform.LocalPosition;
+        var tile = new Vector2i((int) MathF.Floor(lp.X), (int) MathF.Floor(lp.Y));
+        Vector2i? wall = null;
+        foreach (var d in new[] { new Vector2i(1, 0), new Vector2i(-1, 0), new Vector2i(0, 1), new Vector2i(0, -1) })
+        {
+            if (!_tileWorld.TryGetWall(grid, tile + d))
+                continue;
+
+            if (wall != null)
+                return Vector2.Zero; // walls on more than one side: no clear front
+
+            wall = d;
+        }
+
+        if (wall is not { } w)
+            return Vector2.Zero;
+
+        var away = _xform.GetWorldRotation(grid).RotateVec(new Vector2(-w.X, -w.Y));
+        return away.LengthSquared() < 1e-4f ? Vector2.Zero : Vector2.Normalize(away);
+    }
+
+    /// <summary>The tilt (radians, about 11 degrees) of a floor item that does not turn towards the camera; item_max_rise still caps it.</summary>
+    private const float FixedItemLean = 0.2f;
+
+    /// <summary>How much nearer than its surface an item on it sorts, so it is drawn after a rack or a locker it lies on.</summary>
+    private const float SurfaceItemSortBias = 0.3f;
+
+    /// <summary>The highest standing object an item is put on top of (tiles): lockers and crates are drawn about a tile tall.</summary>
+    private const float MaxSurfaceTop = 1.3f;
+
+    /// <summary>
+    ///     The height of the top of a surface. A <c>surfaces</c> rule names it; otherwise a table is as high as the table height
+    ///     setting and a standing object (a locker, a crate) as high as its drawn picture. With the item surface effect off
+    ///     everything is as high as a table.
+    /// </summary>
+    private float SurfaceTop(EntityUid uid, SpriteComponent sprite, TransformComponent xform, float? rule, float tableHeight)
+    {
+        if (!_fxItemSurface)
+            return tableHeight;
+
+        if (rule is { } height)
+            return height;
+
+        if (_classifier.Classify(uid, sprite, xform) == Render3DMode.Billboard)
+            return Math.Clamp(_sprite.GetLocalBounds((uid, sprite)).Height, tableHeight, MaxSurfaceTop);
+
+        return tableHeight;
+    }
+
+    /// <summary>
+    ///     Moves items that lie on the same spot a little apart, inside their tile (see <see cref="ItemSpread"/>), only in the
+    ///     picture, so a pile of items shows each of them. The offsets are fixed per item, so nothing shuffles from frame to frame.
+    /// </summary>
+    private void SpreadItems()
+    {
+        foreach (var list in _spreadGroups.Values)
+        {
+            list.Clear();
+            _spreadLists.Push(list);
+        }
+
+        _spreadGroups.Clear();
+        for (var i = 0; i < _drawCount; i++)
+        {
+            ref var e = ref _draws[i];
+            if (!e.CanSpread)
+                continue;
+
+            var key = (e.Grid, (int) MathF.Floor(e.GridLocal.X), (int) MathF.Floor(e.GridLocal.Y));
+            if (!_spreadGroups.TryGetValue(key, out var group))
+            {
+                group = _spreadLists.Count > 0 ? _spreadLists.Pop() : new List<int>();
+                _spreadGroups[key] = group;
+            }
+
+            group.Add(i);
+        }
+
+        _gridRotation.Clear();
+        foreach (var (key, group) in _spreadGroups)
+        {
+            var n = group.Count;
+            if (n < 2)
+                continue;
+
+            if (_spreadPos.Length < n)
+            {
+                var size = Math.Max(n, _spreadPos.Length * 2);
+                _spreadPos = new Vector2[size];
+                _spreadOff = new Vector2[size];
+                _spreadKey = new int[size];
+            }
+
+            for (var k = 0; k < n; k++)
+            {
+                ref var e = ref _draws[group[k]];
+                _spreadPos[k] = e.GridLocal;
+                _spreadKey[k] = e.Uid.Id;
+            }
+
+            ItemSpread.Compute(_spreadPos.AsSpan(0, n), _spreadKey.AsSpan(0, n), _spreadOff.AsSpan(0, n));
+            if (!_gridRotation.TryGetValue(key.Item1, out var rotation))
+            {
+                rotation = _xform.GetWorldRotation(key.Item1);
+                _gridRotation[key.Item1] = rotation;
+            }
+
+            for (var k = 0; k < n; k++)
+            {
+                if (_spreadOff[k] == Vector2.Zero)
+                    continue;
+
+                ref var e = ref _draws[group[k]];
+                e.Pos += rotation.RotateVec(_spreadOff[k]);
+            }
+        }
+    }
+
     /// <summary>Sort bias per unit of sprite draw depth (tiles): far too small to reorder things that are not on the same plane.</summary>
     private const float SortBiasPerDepth = 0.0004f;
 
@@ -646,14 +921,25 @@ public sealed class EntityPass : IDisposable
         if (layers <= 0)
             return;
 
+        // As many layers as it takes for the slab to look solid at this distance and angle (EntityShape.AdaptiveLayers); the
+        // quality setting only says how many at the most.
+        var centre = (p0 + p1 + p2 + p3) * 0.25f;
+        var toCard = centre - _camPos3;
+        var distance = toCard.Length();
+        var cosView = distance > 1e-3f ? MathF.Abs(Vector3.Dot(toCard / distance, normal)) : 1f;
+        var count = EntityShape.AdaptiveLayers(e.Thickness, distance, cosView, _pixelAtOneTile * distance,
+            Math.Min(layers * EntityShape.LayersPerQuality, MaxExtraQuads - _extraQuads));
+        if (count <= 0)
+            return;
+
         var outline = _curOutline;
         _curOutline = false;
-        var step = e.Thickness / layers;
-        for (var k = layers; k >= 1; k--)
+        var step = e.Thickness / count;
+        for (var k = count; k >= 1; k--)
         {
             var off = -normal * (step * k);
             AddQuad(p0 + off, p1 + off, p2 + off, p3 + off, uv0, uv1, uv2, uv3, foot,
-                EntityShape.LayerShade(k, layers), pick: false);
+                EntityShape.LayerShade(k, count), pick: false, layer: true);
             _extraQuads++;
         }
 
@@ -661,11 +947,10 @@ public sealed class EntityPass : IDisposable
     }
 
     /// <summary>A small soft shadow around an item lying on the floor (or table), which lifts it off the ground image.</summary>
-    private void AddItemShadow(ref EntityDraw3D e, float tableHeight)
+    private void AddItemShadow(ref EntityDraw3D e)
     {
         var radius = Math.Clamp(MathF.Min(e.Bounds.Width, e.Bounds.Height) * 0.4f, 0.14f, 0.36f);
-        var onTable = e.Z > tableHeight - 0.02f;
-        var z = (onTable ? tableHeight : 0f) + 0.015f;
+        var z = e.SurfaceZ + 0.015f;
         var c = e.Pos;
         _quads.Add(
             new Vector3(c.X - radius, c.Y + radius, z), new Vector3(c.X + radius, c.Y + radius, z),
@@ -690,10 +975,10 @@ public sealed class EntityPass : IDisposable
     ///     A soft dark spot on the surface under a standing entity (also under a thrown item in flight, which shows how
     ///     high it is). It is drawn before the sprite and is not clickable.
     /// </summary>
-    private void AddShadow(ref EntityDraw3D e, float tableHeight)
+    private void AddShadow(ref EntityDraw3D e)
     {
         var radius = Math.Clamp(e.Bounds.Width * 0.55f, 0.28f, 0.7f);
-        var z = (MathF.Abs(e.Z - tableHeight) < 0.02f ? tableHeight : 0f) + 0.02f;
+        var z = e.SurfaceZ + 0.02f;
         var c = e.Pos;
         _quads.Add(
             new Vector3(c.X - radius, c.Y + radius, z), new Vector3(c.X + radius, c.Y + radius, z),

@@ -236,6 +236,39 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> Render3DFxItemThick =
         CVarDef.Create("render3d.fx.item_thick", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     Items rest on the real top of what they lie on (a table, a rack, a bed, a locker; see the <c>surfaces</c> rules), are drawn
+    ///     after it, so they are never hidden inside it, and cast their contact shadow on it.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DFxItemSurface =
+        CVarDef.Create("render3d.fx.item_surface", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Items that lie on top of each other (the same spot) are spread apart a little, inside their tile, so each can be seen.</summary>
+    public static readonly CVarDef<bool> Render3DFxItemSpread =
+        CVarDef.Create("render3d.fx.item_spread", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     How far (tiles) the far edge of an item lying on a surface may rise when it tilts towards the camera. A big sprite (a
+    ///     bedsheet, a pile of clothes) tilts less, so it does not hover over the table. 0 = no limit.
+    /// </summary>
+    public static readonly CVarDef<float> Render3DItemMaxRise =
+        CVarDef.Create("render3d.item_max_rise", 0.10f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Show a small list, to the right, of what the crosshair points at.</summary>
+    public static readonly CVarDef<bool> Render3DPointList =
+        CVarDef.Create("render3d.pointlist", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Furniture and machines (anchored standing objects) stay where they are, facing the way they point, instead of turning
+    ///     to face the camera as you walk round them. Characters and animals still turn.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DFxObjectFixed =
+        CVarDef.Create("render3d.fx.object_fixed", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Items on the floor and on tables keep a fixed tilt (towards the south) instead of tilting towards the camera.</summary>
+    public static readonly CVarDef<bool> Render3DFxItemFixed =
+        CVarDef.Create("render3d.fx.item_fixed", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
     /// <summary>Characters lean back slightly so they are less squashed when seen from above.</summary>
     public static readonly CVarDef<bool> Render3DFxCharLean =
         CVarDef.Create("render3d.fx.char_lean", true, CVar.CLIENTONLY | CVar.ARCHIVE);

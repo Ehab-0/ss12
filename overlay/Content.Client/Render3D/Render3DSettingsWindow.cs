@@ -58,6 +58,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
+        AddCheck(CCVars.Render3DPointList, "render3d-settings-point-list");
         AddMinimapShowCheck();
         AddCheck(CCVars.Render3DMinimapRotate, "render3d-settings-minimap-rotate");
         AddSlider(CCVars.Render3DMinimapSize, "render3d-settings-minimap-size", 120, 360, "0");
@@ -183,10 +184,15 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
             RefreshGraphics();
     }
 
+    private static readonly Color HintColor = new(1f, 0.82f, 0.25f);
+
     private void AddKeyRow(BoundKeyFunction function, string locId)
     {
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
-        row.AddChild(new Label { Text = Loc.GetString(locId), MinWidth = 220 });
+        var name = new Label { Text = Loc.GetString(locId), MinWidth = 220 };
+        if (function == Render3DKeys.FreeCursor)
+            name.FontColorOverride = HintColor;
+        row.AddChild(name);
         var button = new Button { MinWidth = 120, HorizontalExpand = true };
         button.OnPressed += _ => BeginCapture(function);
         row.AddChild(button);

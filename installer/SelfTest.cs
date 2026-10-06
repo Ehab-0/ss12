@@ -78,6 +78,9 @@ public static class SelfTest
             File.WriteAllText(Path.Combine(sub, "RobustToolbox", "XamlX", "x.cs"), "//");
             Check(subInstaller.MissingSubmodules().Count == 0, "a populated engine submodule folder is not reported");
 
+            Console.WriteLine("\n-- content checks of doctor");
+            ContentCheckTest(Path.Combine(temp, "content"));
+
             Console.WriteLine("\n-- not an SS14 codebase");
             var empty = Path.Combine(temp, "empty");
             Directory.CreateDirectory(empty);
@@ -139,6 +142,64 @@ public static class SelfTest
         Check(Text(6).Contains("GetClickableEntities") || Text(6).Contains("Marker"), "MCP: explain_edit describes an edit");
         Check(answers[7].GetProperty("result").GetProperty("isError").GetBoolean(), "MCP: explain_edit rejects an unknown id");
         Check(answers[8].GetProperty("result").GetProperty("contents")[0].GetProperty("text").GetString()!.Contains("Rules"), "MCP: the guide resource is served");
+    }
+
+    private static void ContentCheckTest(string dir)
+    {
+        void Put(string rel, string text)
+        {
+            var path = Path.Combine(dir, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, text);
+        }
+
+        Put("Resources/Prototypes/Entities/things.yml", """
+            - type: entity
+              id: TableBase
+              abstract: true
+
+            - type: entity
+              parent: TableBase
+              id: WoodTable # a table
+            """);
+        Put("Resources/Prototypes/Render3D/rules.yml", """
+            - type: render3dRules
+              id: Shipped
+              rules:
+              - mode: TableBox
+                parents:
+                - TableBase
+                # a comment between the names
+                - OldRack
+              - mode: Billboard
+                parents: [WoodTable, 'GoneChair']
+              shapes:
+              - parents:
+                - "WoodTable"
+                thickness: 0.1
+            """);
+        Put("Resources/Prototypes/Render3D/mine.yml", """
+            - type: render3dRules
+              id: Mine
+              shapes:
+              - parents: [TableBase]
+                fixed: false
+            """);
+        Put("Content.Client/Aim.cs", "class A { void F() { var a = _eye.PixelToMap(_input.MouseScreenPosition); var b = _eye.PixelToMap(args.PointerLocation.Position); var c = vp.PixelToMap(_input.MouseScreenPosition.Position); } }\n");
+        Put("Content.Client/Aimed.cs", "class B { void F() { var a = Content.Client.Render3D.Render3DPointer.PixelToMap(_eye, _input.MouseScreenPosition); } }\n");
+        Put("Content.Client/Render3D/Own.cs", "class C { void F() { var a = _eye.PixelToMap(_input.MouseScreenPosition); } }\n");
+
+        var unknown = ContentCheck.UnknownRuleNames(dir);
+        Check(unknown.Count == 1 && unknown.ContainsKey("Resources/Prototypes/Render3D/rules.yml"), "content check: only the rule file with unknown names is reported");
+        Check(unknown.Values.SelectMany(v => v).OrderBy(v => v, StringComparer.Ordinal).SequenceEqual(new[] { "GoneChair", "OldRack" }),
+            "content check: block, inline, quoted and commented names are read, and known ones are not reported");
+
+        var aims = ContentCheck.CursorAimCalls(dir);
+        Check(aims.Count == 1 && aims[0] == "Content.Client/Aim.cs:1", "content check: only mouse aiming that bypasses the 3D pointer is reported");
+
+        var nowhere = Path.Combine(dir, "nowhere");
+        Check(ContentCheck.UnknownRuleNames(nowhere).Count == 0 && ContentCheck.CursorAimCalls(nowhere).Count == 0,
+            "content check: a folder without prototypes or client code gives no findings");
     }
 
     private static Options Opts(string dir, string? source) => new()

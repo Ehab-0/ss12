@@ -12,10 +12,10 @@ with the official launcher.
 Contents: [Quick start](#quick-start) - [Controls](#controls) - [Status](#status-what-has-been-verified) -
 [Hosting](#hosting-a-3d-server) - [Settings reference](#settings-reference) - [Graphics and older PCs](#graphics-and-turning-things-off-for-older-pcs) - [Slower machines](#slower-machines) -
 [Troubleshooting](#troubleshooting) - [Known limitations](#known-limitations) - [How it works](#how-it-works) -
-[Where the code is](#where-the-code-is) - [Developer aids](#developer-aids) - [Impostor pipeline](#impostor-pipeline-optional-phase-8)
+[Where the code is](#where-the-code-is) - [Developer aids](#developer-aids) - [Impostors](#impostors-optional)
 
-More documents: [PLAN.md](PLAN.md) (the design), [PROGRESS.md](PROGRESS.md) (every verification step with its
-evidence), [REPORT.md](REPORT.md) (the end-of-project report), `screenshots/` (2D vs 3D pairs and feature shots).
+More documents: [ONBOARDING.md](ONBOARDING.md) (host a 3D version of your own server), [COMPAT.md](COMPAT.md) (which codebases
+it was tried on).
 
 ## Quick start
 
@@ -40,10 +40,12 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Use / attack / shoot / throw | left click at the crosshair (the same bindings as 2D) |
 | Toggle 3D / 2D (when allowed) | `F12` |
 | Toggle first / third person | `N` |
-| Free cursor (hold) | `Alt` (Alt-click keeps its normal meaning) |
+| **Free the mouse to click menus, buttons and the inventory (hold)** | **`Alt`** (Alt-click keeps its normal meaning) |
 | 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
+| List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
+| Choose from that list: select, then act | `Up`, `Down`, `Space` (select), `Space` again (act); or hold `Alt` and click a row |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -60,7 +62,7 @@ on/off switch for the 3D view.
 
 Verification is by scripted play through the real viewport input path on the Dev map (see [Developer aids](#developer-aids)),
 by tests, and by screenshots. **Not verified: feel with a physical mouse, and anything past short scripted sessions with
-real human play.** Details and evidence per item are in `PROGRESS.md`.
+real human play.**
 
 | Area | State |
 |------|-------|
@@ -70,7 +72,7 @@ real human play.** Details and evidence per item are in `PROGRESS.md`.
 | HUD in 3D: health bars, status/sec HUD icons, speech bubbles, popups, map text | working |
 | Enforcement (`render3d.enforced`), options tab, key rebinding | working |
 | Performance | about 200-300 FPS uncapped at 1080p/900p on a Radeon RX 580; a 20-minute scripted soak showed no errors and flat memory (about 1.25 GB) |
-| Tests | 686 unit tests (+266 new), 5 camera integration tests, the existing integration suite unchanged and passing in slices; YAML linter and RSI validator clean |
+| Tests | 898 unit tests and 31 `Render3D` integration tests pass (the 3D code's own are in the `Render3D` folders); the YAML linter is clean |
 | Mouse feel | **needs a human** |
 
 ## Hosting a 3D server
@@ -85,6 +87,9 @@ Apply the preset `Resources/ConfigPresets/Build/render3d.toml` (or set the cvars
 
 Players need nothing special: the stock launcher works. A server that does not set `render3d.enforced` lets every
 player choose 2D or 3D with the `Toggle3DView` key.
+
+Fitting the 3D view to your own content (rules for the prototypes your fork added or renamed), hosting, and what to show new
+players are in [ONBOARDING.md](ONBOARDING.md) and in `PORTING-YOUR-SERVER.md` in the docs folder of the SS12 repository.
 
 ## Settings reference
 
@@ -107,9 +112,10 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
+| `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight, Space (or a click with `Alt` held) selects the row as the target and Space again acts on it like a left click (the target is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |
 | `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
-| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
+| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread`, `item_fixed`, `object_fixed`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
 | `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
 
@@ -139,6 +145,10 @@ effect. Toggling a single effect by hand makes the preset read "Custom". The sam
 | `item_lift` | items on the ground are lifted a little and get a contact shadow and a thin outline, so they read as objects and not as stains | - | on | on |
 | `item_lean` | items on the ground tilt towards the camera (up to 20 degrees, none when looking straight down) | - | on | on |
 | `item_thick` | items on the ground get thickness | - | on | on |
+| `item_surface` | items rest on the real top of what they lie on (a table, a rack, a bed, a locker; see `surfaces` in `rules.yml`), are drawn after it so a rack or locker never hides them, and cast their shadow on it | on | on | on |
+| `item_spread` | items that lie on the same spot are spread apart a little, inside their tile, so each can be seen (only in the picture) | on | on | on |
+| `item_fixed` | items on the ground keep a fixed tilt (about 11 degrees towards the south) instead of tilting towards the camera | on | on | on |
+| `object_fixed` | furniture and machines stay fixed in the world, facing the way they point, instead of turning to face the camera (a shape rule with `fixed: false` keeps a prototype turning, as trees, statues and potted plants do); characters and animals always turn | on | on | on |
 | `char_lean` | characters (and bodies on the floor) lean back / tilt slightly | - | on | on |
 | `char_thick` | characters get thickness | - | - | on |
 | `object_lean` | machines, furniture and other standing objects lean back slightly | - | - | on |
@@ -163,13 +173,15 @@ switch (settings window, section **Shape of things**, or `render3d_fx <effect> o
 
 | Category | Switches | What happens |
 |----------|----------|--------------|
-| Items on the ground (and thrown ones) | `item_lift`, `item_lean`, `item_thick` | lifted a little with a contact shadow and a thin outline; tilted up towards the camera by up to 20 degrees (less the more the camera looks down); drawn as a small solid slab |
+| Items on the ground (and thrown ones) | `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread` | lifted a little with a contact shadow and a thin outline; tilted up towards the camera by up to 20 degrees (less the more the camera looks down, and never so much that the far edge of a big sprite rises more than `render3d.item_max_rise`, 0.1 tile; 0 = no limit); drawn as a small solid slab; resting on the top of tables, racks, beds and lockers; piles spread apart |
 | Characters (also lying bodies) | `char_lean`, `char_thick` | leaning back up to about 17 degrees so they are less squashed seen from above; a thin slab |
 | Objects (machines, furniture, other standing things) | `object_lean`, `object_thick` | the same as characters |
 
 Thickness is drawn by *sprite stacking*: copies of the sprite are stacked behind the front face along the face's normal,
-darker with depth, so the sides of the silhouette show like the sides of a slab (`render3d.thickness_layers` layers,
-fewer beyond 9 tiles, none beyond 17 tiles, and at most 3000 extra quads per frame). Only the front face is clickable
+darker with depth, so the sides of the silhouette show like the sides of a slab. `render3d.thickness_layers` sets the density
+(up to 6 copies per step of it, more the thicker the thing is and the more sideways it is seen, so the copies never come apart
+into slices); there are fewer beyond 9 tiles, none beyond 17 tiles, and at most 7000 extra quads per frame. The copies are drawn
+without smoothing, because the smoothing filter leaves bright dots along each copy's edge. Only the front face is clickable
 and outlined. Lean is a plain tilt of the sprite's quad about its near edge (flat things) or its foot (standing things);
 picking uses the tilted quad, so it is easier to click.
 
@@ -200,7 +212,9 @@ about 200 FPS uncapped on a Radeon RX 580 at 1080p, so this is only for much wea
 - **FPS stuck near 60 or lower when the window is covered:** that is the OS vsync throttling an occluded window (also
   true in 2D). Turn vsync off in Options > Graphics to measure.
 - **The mouse stays free / look does not work:** the window must have focus and no window, popup or focused text box may
-  be open. Hold or tap `Alt` to see whether the free cursor is the cause.
+  be open. Hold or tap `Alt` to see whether the free cursor is the cause. The game asks the window system for the captured mouse
+  again and again after the window gets focus (a single request can be ignored), so alt+tab should not be needed; the console
+  command `render3d_capture_state` says why the mouse is free.
 - **A GUI element still appears in 2D style (outlines etc.):** see [Known limitations](#known-limitations).
 - **Everything is too dark or too bright:** it uses the game's own lighting; check the 2D view with `F12` (if allowed).
 - **Options window crashes when opened from a debug console:** a pre-existing DebugOpt engine assertion that also
@@ -240,10 +254,10 @@ against the crosshair.
 | `Content.Shared/CCVar/CCVars.Render3D.cs` | all cvars |
 | `Resources/Textures/Shaders/Render3D/` | `raymarch`, `entity`, `glowmask`, `present`, `post`, `bloom_extract`, `blur` shaders (registered in `Resources/Prototypes/Shaders/render3d.yml`) |
 | `Content.Tests/**/Render3D`, `Content.IntegrationTests/Tests/Render3D` | tests |
-| `Tools/render3d-dev/`, `Tools/render3d-pipeline/` | scripted-play helpers; impostor pipeline |
+| `Tools/render3d-dev/` | scripted-play helpers |
 
 Upstream files with small hooks (3D picks, WorldToScreen for overlays, crosshair aiming, key bindings, options, ten base
-prototypes carrying one `Render3D` component) are listed in `REPORT.md`.
+prototypes carrying one `Render3D` component) are listed in [ONBOARDING.md](ONBOARDING.md).
 
 ## Developer aids
 
@@ -262,15 +276,16 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 | `r3d_audit <name>` | draw every entity of the next frame alone in a roomy cell, save the sheets as `audit_<name>_<n>.png` and log the atlas slot of each cell (art outside its slot is painted onto a neighbour in the real atlas) |
 | `r3d_pick`, `r3d_dump` | what is under the crosshair; every drawn entity with its net id |
 | `r3d_noself on\|off`, `r3d_glow on\|off` | exclude the own body from picks; compare with/without the glow atlas |
-| `render3d_fx <effect> on\|off`, `render3d_quality ...` | switch effects (also real player commands), used for the A/B screenshots in `docs/ss12/screenshots/visual_*` |
+| `render3d_capture_state`, `render3d_pointlist_rows` | why the mouse is captured or free; the rows of the pointing list and where they are on screen |
+| `render3d_fx <effect> on\|off`, `render3d_quality ...` | switch effects (also real player commands), handy for A/B screenshots |
 
 `render3d.debug_view` selects visualisations (1 ground capture, 2 light, 3 FOV, 4 rays, 5 raw ground, 6 depth, 7 tile
 flags, 8 light at hit, 9 tile map, 10 grid 0). With the dev channel on the client logs a `render3d: stats` line every
 3 seconds (FPS and CPU milliseconds per stage). `Tools/render3d-dev/` holds the shell helpers; `soak.sh <seconds>` runs a
 random walk/look/click soak and samples memory.
 
-## Impostor pipeline (optional, Phase 8)
+## Impostors (optional)
 
-`Tools/render3d-pipeline/` turns static prop sprites into pre-rendered 8-direction impostor RSIs through
-TRELLIS.2 + headless Blender. It needs a >=24 GB CUDA GPU for the real run; this repository only ships the
-no-GPU dry-run path (stubs). See its README.
+An entity can carry a pre-rendered 8-direction sprite (`impostor` on the `Render3D` component), which is shown in place of the
+flat sprite when the entity is in its default state. The tool that was used to generate such sprites is an experiment that this
+repository does not ship, and no prototype uses one by default.

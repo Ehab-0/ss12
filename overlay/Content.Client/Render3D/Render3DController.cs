@@ -12,6 +12,7 @@ using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controllers;
 using Robust.Shared.Configuration;
 using Robust.Shared.Console;
+using Robust.Shared.Input;
 using Robust.Shared.Input.Binding;
 using Robust.Shared.Timing;
 
@@ -33,12 +34,19 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
     [Dependency] private IPlayerManager _player = default!;
     [Dependency] private IEntityManager _entMan = default!;
     [Dependency] private IClientAdminManager _admin = default!;
+    [Dependency] private Robust.Shared.Log.ILogManager _logManager = default!;
 
     private Render3DViewportControl? _control;
     private Render3DCompat? _compat;
     private MainViewport? _host;
     private bool _freeKeyHeld;
     private bool _relative;
+
+    // mouse capture bookkeeping (see UpdateMouseMode)
+    private MouseCaptureReason _captureReason = MouseCaptureReason.NotShown;
+    private TimeSpan _focusedAt;
+    private TimeSpan _lastRequest;
+    private Robust.Shared.Log.ISawmill _captureLog = default!;
 
     /// <summary>Dev channel only: behave as if the window had focus, so the crosshair path can be tested unattended.</summary>
     public bool DevForceCapture;
@@ -58,8 +66,14 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         var load = UIManager.GetUIController<GameplayStateLoadController>();
         load.OnScreenLoad += OnScreenLoad;
         load.OnScreenUnload += OnScreenUnload;
+        _captureLog = _logManager.GetSawmill("render3d.mouse");
+        _clyde.OnWindowFocused += OnWindowFocused;
+        _console.RegisterCommand("render3d_capture_state", "Say why the mouse is or is not captured for mouse-look", "render3d_capture_state",
+            (shell, _, _) => shell.WriteLine($"mouse capture: {_captureReason}, relative={_relative}, focused={_clyde.MainWindow.IsFocused}, "
+                + $"freeKey={_freeKeyHeld}, uiFocus={UIManager.KeyboardFocused?.GetType().Name ?? "none"}, window open={AnyWindowOrPopupOpen()}"));
         InitializeQuality();
         InitializeMinimap();
+        InitializePointList();
 
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
             (_, _, _) => ToggleSettingsWindow());
@@ -78,6 +92,17 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
             .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
             .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
+            .Bind(Render3DKeys.PointList, new Render3DInputHandler(down => { if (down) TogglePointList(); }, consume: true))
+            .Bind(Render3DKeys.PointListUp, new Render3DInputHandler(down => { if (down) MovePointList(-1); }, () => PointListVisible))
+            .Bind(Render3DKeys.PointListDown, new Render3DInputHandler(down => { if (down) MovePointList(1); }, () => PointListVisible))
+            .Bind(EngineKeyFunctions.Use, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(EngineKeyFunctions.UseSecondary, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.UseItemInHand, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.AltUseItemInHand, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.ActivateItemInWorld, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.AltActivateItemInWorld, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(ContentKeyFunctions.TryPullObject, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
+            .Bind(Render3DKeys.PointListSelect, new Render3DInputHandler(down => { if (down) SelectInPointList(); }, () => PointListVisible))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
             .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
             .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
@@ -162,6 +187,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
         host.AddChild(_control);
         AddMinimap(_control);
+        AddPointList(_control);
         Active = false;
     }
 
@@ -268,22 +294,66 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         }
 
         UpdateMouseMode();
+        UpdateWindowPlacement();
         UpdateAutoQuality(args.DeltaSeconds);
         UpdateMinimap();
+        UpdatePointList();
+    }
+
+    /// <summary>
+    ///     The window got or lost focus (alt+tab). The state of the free-mouse key is not to be trusted across it, and the request
+    ///     for the relative mouse mode is made again from scratch.
+    /// </summary>
+    private void OnWindowFocused(WindowFocusedEventArgs args)
+    {
+        if (args.Window != _clyde.MainWindow)
+            return;
+
+        _freeKeyHeld = false;
+        if (args.Focused)
+        {
+            _focusedAt = _timing.RealTime;
+            _lastRequest = TimeSpan.Zero;
+            // something (the chat box) can end up with the keyboard focus across an alt+tab and then keeps the mouse free
+            if (Active && _control is { VisibleInTree: true } && UIManager.KeyboardFocused != null && !AnyWindowOrPopupOpen())
+                UIManager.ReleaseKeyboardFocus();
+        }
+
+        SetRelative(false, force: true);
+        _captureLog.Verbose($"window {(args.Focused ? "gained" : "lost")} focus");
     }
 
     private void UpdateMouseMode()
     {
         var control = _control;
-        var want = Active
-            && control is { VisibleInTree: true }
-            && (_clyde.MainWindow.IsFocused || DevForceCapture)
-            && !_freeKeyHeld
-            && UIManager.KeyboardFocused == null
-            && !AnyWindowOrPopupOpen()
-            && _player.LocalEntity != null;
+        var reason = MouseCapturePolicy.Decide(
+            Active && control is { VisibleInTree: true },
+            _clyde.MainWindow.IsFocused || DevForceCapture,
+            _freeKeyHeld,
+            UIManager.KeyboardFocused != null,
+            AnyWindowOrPopupOpen(),
+            _player.LocalEntity != null);
+        var want = reason == MouseCaptureReason.Capture;
+
+        if (reason != _captureReason)
+        {
+            _captureLog.Verbose($"mouse capture: {reason}"
+                + (reason == MouseCaptureReason.UiFocus ? $" ({UIManager.KeyboardFocused?.GetType().Name})" : string.Empty));
+            _captureReason = reason;
+        }
 
         SetRelative(want);
+        if (want && _clyde.MainWindow.IsFocused)
+        {
+            // repeat the request for a while after the focus came back, then now and then (see MouseCapturePolicy.ReassertInterval)
+            var now = _timing.RealTime;
+            var interval = TimeSpan.FromSeconds(MouseCapturePolicy.ReassertInterval((float) (now - _focusedAt).TotalSeconds));
+            if (now - _lastRequest >= interval)
+            {
+                _lastRequest = now;
+                _clyde.MainWindow.SetRelativeMouseMode(true);
+            }
+        }
 
         if (_relative && control != null)
         {
@@ -314,9 +384,9 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         return false;
     }
 
-    private void SetRelative(bool relative)
+    private void SetRelative(bool relative, bool force = false)
     {
-        if (_relative == relative)
+        if (_relative == relative && !force)
             return;
 
         _relative = relative;

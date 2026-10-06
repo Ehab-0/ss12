@@ -21,6 +21,10 @@ public static class Render3DKeys
     public static readonly BoundKeyFunction OpenSettings = Render3DKeyFunctions.Render3DSettings;
     public static readonly BoundKeyFunction Minimap = Render3DKeyFunctions.Render3DMinimap;
     public static readonly BoundKeyFunction MinimapSize = Render3DKeyFunctions.Render3DMinimapSize;
+    public static readonly BoundKeyFunction PointList = Render3DKeyFunctions.Render3DPointList;
+    public static readonly BoundKeyFunction PointListUp = Render3DKeyFunctions.Render3DPointListUp;
+    public static readonly BoundKeyFunction PointListDown = Render3DKeyFunctions.Render3DPointListDown;
+    public static readonly BoundKeyFunction PointListSelect = Render3DKeyFunctions.Render3DPointListSelect;
 
     /// <summary>Every function with its default key and the locale id of its name, in the order the settings window lists them.</summary>
     public static readonly (BoundKeyFunction Function, Keyboard.Key Key, string LocId)[] All =
@@ -31,6 +35,10 @@ public static class Render3DKeys
         (ToggleCameraMode, Keyboard.Key.N, "render3d-key-toggle-camera"),
         (Minimap, Keyboard.Key.M, "render3d-key-minimap"),
         (MinimapSize, Keyboard.Key.Minus, "render3d-key-minimap-size"),
+        (PointList, Keyboard.Key.L, "render3d-key-point-list"),
+        (PointListUp, Keyboard.Key.Up, "render3d-key-point-list-up"),
+        (PointListDown, Keyboard.Key.Down, "render3d-key-point-list-down"),
+        (PointListSelect, Keyboard.Key.Space, "render3d-key-point-list-select"),
     };
 
     private static bool _registered;

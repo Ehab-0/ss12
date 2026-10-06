@@ -7,7 +7,7 @@ whatever your codebase already has: the 3D view is an extra client renderer plus
 component. You do **not** have to change the engine (`RobustToolbox/` is never touched), so players join with the
 normal launcher and download the 3D client from your server like any other content build.
 
-The installer in `Tools/ss12/` does the conversion for you. Point it at the folder of your server codebase
+The SS12 installer (`ss12`, from the Releases page of the SS12 repository) does the conversion for you. Point it at the folder of your server codebase
 (upstream or any fork) and it adds the 3D files, makes the handful of small edits it needs, and tells you exactly
 what it did.
 
@@ -22,20 +22,20 @@ what it did.
 ## Five-minute path
 
 ```
-# 1. get this repository next to your server codebase
-git clone <url of the SS12 repository> ss12
+# 1. download the installer for your system (SS12-installer-windows.zip, -linux.zip or -mac.zip)
+#    from the Releases page of the SS12 repository and unzip it anywhere
+#    (run `ss12` from that folder, or put the folder on your PATH)
 
-# 2. convert your codebase (creates a git branch named 3d and one commit; nothing is pushed)
-ss12/Tools/ss12/ss12.sh install /path/to/your/server/codebase            # Linux, macOS, Git Bash
-ss12\Tools\ss12\ss12.ps1 install C:\path\to\your\server\codebase         # Windows PowerShell
+# 2. convert your codebase (creates a git branch named ss12 and one commit; nothing is pushed)
+ss12 install /path/to/your/server/codebase
 
 # 3. look at what it did, and check it
 cd /path/to/your/server/codebase
 git show --stat HEAD
-ss12/Tools/ss12/ss12.sh doctor /path/to/your/server/codebase --build
+ss12 doctor /path/to/your/server/codebase --build
 
 # 4. package a server build like you normally do, or use the shortcut
-ss12/Tools/ss12/ss12.sh package /path/to/your/server/codebase
+ss12 package /path/to/your/server/codebase
 
 # 5. host it, with the preset applied (see "Server configuration")
 ```
@@ -65,7 +65,7 @@ fully qualified names so no `using` lines change:
 The edits are found by what the code looks like, not by line numbers, and re-running is safe. If a **required** edit
 cannot be found (a fork rewrote that code) the installer stops and changes nothing; it prints the exact change to make
 by hand. An **optional** edit that cannot be found is skipped with a warning that says what you lose. Their
-definitions are in `Tools/ss12/BuiltIn.cs`.
+definitions are in `installer/BuiltIn.cs` of the SS12 repository.
 
 The installer also writes `Resources/ConfigPresets/Build/render3d.toml` and `.ss12/manifest.json` (what it
 installed, with hashes, so updating and removing are exact).
@@ -90,9 +90,9 @@ settings are in `docs/ss12/README.md` (look with the mouse, `F12` toggles 3D/2D 
 ## Updating and removing
 
 ```
-ss12.sh update    /path/to/your/server/codebase     # after pulling a newer SS12
-ss12.sh uninstall /path/to/your/server/codebase     # restores your original files exactly
-ss12.sh doctor    /path/to/your/server/codebase     # checks files, edits, config; --build also compiles
+ss12 update    /path/to/your/server/codebase     # after pulling a newer SS12
+ss12 uninstall /path/to/your/server/codebase     # restores your original files exactly
+ss12 doctor    /path/to/your/server/codebase     # checks files, edits, config; --build also compiles
 ```
 
 ## When something does not fit
@@ -117,10 +117,10 @@ Installing, updating and removing are dry runs unless the assistant passes `dry_
 (`ss12://guide`) tells it to do only after you agreed. Config for most clients:
 
 ```json
-{ "mcpServers": { "ss12": { "command": "dotnet", "args": ["Tools/ss12/bin/Release/net10.0/ss12.dll", "mcp"] } } }
+{ "mcpServers": { "ss12": { "command": "/path/to/ss12", "args": ["mcp"] } } }
 ```
 
-Claude Code: `claude mcp add ss12 -- dotnet Tools/ss12/bin/Release/net10.0/ss12.dll mcp`.
+Claude Code: `claude mcp add ss12 -- /path/to/ss12 mcp`.
 
 ## FAQ
 
@@ -134,7 +134,9 @@ and which direction WASD moves (camera-relative) change.
 
 **Does it work with my map and content?** Maps and prototypes are used as they are. Entities the renderer does not know
 are drawn automatically from their components and draw depth; special cases are listed in
-`Resources/Prototypes/Render3D/rules.yml`, which you can extend for your own prototypes (it also sets how thick things
-are drawn and whether they lean, see "Shape of things" in the README).
+`Resources/Prototypes/Render3D/rules.yml` (it also sets how thick things are drawn and whether they lean, see "Shape of things"
+in the README). Do not edit that file: `ss12 update` replaces it. Put rules for your own prototypes in a file of your own next to
+it, for example `Resources/Prototypes/Render3D/yourserver.yml`; every `render3dRules` prototype is read. `ss12 doctor` lists the
+names in the shipped rules that your codebase does not have.
 
 **Is anything sent anywhere?** No. The installer never contacts a remote and never pushes.

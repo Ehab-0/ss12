@@ -22,16 +22,19 @@ step-down, untick **Lower quality automatically if slow** in the same window.
 - Click once inside the game window so it knows you are using it.
 - The mouse is freed while a menu, a window or the chat box is open. Close them (or press `Esc`) and it comes back.
 - Holding `Alt` also frees the mouse on purpose.
+- After alt+tab the game takes the mouse back by itself within a moment. If it does not, open the console and run
+  `render3d_capture_state`: it says why the mouse is free. Please tell us what it said.
 
 ### I cannot click on things in a menu
 Hold **`Alt`** while you click. That frees the mouse. When you let go, the mouse turns the camera again.
 
 ### Everything looks too dark
 The game uses the station's real lights, so rooms without power are dark. Press **`F12`** (if the server allows it) to
-compare with the old flat view. If a room is only dark in 3D, tell us which one.
+compare with the old flat view. If a room is only dark in 3D, tell us which one. The **Low** preset also switches off the
+faint ambient light that **Medium** and **High** add to dark places, so try one of those (`F11`).
 
 ### W A S D do not go where I am looking (sometimes inverted)
-This was a bug in versions before the next release, in a server set up with the installer's configuration preset
+This was a bug in versions before 1.3.0, in a server set up with the installer's configuration preset
 (`render3d.enforced = false` together with `shuttle.camera_rotation_locked = true`): the server ignored the camera
 direction your game sent, so your game moved you one way and the server another, and the direction flipped depending on
 where you faced. **Fix:** update the 3D files on the server (`ss12 update`) and publish a new build. A quick workaround on
@@ -96,6 +99,15 @@ way Windows locks.
 Choose **"Check"** (option 2) in the helper and read what it says. If it lists compile errors, attach the report file
 to an issue. The 3D files are in place but not committed yet. You can also choose **"Remove 3D"** (option 3): your
 server goes back exactly as it was.
+
+### The doctor warns about "prototypes this codebase does not define" or "aim with the real cursor"
+These come from your own content, not from a broken install, and they never make the doctor fail. The first means your fork renamed
+something the 3D rules mention; the second means some code of yours still aims with the real cursor, which is wrong in 3D.
+[Porting your server](PORTING-YOUR-SERVER.md) says what to do about each.
+
+### Some things look wrong in 3D on my server (floating items, windows, furniture facing the wrong way)
+The 3D view has rules for the prototypes of upstream Space Station 14; a fork's own prototypes may need rules of their own. See
+[Porting your server](PORTING-YOUR-SERVER.md): it lists each symptom with the rule that fixes it.
 
 ### I installed it but my players do not see 3D
 - Did you publish a new build of your server after installing? 3D is part of the server's code, so a new build is needed.

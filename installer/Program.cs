@@ -22,7 +22,7 @@ namespace Ss12
               --dry-run        show what would change, change nothing
               --no-build       do not compile client and server after installing
               --no-commit      leave the changes uncommitted (no branch, no commit)
-              --branch <name>  git branch to create (default 3d)
+              --branch <name>  git branch to create (default ss12)
               --force          install despite a dirty tree, a far-away engine version or changed files
               --report         doctor: also write ss12-report.txt (attach it when asking for help)
               --source <path>  checkout of the SS12 repository to take the files from (default: the one this tool is in)

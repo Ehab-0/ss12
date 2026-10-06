@@ -74,7 +74,7 @@ Engine 291.0.0: tested.
 [apply]   health-bars (optional): Draw health bars over mobs in 3D
 
 == Summary
-52 file(s) to add or update, 10 existing file(s) to edit, engine 291.0.0.
+97 file(s) to add or update, 10 existing file(s) to edit, engine 291.0.0.
 Dry run: nothing was written.
 ```
 
@@ -85,8 +85,8 @@ How to read it:
   *required* are the ones the 3D view cannot work without. If one of those says **MISSING** instead, the installer
   stops and changes nothing. That means your server's code is customised there; see
   [Use it with an AI assistant](USE-WITH-AI.md).
-- **52 files to add** are all new files (the 3D code, its shaders and notes). **10 files to edit** are ten existing
-  game files, each getting a tiny change. For example, in `GunSystem.cs` one line is changed so guns aim at the
+- **97 files to add** are all new files (the 3D code, its shaders, tests and notes). **10 edits** are made in **nine**
+  existing game files (one file gets two), each a tiny change. For example, in `GunSystem.cs` one line is changed so guns aim at the
   crosshair:
 
   ```diff
@@ -114,11 +114,12 @@ Committed to git (not pushed).
 3D is installed. Next steps:
   1. Server: apply the preset (see Resources/ConfigPresets/Build/render3d.toml) ... `render3d.enforced` is OFF (players choose with F12).
   2. Publish a server build with `ss12 package`; ...
-  3. Read docs/ss12/ONBOARDING.md, run `ss12 doctor`.
+  3. Read docs/ss12/ONBOARDING.md, run `ss12 doctor`. It also lists names in the 3D rules that your fork does not have;
+     rules for your own prototypes go in Resources/Prototypes/Render3D/<yourserver>.yml (see PORTING-YOUR-SERVER.md ...).
 ```
 
-The commit holds 63 changed files: the 52 new files, the 10 edited ones and a small record (`.ss12/manifest.json`) that
-lets the installer undo everything exactly later. Look at it with `git show --stat`. Nothing was pushed anywhere; the
+The commit holds 108 changed files: 99 new ones (the 97 above, the server preset and a small record, `.ss12/manifest.json`,
+that lets the installer undo everything exactly later) and the 9 edited ones. Look at it with `git show --stat`. Nothing was pushed anywhere; the
 installer never contacts a remote.
 
 By default each player can switch 3D off with `F12`. To make 3D mandatory for living players, install with
@@ -138,6 +139,9 @@ ss12 doctor path\to\space-station-14 --build
 [ok]      pointer-aim
 ...
 [ok]      health-bars
+
+== Your content
+Every prototype the rules name exists, and no other code aims with the real cursor.
 
 == Server configuration
 Resources/ConfigPresets/Build/render3d.toml present.

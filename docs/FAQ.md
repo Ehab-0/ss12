@@ -35,6 +35,11 @@ you chose yourself in `F11` is never changed by the game, and the automatic step
 Yes: `M` switches it on and off and `-` makes it small or large. `F11` has a switch and a size slider for it too. It never
 shows other players.
 
+### Why does the list on the right say "You point at"?
+It is the list of what your crosshair is on, with the things next to it, so you can reach something that is stacked or hard to
+hit: `Up` and `Down` move through it, `Space` selects the highlighted row (or hold `Alt` and click a row), and `Space` again
+acts on it, as a left click would. `L` switches the list off and on.
+
 ### Is there a server I can just try?
 Yes: a test server at `lol.ss12.org`. Open the normal launcher, choose Direct Connect and type the address. More on
 [ss12.org](https://ss12.org). It is a test server, so it may restart or be down at times.
@@ -49,6 +54,10 @@ No. It is made for keyboard and mouse.
 ### Why can't I add 3D to my old server?
 3D needs features of the game engine that were added in engine version **286**. Servers on older engines have to update
 first. This is checked for you: the helper tells you and changes nothing. See [COMPATIBILITY](COMPATIBILITY.md).
+
+### I run a fork. What should I check after installing?
+Which prototypes your fork renamed (the 3D view has rules for upstream's names), what the server host should look like, and what new
+players will see first. [Porting your server](PORTING-YOUR-SERVER.md) walks through it, with the problems we hit on the test server.
 
 ### Which servers have been tested?
 The code of several of the most-played servers: the main "Wizard's Den" code, Starlight, and a Marine Corps server,

@@ -2,6 +2,68 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
+## 1.4.0
+- **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in
+  the pages that ship into a server (`Tools/ss12/...`) now describe the real installer (`ss12 install ...`), links to files that were
+  never shipped are gone, the numbers in the Wizard's Den example are the current ones (97 files added, 10 edits in 9 files, 108 in
+  the commit), the README controls table no longer lists the minimap twice, and the thickness, test and mouse-capture notes are up
+  to date.
+- **Potted plants stand up.** A potted plant can be picked up, so the 3D view treated it as an item and drew it lying flat on the floor.
+  It is now drawn standing, like the rest of the furniture (it keeps turning to face you, since a plant has no front).
+- **What lies in an open locker lies on the floor.** An open locker, closet or crate counted as a surface, so its contents were
+  drawn standing on top of it. An open one is no longer a surface: what is in it is on the floor, drawn in front of it.
+- **Machines face the right way.** Vending machines and similar machines never rotate in the game, so the fixed card faced south
+  whatever wall they stood against. They now face away from the wall they stand against (when exactly one side has a wall);
+  things that can rotate, such as chairs, face the way they are rotated. Seen from behind, a fixed thing shows its back (the north
+  picture of a chair is its back) instead of its front mirrored.
+- **Menus open next to the cursor.** A window that opens because you used something (a vending machine, a console) is moved next to
+  the cursor, which is where the mouse comes back to, instead of a fixed place on the screen.
+- **Window doors are easier to read.** A brighter, thicker frame and a push bar across the middle, and an open window door is drawn
+  as its frame only, so the doorway no longer vanishes when it opens (`bar: true` in the glass rules of `rules.yml`).
+- **Chairs are thinner.** Chairs, stools and benches get a thin slab (0.05 tile) instead of the plank-like default.
+- **The server's name** starts with "[3D]" and spells SURPRISE in letter emoji.
+- **`ss12 doctor` checks your content.** A new "Your content" section lists the prototypes the 3D rules name that your codebase does not
+  define (a fork that renamed them), and the places that still aim with the real cursor (`_eyeManager.PixelToMap(... MouseScreenPosition)`)
+  after the install. Warnings only: they never make the doctor fail, and a codebase that matches upstream gets none. The install's
+  last lines now point to your own rules file.
+- **A guide for server owners: [Porting your server](PORTING-YOUR-SERVER.md).** What we learned turning Wizard's Den into the test
+  server: putting your own rules in your own file (updates leave it alone), the symptoms to look for on a fork and the rule that fixes
+  each, packaging and server settings, restarts that never kick anyone, and what to show new players.
+- **Clicking a row of the list works.** With `Alt` held the engine does not send a plain click: Alt + left button is its own
+  binding and wins over the plain one, so the row never saw a click. It now takes that one as a click too.
+- **After alt+tab the mouse is taken back.** The cursor could stay free, and the camera not follow the mouse, until another
+  alt+tab. The game asked the window system once for the captured mouse and never again, so a request it ignored in the moment the
+  window got focus was lost. The request is now repeated for a while after the window gets focus and every second after that, the
+  state of the free-mouse key is forgotten on every focus change, and a chat box that kept the keyboard focus is released. The
+  console command `render3d_capture_state` says why the mouse is free, if it ever is.
+- **Thick things look solid.** Chairs, machines, characters and items get their depth from copies of the sprite behind its face, and
+  at an angle the copies came apart into slices with bright dots along the edges. The number of copies now follows the angle and the
+  distance (up to 6 per step of the thickness setting), and they are drawn without smoothing.
+- **Furniture and machines stay where they are.** They no longer turn to face the camera as you walk round them: a vending machine
+  shows its face from the front and its edge from the side. Floor items keep a fixed tilt instead of tilting towards the camera.
+  Characters and animals still turn; trees, statues and potted plants too (`fixed: false` in the shape rules of `rules.yml`). New
+  effects `object_fixed` and `item_fixed`, on at every quality level.
+- **Items rest on what they lie on.** A big sprite such as a bedsheet or a pile of clothes tilted towards the camera by up to
+  20 degrees, which lifted its far edge by a third of a tile and made it hover over the table. The far edge of a lying item now
+  rises by at most 0.1 tile (`render3d.item_max_rise`, 0 = no limit), so a small item still tilts fully and a big one hardly at
+  all. Items also rest on the real top of what they lie on: a table as before, a bed lower (0.28), a sink at 0.5, a locker or a
+  crate as high as its picture, and a rack is drawn as a table top so what lies on it is seen. Where a rule is missing the
+  `surfaces` list of `rules.yml` names the height. The new `item_surface` effect (on at every quality level) also draws an item
+  after the surface it lies on, so a rack or a locker no longer hides it, and puts its shadow on the surface.
+- **Items piled on one spot are spread apart.** A pile of clothes, a tray of tools or the contents of an emptied box all land on
+  one spot, so each hid the one below it. Items closer than about a quarter tile are now moved apart inside their tile, only in
+  the picture, always the same way for the same item (`item_spread`, on at every quality level).
+- **A list of what you point at (`L`), and you can choose from it.** A small panel to the right of the view lists what the
+  crosshair points at: the thing under it first, then the others that lie on the same spot, such as a pile on a table, with those
+  out of reach greyed and equal names counted. Up and down move a highlight, `Space` selects the highlighted row and `Space` again acts on it as a left click would; with the
+  free-mouse key (Alt) held a row can be clicked. The chosen row is the target for your next action: use, attack, pull, the name under the crosshair
+  and the outline all go to it, until you have used it, you look away from it, a few seconds have passed, it is further than 9 tiles
+  or gone, or you choose it again. What you can touch is listed first and loose things (items) come before fixtures (windows,
+  tables). The panel only shows while there is something to list, is on by default and says how to choose and "Press L to toggle";
+  `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
+- **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the key is called "Free mouse
+  (Hold)" in amber in the `F11` keys section, and the README and the demo guide print the row in bold.
+
 ## 1.3.0
 See-through windows, a minimap, graphics that start high and step down by themselves, and many fixes to how things are drawn.
 - **Objects next to the camera no longer leave a smeared band across the view.** The shader fades out things very close to the

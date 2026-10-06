@@ -22,9 +22,14 @@
   - mode: TableBox
     parents:
     - TableBase
+    - Rack
   - mode: WallDecal
     parents:
     - BaseWallmount
+  # things that are items (they can be picked up) but stand upright, and so are not drawn lying on the floor
+  - mode: Billboard
+    parents:
+    - PottedPlantBase
 
   # How glass is drawn (the "glass" effect in the 3D settings). The picture of a window in the game is a top-down drawing, a frame
   # with a small pane in the middle, which looked like a solid wall on a standing face. With the effect on, the 3D view draws
@@ -116,21 +121,24 @@
   - parents:
     - BaseWindoorGeneric
     tint: "#9cc8e0"
-    alpha: 0.20
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.26
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   - parents:
     - WindoorPlasma
     tint: "#c050d0"
-    alpha: 0.26
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.30
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   - parents:
     - WindoorUranium
     tint: "#30c8b0"
-    alpha: 0.26
-    frame: "#7f8b99"
-    frameWidth: 2
+    alpha: 0.30
+    frame: "#b4c0cf"
+    frameWidth: 3
+    bar: true
   # grilles: no pane, a frame and a fine mesh of wires (the colour of the mesh may carry an alpha: #rrggbbaa)
   - parents:
     - Grille
@@ -177,3 +185,35 @@
   - parents:
     - ToolboxBase
     thickness: 0.12
+  # chairs, stools and benches are thin: a thick slab of a chair looks like a plank
+  - parents:
+    - SeatBase
+    thickness: 0.05
+
+  # Standing things stay fixed in the world, facing the way they point (the "object_fixed" effect), unless a rule here says
+  # "fixed: false": trees, statues and other things that are round or have no front keep turning to face the camera.
+  - parents:
+    - BaseTree
+    - FloraTree
+    - StatueVenusRed
+    - StatueVenusBlue
+    - StatueOrnateClown
+    - StatueIronsandSmall
+    - StatueIronsandSmall2
+    - StatueIronsandTall
+    - StatueIronsandTall2
+    - PottedPlantBase
+    fixed: false
+
+  # How high the top of a surface is, for the items that lie on it (the "item surface" effect). Items on a table, a rack or
+  # any other placeable surface rest on its top; a standing object without a rule (a locker, a crate) counts as high as its
+  # drawn picture, a table as high as render3d.table_height. A low one is listed here so things on it do not hover.
+  surfaces:
+  - parents:
+    - BaseBed
+    height: 0.28
+  - parents:
+    - SinkEmpty
+    - Sink
+    - SinkWide
+    height: 0.5

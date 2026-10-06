@@ -57,6 +57,20 @@ public static class EntityShape
     public static float FlatLean(float downPitch)
         => Math.Clamp(0.4f * (MathF.PI * 0.5f - downPitch), 0f, MaxFlatLean);
 
+    /// <summary>
+    ///     Limits the tilt of a card lying on a surface so its far edge rises by at most <paramref name="maxRise"/> tiles: a card
+    ///     <paramref name="span"/> tiles deep that tilts by an angle rises by span x sin(angle), which for a one tile sprite at
+    ///     the full 20 degrees is a third of a tile, enough to make a bedsheet hover over the table it lies on. A small card
+    ///     keeps the whole tilt. A <paramref name="maxRise"/> of 0 or less means no limit.
+    /// </summary>
+    public static float CapFlatLean(float lean, float span, float maxRise)
+    {
+        if (maxRise <= 0f || span <= 0.0001f)
+            return lean;
+
+        return MathF.Min(lean, MathF.Asin(Math.Clamp(maxRise / span, 0f, 1f)));
+    }
+
     /// <summary>Backwards tilt of a standing card: grows with how far the camera looks down.</summary>
     public static float StandLean(float downPitch)
         => Math.Clamp(0.45f * downPitch, 0f, MaxStandLean);
@@ -71,6 +85,31 @@ public static class EntityShape
 
     /// <summary>Distance in tiles from the camera inside which an entity gets no thickness layers.</summary>
     public const float NearLayerDistance = 1.1f;
+
+    /// <summary>How many layers per step of the quality setting (the Low / Medium / High presets use 0 / 3 / 4) a thick thing may be given.</summary>
+    public const int LayersPerQuality = 6;
+
+    /// <summary>
+    ///     How many stacked layers a slab needs to look solid: the layers are cut off from the front face by the thickness, and seen at
+    ///     an angle two neighbouring ones are about <c>spacing x tan(angle)</c> apart on the screen, which opens gaps. This gives the
+    ///     count at which that gap is one screen pixel.
+    /// </summary>
+    /// <param name="thickness">Depth of the slab in tiles.</param>
+    /// <param name="distance">Distance of the card from the camera in tiles.</param>
+    /// <param name="cosView">Cosine of the angle between the view ray and the card's normal (1 = head on).</param>
+    /// <param name="pixelSize">Size in tiles of one screen pixel at that distance.</param>
+    /// <param name="maxLayers">The most layers allowed (the budget).</param>
+    public static int AdaptiveLayers(float thickness, float distance, float cosView, float pixelSize, int maxLayers)
+    {
+        if (maxLayers <= 0 || thickness <= 0.001f)
+            return 0;
+
+        var cos = Math.Clamp(cosView, 0.2f, 1f); // beyond 78 degrees the slab is seen edge on
+        var tan = MathF.Sqrt(1f - cos * cos) / cos;
+        var step = MathF.Max(pixelSize, 1e-4f) / MathF.Max(tan, 0.3f);
+        var needed = (int) MathF.Ceiling(thickness / step);
+        return Math.Clamp(needed, Math.Min(2, maxLayers), maxLayers);
+    }
 
     public static int LayerCount(int maxLayers, float distance)
     {

@@ -72,7 +72,7 @@ What happens next, in plain words:
 | `install_3d` / `update_3d` / `uninstall_3d` | Installs, updates or removes 3D | Only when `dry_run=false`; the default is a preview |
 
 It cannot touch the game engine folder (`RobustToolbox`), and the helper never pushes to or contacts any remote.
-Everything goes into one git branch (called `3d`) and one commit, so you can review it or throw the branch away.
+Everything goes into one git branch (called `ss12`) and one commit, so you can review it or throw the branch away.
 
 ## Tips
 

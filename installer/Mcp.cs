@@ -273,7 +273,7 @@ public static class McpServer
                     ["enforce"] = Prop("boolean", "Make 3D mandatory for living players in the generated server preset (default false)."),
                     ["build"] = Prop("boolean", "Compile client and server afterwards (default false; slow)."),
                     ["commit"] = Prop("boolean", "Create a git branch and commit (default true)."),
-                    ["branch"] = Prop("string", "Branch name (default 3d)."),
+                    ["branch"] = Prop("string", "Branch name (default ss12)."),
                     ["force"] = Prop("boolean", "Install despite a dirty git tree, an unusual engine version or changed files (default false)."),
                 }, "path"), readOnly: false, destructive: true),
             Tool("check_install", "Check an existing install: files present, every edit still applied, server preset present; optionally compile client and server.",

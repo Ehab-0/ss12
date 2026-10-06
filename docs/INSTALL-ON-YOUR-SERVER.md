@@ -66,6 +66,9 @@ It stops *before* changing anything and explains why in plain words. The usual r
 
 3D is now part of your server's code. Do what you normally do to publish a new version of your server.
 
+Running it for real players? [Porting your server](PORTING-YOUR-SERVER.md) covers what comes next: teaching the 3D view about
+the things your fork renamed or added, hosting and restarting without kicking anyone, and welcoming players.
+
 - **Players need nothing.** They join with the normal launcher and the 3D game downloads with the rest of your server.
 - **To make 3D mandatory** for everyone, run the helper with the "mandatory" choice, or set `render3d.enforced = true`
   in your server settings. Otherwise each player can switch with `F12`.

@@ -7,7 +7,7 @@ SS12 — это SS13 в 3D на базе SS14: 3D-вид для Space Station 14
 серверный компонент камеры. Менять движок **не нужно** (`RobustToolbox/` никогда не затрагивается), поэтому игроки заходят через
 обычный лаунчер и скачивают 3D-клиент с вашего сервера, как любую другую сборку контента.
 
-Установщик из `Tools/ss12/` выполняет преобразование за вас. Укажите ему папку с исходным кодом вашего сервера
+Установщик SS12 (`ss12`, со страницы релизов репозитория SS12) выполняет преобразование за вас. Укажите ему папку с исходным кодом вашего сервера
 (оригинальным или любого форка), и он добавит 3D-файлы, внесёт несколько нужных небольших правок и точно сообщит,
 что сделал.
 
@@ -22,22 +22,22 @@ SS12 — это SS13 в 3D на базе SS14: 3D-вид для Space Station 14
 ## Путь за пять минут
 
 ```
-# 1. get this repository next to your server codebase
-git clone <url of the SS12 repository> ss12
+# 1. скачайте установщик для своей системы (SS12-installer-windows.zip, -linux.zip или -mac.zip)
+#    со страницы релизов репозитория SS12 и распакуйте куда угодно
+#    (запускайте `ss12` из этой папки или добавьте папку в PATH)
 
-# 2. convert your codebase (creates a git branch named 3d and one commit; nothing is pushed)
-ss12/Tools/ss12/ss12.sh install /path/to/your/server/codebase            # Linux, macOS, Git Bash
-ss12\Tools\ss12\ss12.ps1 install C:\path\to\your\server\codebase         # Windows PowerShell
+# 2. преобразуйте свою кодовую базу (создаётся git-ветка ss12 и один коммит; ничего не отправляется)
+ss12 install /path/to/your/server/codebase
 
-# 3. look at what it did, and check it
+# 3. посмотрите, что он сделал, и проверьте
 cd /path/to/your/server/codebase
 git show --stat HEAD
-ss12/Tools/ss12/ss12.sh doctor /path/to/your/server/codebase --build
+ss12 doctor /path/to/your/server/codebase --build
 
-# 4. package a server build like you normally do, or use the shortcut
-ss12/Tools/ss12/ss12.sh package /path/to/your/server/codebase
+# 4. соберите серверный пакет как обычно или воспользуйтесь коротким путём
+ss12 package /path/to/your/server/codebase
 
-# 5. host it, with the preset applied (see "Server configuration")
+# 5. разместите сервер с применённым пресетом (см. «Конфигурация сервера»)
 ```
 
 Добавьте `--enforce` к шагу 2, чтобы все живые игроки использовали 3D; без него игроки выбирают режим клавишей `F12`.
@@ -65,7 +65,7 @@ ss12/Tools/ss12/ss12.sh package /path/to/your/server/codebase
 Правки находятся по тому, как выглядит код, а не по номерам строк, и повторный запуск безопасен. Если **обязательная** правка
 не найдена (форк переписал этот код), установщик останавливается и ничего не меняет; он печатает точное изменение, которое нужно сделать
 вручную. **Необязательная** правка, которую найти не удалось, пропускается с предупреждением о том, что вы теряете. Их
-определения находятся в `Tools/ss12/BuiltIn.cs`.
+определения находятся в `installer/BuiltIn.cs` репозитория SS12.
 
 Установщик также записывает `Resources/ConfigPresets/Build/render3d.toml` и `.ss12/manifest.json` (что он
 установил, с хешами, чтобы обновление и удаление были точными).
@@ -90,9 +90,9 @@ ss12/Tools/ss12/ss12.sh package /path/to/your/server/codebase
 ## Обновление и удаление
 
 ```
-ss12.sh update    /path/to/your/server/codebase     # after pulling a newer SS12
-ss12.sh uninstall /path/to/your/server/codebase     # restores your original files exactly
-ss12.sh doctor    /path/to/your/server/codebase     # checks files, edits, config; --build also compiles
+ss12 update    /path/to/your/server/codebase     # после получения новой версии SS12
+ss12 uninstall /path/to/your/server/codebase     # возвращает ваши исходные файлы в точности
+ss12 doctor    /path/to/your/server/codebase     # проверяет файлы, правки, конфигурацию; --build ещё и собирает
 ```
 
 ## Если что-то не подходит
@@ -117,10 +117,10 @@ ss12.sh doctor    /path/to/your/server/codebase     # checks files, edits, confi
 (`ss12://guide`) велит ему делать это только после вашего согласия. Конфигурация для большинства клиентов:
 
 ```json
-{ "mcpServers": { "ss12": { "command": "dotnet", "args": ["Tools/ss12/bin/Release/net10.0/ss12.dll", "mcp"] } } }
+{ "mcpServers": { "ss12": { "command": "/path/to/ss12", "args": ["mcp"] } } }
 ```
 
-Claude Code: `claude mcp add ss12 -- dotnet Tools/ss12/bin/Release/net10.0/ss12.dll mcp`.
+Claude Code: `claude mcp add ss12 -- /path/to/ss12 mcp`.
 
 ## FAQ
 
@@ -134,7 +134,9 @@ Claude Code: `claude mcp add ss12 -- dotnet Tools/ss12/bin/Release/net10.0/ss12.
 
 **Работает ли это с моей картой и контентом?** Карты и прототипы используются как есть. Сущности, которые рендерер не знает,
 рисуются автоматически по их компонентам и глубине отрисовки; особые случаи перечислены в
-`Resources/Prototypes/Render3D/rules.yml`, который вы можете расширить для собственных прототипов (он же задаёт толщину
-предметов и наклон, см. «Форма предметов» в README).
+`Resources/Prototypes/Render3D/rules.yml` (он же задаёт толщину предметов и наклон, см. «Форма предметов» в README). Не правьте
+этот файл: `ss12 update` его заменяет. Правила для собственных прототипов кладите в свой файл рядом, например
+`Resources/Prototypes/Render3D/yourserver.yml`; читаются все прототипы `render3dRules`. `ss12 doctor` перечисляет названия из
+поставляемых правил, которых нет в вашем коде.
 
 **Что-нибудь куда-то отправляется?** Нет. Установщик никогда не обращается к удалённому репозиторию и ничего не отправляет (push).
