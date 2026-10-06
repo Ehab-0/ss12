@@ -518,6 +518,12 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         return delta.LengthSquared() <= SharedInteractionSystem.InteractionRangeSquared;
     }
 
+    /// <summary>
+    ///     The entity the player chose from the list of what they point at. While it is set, what the crosshair is "on" is this entity
+    ///     (use, attack, pull, the name under the crosshair and the outline all follow it). Cleared when it is gone or far away.
+    /// </summary>
+    public EntityUid? PinnedTarget;
+
     private readonly List<(EntityUid Uid, float Distance)> _pointNear = new();
     private readonly List<EntityUid> _pointed = new();
 
@@ -527,7 +533,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     ///     the crosshair uses; things with the same name are counted. At most <paramref name="max"/> lines; the rest is
     ///     <paramref name="hidden"/>.
     /// </summary>
-    public void DescribePointed(List<(string Text, bool InReach)> lines, int max, out int hidden)
+    public void DescribePointed(List<(EntityUid Uid, string Text, bool InReach)> lines, int max, out int hidden)
     {
         lines.Clear();
         hidden = 0;
@@ -550,7 +556,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         }
 
         var self = _player.LocalEntity;
-        var names = new List<(string Name, int Count, bool Reach)>();
+        var names = new List<(string Name, int Count, bool Reach, EntityUid First)>();
         foreach (var uid in _pointed)
         {
             if (uid == self || !_entMan.EntityExists(uid))
@@ -563,9 +569,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             var reach = InReach(uid);
             var index = names.FindIndex(n => n.Name == name && n.Reach == reach);
             if (index >= 0)
-                names[index] = (name, names[index].Count + 1, reach);
+                names[index] = (name, names[index].Count + 1, reach, names[index].First);
             else
-                names.Add((name, 1, reach));
+                names.Add((name, 1, reach, uid));
         }
 
         for (var i = 0; i < names.Count; i++)
@@ -576,8 +582,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
                 continue;
             }
 
-            var (name, count, reach) = names[i];
-            lines.Add((count > 1 ? $"{count} x {name}" : name, reach));
+            var (name, count, reach, first) = names[i];
+            lines.Add((first, count > 1 ? $"{count} x {name}" : name, reach));
         }
     }
 
@@ -969,10 +975,39 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             }
         }
 
+        ApplyPinnedTarget(result, origin);
         _pickCache = (frame, localPixel, result);
         LastPick = result;
         return result;
     }
+
+    /// <summary>Puts the entity chosen from the list of what the player points at in front of whatever the ray found.</summary>
+    private void ApplyPinnedTarget(PickResult result, Vector3 origin)
+    {
+        if (PinnedTarget is not { } target)
+            return;
+
+        if (!_entMan.EntityExists(target) || _xformSys == null || _entMan.GetComponent<TransformComponent>(target).MapID != _lastMap)
+        {
+            PinnedTarget = null;
+            return;
+        }
+
+        var world = _xformSys.GetWorldPosition(target);
+        if (Vector2.DistanceSquared(world, new Vector2(origin.X, origin.Y)) > PinnedTargetRange * PinnedTargetRange)
+        {
+            PinnedTarget = null;
+            return;
+        }
+
+        result.Entities.Remove(target);
+        result.Entities.Insert(0, target);
+        result.FirstEntity = target;
+        result.Coords = new MapCoordinates(world, _lastMap);
+    }
+
+    /// <summary>A chosen target further than this (tiles) from the camera is let go.</summary>
+    private const float PinnedTargetRange = 9f;
 
     /// <summary>
     ///     The entities under the last pick, if <paramref name="coordinates"/> is exactly the position that pick

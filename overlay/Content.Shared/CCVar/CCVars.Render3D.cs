@@ -256,7 +256,7 @@ public sealed partial class CCVars
 
     /// <summary>Show a small list, to the right, of what the crosshair points at.</summary>
     public static readonly CVarDef<bool> Render3DPointList =
-        CVarDef.Create("render3d.pointlist", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+        CVarDef.Create("render3d.pointlist", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
     ///     Furniture and machines (anchored standing objects) stay where they are, facing the way they point, instead of turning
