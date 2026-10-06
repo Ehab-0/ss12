@@ -45,6 +45,7 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
 | List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
+| Choose from that list | `Up`, `Down`, `Enter`; or hold `Alt` and click a row |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -108,10 +109,10 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
-| `render3d.pointlist` (false) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Key `L`; `render3d_pointlist [on\|off]`. |
+| `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight and Enter (or a click with `Alt` held) chooses the row as the target the crosshair acts on. Key `L`; `render3d_pointlist [on\|off]`. |
 | `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
-| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
+| `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread`, `item_fixed`, `object_fixed`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
 | `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
 
@@ -143,6 +144,8 @@ effect. Toggling a single effect by hand makes the preset read "Custom". The sam
 | `item_thick` | items on the ground get thickness | - | on | on |
 | `item_surface` | items rest on the real top of what they lie on (a table, a rack, a bed, a locker; see `surfaces` in `rules.yml`), are drawn after it so a rack or locker never hides them, and cast their shadow on it | on | on | on |
 | `item_spread` | items that lie on the same spot are spread apart a little, inside their tile, so each can be seen (only in the picture) | on | on | on |
+| `item_fixed` | items on the ground keep a fixed tilt (about 11 degrees towards the south) instead of tilting towards the camera | on | on | on |
+| `object_fixed` | furniture and machines stay fixed in the world, facing the way they point, instead of turning to face the camera (a shape rule with `fixed: false` keeps a prototype turning, as trees, statues and potted plants do); characters and animals always turn | on | on | on |
 | `char_lean` | characters (and bodies on the floor) lean back / tilt slightly | - | on | on |
 | `char_thick` | characters get thickness | - | - | on |
 | `object_lean` | machines, furniture and other standing objects lean back slightly | - | - | on |

@@ -76,6 +76,14 @@ Things to know before touching `overlay/`:
   (`SurfaceItemSortBias`), otherwise a rack or a locker, which is drawn as a standing card at the same spot, hides it. Do not
   raise the lean of flat items without checking `CapFlatLean`: a one tile sprite tilted 20 degrees lifts its far edge a third
   of a tile.
+- Furniture and machines are fixed cards (`EntityDraw3D.FixedFacing`), not cards that turn to the camera: a vending machine shows its
+  face from the front and a slab from the side, so thickness matters for them. A prototype with no front (trees, statues, plants)
+  needs `fixed: false` in the shape rules of `rules.yml`. Characters and animals still turn (`SpriteDirection`).
+- Thickness is a stack of copies of the card behind its face. Their number follows the viewing angle and the distance
+  (`EntityShape.AdaptiveLayers`), and they use quad kind 4 in `entity.swsl` (plain nearest sampling): the smoothing filter leaves
+  bright dots along every copy's edge.
+- The mouse capture is asked for again and again (`MouseCapturePolicy.ReassertInterval`): the window system can ignore a request that
+  arrives in the moment a window gets focus and cannot be asked whether it took it. Do not go back to asking once.
 - A sprite's bounds are its whole rectangle, not its opaque pixels. A 1x1 sprite can hold a small drawing.
 - Indoors the camera cannot rise above the ceiling (wall height 2.3 tiles by default), so things close to it look huge. Test
   visual changes with the default third-person distance, not a far-away camera.

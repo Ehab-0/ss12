@@ -3,6 +3,18 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **After alt+tab the mouse is taken back.** The cursor could stay free, and the camera not follow the mouse, until another
+  alt+tab. The game asked the window system once for the captured mouse and never again, so a request it ignored in the moment the
+  window got focus was lost. The request is now repeated for a while after the window gets focus and every second after that, the
+  state of the free-mouse key is forgotten on every focus change, and a chat box that kept the keyboard focus is released. The
+  console command `render3d_capture_state` says why the mouse is free, if it ever is.
+- **Thick things look solid.** Chairs, machines, characters and items get their depth from copies of the sprite behind its face, and
+  at an angle the copies came apart into slices with bright dots along the edges. The number of copies now follows the angle and the
+  distance (up to 6 per step of the thickness setting), and they are drawn without smoothing.
+- **Furniture and machines stay where they are.** They no longer turn to face the camera as you walk round them: a vending machine
+  shows its face from the front and its edge from the side. Floor items keep a fixed tilt instead of tilting towards the camera.
+  Characters and animals still turn; trees, statues and potted plants too (`fixed: false` in the shape rules of `rules.yml`). New
+  effects `object_fixed` and `item_fixed`, on at every quality level.
 - **Items rest on what they lie on.** A big sprite such as a bedsheet or a pile of clothes tilted towards the camera by up to
   20 degrees, which lifted its far edge by a third of a tile and made it hover over the table. The far edge of a lying item now
   rises by at most 0.1 tile (`render3d.item_max_rise`, 0 = no limit), so a small item still tilts fully and a big one hardly at
@@ -13,9 +25,12 @@
 - **Items piled on one spot are spread apart.** A pile of clothes, a tray of tools or the contents of an emptied box all land on
   one spot, so each hid the one below it. Items closer than about a quarter tile are now moved apart inside their tile, only in
   the picture, always the same way for the same item (`item_spread`, on at every quality level).
-- **A list of what you point at (`L`).** A small panel to the right of the view lists what the crosshair points at: the thing
-  under it first, then the others that lie on the same spot, such as a pile on a table, with those out of reach greyed and
-  equal names counted. It is off by default; `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
+- **A list of what you point at (`L`), and you can choose from it.** A small panel to the right of the view lists what the
+  crosshair points at: the thing under it first, then the others that lie on the same spot, such as a pile on a table, with those
+  out of reach greyed and equal names counted. Up and down move a highlight and enter chooses the highlighted row; with the
+  free-mouse key (Alt) held a row can be clicked. The chosen row is the target: use, attack, pull, the name under the crosshair and
+  the outline all go to it, until you choose it again, it is more than 9 tiles away or gone. It is on by default and says "Press L
+  to toggle"; `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
 - **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the key is called "Free mouse
   (Hold)" in amber in the `F11` keys section, and the README and the demo guide print the row in bold.
 

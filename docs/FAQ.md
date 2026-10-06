@@ -35,6 +35,11 @@ you chose yourself in `F11` is never changed by the game, and the automatic step
 Yes: `M` switches it on and off and `-` makes it small or large. `F11` has a switch and a size slider for it too. It never
 shows other players.
 
+### Why does the list on the right say "You point at"?
+It is the list of what your crosshair is on, with the things next to it, so you can reach something that is stacked or hard to
+hit: `Up` and `Down` move through it, `Enter` (or a click with `Alt` held) chooses a row, and your next click acts on that
+one. `L` switches the list off and on.
+
 ### Is there a server I can just try?
 Yes: a test server at `lol.ss12.org`. Open the normal launcher, choose Direct Connect and type the address. More on
 [ss12.org](https://ss12.org). It is a test server, so it may restart or be down at times.
