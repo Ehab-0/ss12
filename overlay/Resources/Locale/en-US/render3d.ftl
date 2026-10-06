@@ -32,6 +32,7 @@ render3d-pointlist-nothing = nothing
 render3d-pointlist-more = and { $count } more
 render3d-pointlist-target = Target: { $name }
 render3d-pointlist-hint-toggle = Press { $key } to toggle
+render3d-pointlist-hint-choose = Up / Down + Enter to choose, or hold { $key } and click
 render3d-settings-minimap = Show the minimap
 render3d-settings-minimap-rotate = Minimap turns with the camera
 render3d-settings-minimap-size = Minimap size

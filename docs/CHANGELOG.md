@@ -28,9 +28,11 @@
 - **A list of what you point at (`L`), and you can choose from it.** A small panel to the right of the view lists what the
   crosshair points at: the thing under it first, then the others that lie on the same spot, such as a pile on a table, with those
   out of reach greyed and equal names counted. Up and down move a highlight and enter chooses the highlighted row; with the
-  free-mouse key (Alt) held a row can be clicked. The chosen row is the target: use, attack, pull, the name under the crosshair and
-  the outline all go to it, until you choose it again, it is more than 9 tiles away or gone. It is on by default and says "Press L
-  to toggle"; `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
+  free-mouse key (Alt) held a row can be clicked. The chosen row is the target for your next action: use, attack, pull, the name under the crosshair
+  and the outline all go to it, until you have used it, you look away from it, a few seconds have passed, it is further than 9 tiles
+  or gone, or you choose it again. What you can touch is listed first and loose things (items) come before fixtures (windows,
+  tables). The panel only shows while there is something to list, is on by default and says how to choose and "Press L to toggle";
+  `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
 - **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the key is called "Free mouse
   (Hold)" in amber in the `F11` keys section, and the README and the demo guide print the row in bold.
 

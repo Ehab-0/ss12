@@ -24,6 +24,7 @@ public sealed class Render3DPointList : PanelContainer
     private readonly Row[] _rows = new Row[MaxRows];
     private readonly Label _more;
     private readonly Label _hint;
+    private readonly Label _choose;
     private readonly Label _target;
 
     /// <summary>A row was clicked (the entity it stands for).</summary>
@@ -93,7 +94,9 @@ public sealed class Render3DPointList : PanelContainer
 
         _more = new Label { Visible = false, FontColorOverride = FarColor, MouseFilter = MouseFilterMode.Ignore, Margin = new Thickness(2, 0, 0, 0) };
         box.AddChild(_more);
-        _hint = new Label { FontColorOverride = FarColor, MouseFilter = MouseFilterMode.Ignore, Margin = new Thickness(2, 4, 0, 0), Text = Loc.GetString("render3d-pointlist-hint-toggle", ("key", "L")) };
+        _choose = new Label { FontColorOverride = FarColor, MouseFilter = MouseFilterMode.Ignore, Margin = new Thickness(2, 4, 0, 0), Visible = false };
+        box.AddChild(_choose);
+        _hint = new Label { FontColorOverride = FarColor, MouseFilter = MouseFilterMode.Ignore, Margin = new Thickness(2, 0, 0, 0), Text = Loc.GetString("render3d-pointlist-hint-toggle", ("key", "L")) };
         box.AddChild(_hint);
         AddChild(box);
         MinWidth = 190;
@@ -101,6 +104,12 @@ public sealed class Render3DPointList : PanelContainer
 
     /// <summary>The key that switches the list, for the line at the bottom.</summary>
     public void SetToggleKey(string key) => _hint.Text = Loc.GetString("render3d-pointlist-hint-toggle", ("key", key));
+
+    /// <summary>How to choose a row, shown when there is more than one to choose from.</summary>
+    public void SetChooseHint(string freeMouseKey)
+    {
+        _choose.Text = Loc.GetString("render3d-pointlist-hint-choose", ("key", freeMouseKey));
+    }
 
     /// <summary>Shows the entries; <paramref name="hidden"/> is how many more did not fit, <paramref name="targetName"/> the name of the chosen target, if any.</summary>
     public void SetState(PointListState state, int hidden, string? targetName)
@@ -135,6 +144,7 @@ public sealed class Render3DPointList : PanelContainer
             _rows[0].Visible = true;
         }
 
+        _choose.Visible = entries.Count >= 2;
         _more.Visible = hidden > 0;
         if (hidden > 0)
             _more.Text = Loc.GetString("render3d-pointlist-more", ("count", hidden));

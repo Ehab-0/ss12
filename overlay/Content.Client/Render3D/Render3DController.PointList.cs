@@ -57,9 +57,47 @@ public sealed partial class Render3DController
     private void ApplyPointTarget()
     {
         if (_control != null)
+        {
             _control.PinnedTarget = _pointState.Target;
+            if (_pointState.Target != null)
+            {
+                _pinnedAt = _timing.RealTime;
+                _pinnedYaw = _control.Camera.Yaw;
+                _pinnedPitch = _control.Camera.Pitch;
+            }
+        }
 
         RefreshPointList();
+    }
+
+    // A chosen target is meant for the next thing you do to it, not for good: it is let go when you have used it, when you look away
+    // from it, or after a few seconds.
+    private TimeSpan _pinnedAt;
+    private double _pinnedYaw, _pinnedPitch;
+    private const float PinnedLookAway = 0.30f;
+    private static readonly TimeSpan PinnedLifetime = TimeSpan.FromSeconds(8);
+
+    private void ReleasePointTarget()
+    {
+        if (_pointState.Target == null)
+            return;
+
+        _pointState.ClearTarget();
+        if (_control != null)
+            _control.PinnedTarget = null;
+
+        RefreshPointList();
+    }
+
+    private void ExpirePointTarget()
+    {
+        if (_pointState.Target == null || _control == null)
+            return;
+
+        var yaw = MathF.Abs(MathF.IEEERemainder((float) _control.Camera.Yaw - (float) _pinnedYaw, MathF.Tau));
+        var pitch = MathF.Abs((float) _control.Camera.Pitch - (float) _pinnedPitch);
+        if (_timing.RealTime - _pinnedAt > PinnedLifetime || yaw > PinnedLookAway || pitch > PinnedLookAway)
+            ReleasePointTarget();
     }
 
     private void AddPointList(Render3DViewportControl view)
@@ -102,6 +140,8 @@ public sealed partial class Render3DController
         if (_pointState.Target != null && _control.PinnedTarget == null)
             _pointState.ClearTarget();
 
+        ExpirePointTarget();
+
         if (_control.RelativeMouse)
         {
             // the crosshair moves the list; while the mouse is free the list stays as it was so a row can be clicked
@@ -115,6 +155,9 @@ public sealed partial class Render3DController
         }
 
         _pointList.SetToggleKey(_input.TryGetKeyBinding(Render3DKeys.PointList, out var binding) ? binding.GetKeyString() : "L");
-        _pointList.Visible = true;
+        _pointList.SetChooseHint(_input.TryGetKeyBinding(Render3DKeys.FreeCursor, out var freeBinding) ? freeBinding.GetKeyString() : "Alt");
+
+        // nothing to show, nothing to choose and nothing chosen: the panel stays out of the way
+        _pointList.Visible = _pointState.Entries.Count > 0 || _pointState.Target != null;
     }
 }

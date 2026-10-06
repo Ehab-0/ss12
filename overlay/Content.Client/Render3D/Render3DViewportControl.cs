@@ -574,6 +574,20 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
                 names.Add((name, 1, reach, uid));
         }
 
+        // what the player can touch comes first, and in each group loose things (items, a pile) before fixtures (a window, a table, a
+        // wall), because the list is for reaching what is stacked; inside a group the order is the order the ray crosses them
+        var ordered = new List<(string Name, int Count, bool Reach, EntityUid First)>(names.Count);
+        for (var bucket = 0; bucket < 4; bucket++)
+        {
+            foreach (var n in names)
+            {
+                var anchored = _entMan.TryGetComponent(n.First, out TransformComponent? xf) && xf.Anchored;
+                if ((n.Reach ? 0 : 2) + (anchored ? 1 : 0) == bucket)
+                    ordered.Add(n);
+            }
+        }
+
+        names = ordered;
         for (var i = 0; i < names.Count; i++)
         {
             if (i >= max)
