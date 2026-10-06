@@ -2,6 +2,8 @@ using Content.Shared.CCVar;
 using Content.Shared.IdentityManagement;
 using Robust.Client.UserInterface;
 using Robust.Shared.Console;
+using Robust.Shared.Input;
+using Robust.Shared.Map;
 
 namespace Content.Client.Render3D;
 
@@ -18,6 +20,14 @@ public sealed partial class Render3DController
 
     private void InitializePointList()
     {
+        _console.RegisterCommand("render3d_pointlist_rows", "Print where the rows of the list are on the screen (pixels)", "render3d_pointlist_rows",
+            (shell, _, _) =>
+            {
+                var i = 0;
+                foreach (var c in PointListRowCentres())
+                    shell.WriteLine($"row {i++}: {c.X:F0},{c.Y:F0}");
+            });
+
         _console.RegisterCommand("render3d_pointlist", "Show or hide the list of what the crosshair points at", "render3d_pointlist [on|off]",
             (shell, _, args) =>
             {
@@ -26,6 +36,9 @@ public sealed partial class Render3DController
                 shell.WriteLine($"pointlist: {(on ? "on" : "off")}");
             });
     }
+
+    /// <summary>Developer aid: where the rows of the list are on the screen, for a test that clicks them with a real mouse.</summary>
+    public IEnumerable<System.Numerics.Vector2> PointListRowCentres() => _pointList?.RowCentres() ?? Array.Empty<System.Numerics.Vector2>();
 
     private bool PointListVisible => _pointList is { Visible: true };
 
@@ -40,12 +53,37 @@ public sealed partial class Render3DController
         RefreshPointList();
     }
 
+    /// <summary>The select key: the first press selects the highlighted row, the second acts on it as a click would.</summary>
     private void SelectInPointList()
     {
-        if (!PointListVisible || !_pointState.SelectHighlighted())
+        if (!PointListVisible)
             return;
 
-        ApplyPointTarget();
+        switch (_pointState.Press())
+        {
+            case PointListPress.Selected:
+                ApplyPointTarget();
+                break;
+            case PointListPress.Act:
+                ActOnPointTarget();
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Does what the left mouse button does at the crosshair, which now is the chosen target: use what is in the hand on it, or
+    ///     pick it up, open it and so on. It goes through the viewport input path, like a click.
+    /// </summary>
+    private void ActOnPointTarget()
+    {
+        if (_control == null)
+            return;
+
+        var centre = _control.GlobalPixelPosition + new System.Numerics.Vector2(_control.PixelSize.X, _control.PixelSize.Y) / 2f;
+        var coords = new ScreenCoordinates(centre, _clyde.MainWindow.Id);
+        _input.ViewportKeyEvent(_control, new BoundKeyEventArgs(EngineKeyFunctions.Use, BoundKeyState.Down, coords, false));
+        _input.ViewportKeyEvent(_control, new BoundKeyEventArgs(EngineKeyFunctions.Use, BoundKeyState.Up, coords, false));
+        // the release of the click lets the target go (see Render3DController.OnStateEntered)
     }
 
     private void OnPointRowClicked(EntityUid uid)
@@ -155,7 +193,9 @@ public sealed partial class Render3DController
         }
 
         _pointList.SetToggleKey(_input.TryGetKeyBinding(Render3DKeys.PointList, out var binding) ? binding.GetKeyString() : "L");
-        _pointList.SetChooseHint(_input.TryGetKeyBinding(Render3DKeys.FreeCursor, out var freeBinding) ? freeBinding.GetKeyString() : "Alt");
+        _pointList.SetChooseHint(
+            _input.TryGetKeyBinding(Render3DKeys.PointListSelect, out var selectBinding) ? selectBinding.GetKeyString() : "Space",
+            _input.TryGetKeyBinding(Render3DKeys.FreeCursor, out var freeBinding) ? freeBinding.GetKeyString() : "Alt");
 
         // nothing to show, nothing to choose and nothing chosen: the panel stays out of the way
         _pointList.Visible = _pointState.Entries.Count > 0 || _pointState.Target != null;

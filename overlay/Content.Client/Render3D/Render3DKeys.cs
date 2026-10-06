@@ -38,7 +38,7 @@ public static class Render3DKeys
         (PointList, Keyboard.Key.L, "render3d-key-point-list"),
         (PointListUp, Keyboard.Key.Up, "render3d-key-point-list-up"),
         (PointListDown, Keyboard.Key.Down, "render3d-key-point-list-down"),
-        (PointListSelect, Keyboard.Key.Return, "render3d-key-point-list-select"),
+        (PointListSelect, Keyboard.Key.Space, "render3d-key-point-list-select"),
     };
 
     private static bool _registered;

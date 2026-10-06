@@ -100,7 +100,7 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
 | Minimap on and off, small or large | `M`, `-` |
 | List of what you point at, on and off | `L` |
-| Choose from that list | `Up` `Down` `Enter`, or `Alt` + click a row |
+| Choose from that list: select, then act | `Up` `Down`, `Space`, `Space` again; or `Alt` + click a row |
 | Open the 3D settings (looks, speed, keys) | `F11` |
 | Switch between 3D and the old flat view, if the server allows it | `F12` |
 | Minimap on and off | `M` |

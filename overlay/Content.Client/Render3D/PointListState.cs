@@ -2,6 +2,19 @@ using Robust.Shared.GameObjects;
 
 namespace Content.Client.Render3D;
 
+/// <summary>What pressing the select key did.</summary>
+public enum PointListPress : byte
+{
+    /// <summary>Nothing to select.</summary>
+    None = 0,
+
+    /// <summary>The highlighted row became the target.</summary>
+    Selected,
+
+    /// <summary>The highlighted row already was the target: act on it now.</summary>
+    Act,
+}
+
 /// <summary>
 ///     The state of the list of what the crosshair points at: the entries, which one is highlighted (moved with the up and down
 ///     keys) and which one is the target the player has chosen. Free of any control, so it can be tested. The highlight follows an
@@ -54,6 +67,26 @@ public sealed class PointListState
         }
 
         Highlight = ((Highlight + delta) % n + n) % n;
+    }
+
+    /// <summary>
+    ///     The select key: it selects the highlighted row (the first one when none is highlighted yet), and pressed again on the
+    ///     selected row it says to act on it.
+    /// </summary>
+    public PointListPress Press()
+    {
+        if (Entries.Count == 0)
+            return PointListPress.None;
+
+        if (Highlight < 0 || Highlight >= Entries.Count)
+            Highlight = 0;
+
+        var uid = Entries[Highlight].Uid;
+        if (Target == uid)
+            return PointListPress.Act;
+
+        Target = uid;
+        return PointListPress.Selected;
     }
 
     /// <summary>Chooses the highlighted entity as the target, or clears the target when it already is. False when nothing is highlighted.</summary>

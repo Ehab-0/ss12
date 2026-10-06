@@ -55,8 +55,13 @@ public sealed class Render3DPointList : PanelContainer
         protected override void KeyBindDown(GUIBoundKeyEventArgs args)
         {
             base.KeyBindDown(args);
-            if (args.Function != EngineKeyFunctions.UIClick || Uid == default)
+            // With Alt held (the free-mouse key) the engine does not send a plain click: Alt + left button is its own binding
+            // (the alternative interaction), and it wins over the plain one. Both count as a click on a row.
+            if (args.Function != EngineKeyFunctions.UIClick && args.Function != Content.Shared.Input.ContentKeyFunctions.AltActivateItemInWorld
+                || Uid == default)
+            {
                 return;
+            }
 
             Clicked?.Invoke(Uid);
             args.Handle();
@@ -102,13 +107,24 @@ public sealed class Render3DPointList : PanelContainer
         MinWidth = 190;
     }
 
+    /// <summary>The centre of each visible row on the screen, in pixels (a developer aid for testing clicks).</summary>
+    public IEnumerable<System.Numerics.Vector2> RowCentres()
+    {
+        foreach (var row in _rows)
+        {
+            if (row.Visible && row.Uid != default)
+                yield return row.GlobalPixelPosition + new System.Numerics.Vector2(row.PixelSize.X, row.PixelSize.Y) / 2f;
+        }
+    }
+
     /// <summary>The key that switches the list, for the line at the bottom.</summary>
     public void SetToggleKey(string key) => _hint.Text = Loc.GetString("render3d-pointlist-hint-toggle", ("key", key));
 
     /// <summary>How to choose a row, shown when there is more than one to choose from.</summary>
-    public void SetChooseHint(string freeMouseKey)
+    public void SetChooseHint(string selectKey, string freeMouseKey)
     {
-        _choose.Text = Loc.GetString("render3d-pointlist-hint-choose", ("key", freeMouseKey));
+        _choose.Text = Loc.GetString("render3d-pointlist-hint-choose", ("select", selectKey)) + "\n"
+            + Loc.GetString("render3d-pointlist-hint-choose-click", ("key", freeMouseKey));
     }
 
     /// <summary>Shows the entries; <paramref name="hidden"/> is how many more did not fit, <paramref name="targetName"/> the name of the chosen target, if any.</summary>

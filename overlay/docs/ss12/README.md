@@ -45,7 +45,7 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
 | List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
-| Choose from that list | `Up`, `Down`, `Enter`; or hold `Alt` and click a row |
+| Choose from that list: select, then act | `Up`, `Down`, `Space` (select), `Space` again (act); or hold `Alt` and click a row |
 | Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
@@ -109,7 +109,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
-| `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight and Enter (or a click with `Alt` held) chooses the row as the target of the next action (it is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |
+| `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight, Space (or a click with `Alt` held) selects the row as the target and Space again acts on it like a left click (the target is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |
 | `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
 | `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread`, `item_fixed`, `object_fixed`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |

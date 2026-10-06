@@ -102,4 +102,39 @@ public sealed class PointListStateTest
         Assert.That(s.Highlight, Is.EqualTo(-1));
         Assert.That(s.SelectHighlighted(), Is.False);
     }
+
+    [Test]
+    public void TheFirstPressSelectsTheFirstRowWhenNothingIsHighlighted()
+    {
+        var s = With(4, 5, 6);
+        Assert.That(s.Press(), Is.EqualTo(PointListPress.Selected));
+        Assert.That(s.Target, Is.EqualTo(U(4)));
+        Assert.That(s.Highlight, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void ThePressAfterThatActsOnTheSelectedRow()
+    {
+        var s = With(4, 5, 6);
+        s.Press();
+        Assert.That(s.Press(), Is.EqualTo(PointListPress.Act));
+        Assert.That(s.Target, Is.EqualTo(U(4)));
+    }
+
+    [Test]
+    public void PressingOnAnotherRowSelectsThatOneInstead()
+    {
+        var s = With(4, 5, 6);
+        s.Press();
+        s.Move(1);
+        Assert.That(s.Press(), Is.EqualTo(PointListPress.Selected));
+        Assert.That(s.Target, Is.EqualTo(U(5)));
+        Assert.That(s.Press(), Is.EqualTo(PointListPress.Act));
+    }
+
+    [Test]
+    public void PressingWithAnEmptyListDoesNothing()
+    {
+        Assert.That(With().Press(), Is.EqualTo(PointListPress.None));
+    }
 }

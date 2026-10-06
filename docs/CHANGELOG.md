@@ -3,6 +3,8 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Clicking a row of the list works.** With `Alt` held the engine does not send a plain click: Alt + left button is its own
+  binding and wins over the plain one, so the row never saw a click. It now takes that one as a click too.
 - **After alt+tab the mouse is taken back.** The cursor could stay free, and the camera not follow the mouse, until another
   alt+tab. The game asked the window system once for the captured mouse and never again, so a request it ignored in the moment the
   window got focus was lost. The request is now repeated for a while after the window gets focus and every second after that, the
@@ -27,7 +29,7 @@
   the picture, always the same way for the same item (`item_spread`, on at every quality level).
 - **A list of what you point at (`L`), and you can choose from it.** A small panel to the right of the view lists what the
   crosshair points at: the thing under it first, then the others that lie on the same spot, such as a pile on a table, with those
-  out of reach greyed and equal names counted. Up and down move a highlight and enter chooses the highlighted row; with the
+  out of reach greyed and equal names counted. Up and down move a highlight, `Space` selects the highlighted row and `Space` again acts on it as a left click would; with the
   free-mouse key (Alt) held a row can be clicked. The chosen row is the target for your next action: use, attack, pull, the name under the crosshair
   and the outline all go to it, until you have used it, you look away from it, a few seconds have passed, it is further than 9 tiles
   or gone, or you choose it again. What you can touch is listed first and loose things (items) come before fixtures (windows,

@@ -37,8 +37,8 @@ shows other players.
 
 ### Why does the list on the right say "You point at"?
 It is the list of what your crosshair is on, with the things next to it, so you can reach something that is stacked or hard to
-hit: `Up` and `Down` move through it, `Enter` (or a click with `Alt` held) chooses a row, and your next click acts on that
-one. `L` switches the list off and on.
+hit: `Up` and `Down` move through it, `Space` selects the highlighted row (or hold `Alt` and click a row), and `Space` again
+acts on it, as a left click would. `L` switches the list off and on.
 
 ### Is there a server I can just try?
 Yes: a test server at `lol.ss12.org`. Open the normal launcher, choose Direct Connect and type the address. More on

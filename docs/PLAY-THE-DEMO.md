@@ -59,7 +59,7 @@ and attach `data/server.log` from the demo folder.
 | `F11` | graphics settings: turn effects off if it feels slow |
 | `M` | minimap on and off (`-` makes it small or large) |
 | **hold `Alt`** | **free the mouse to click menus, buttons and the inventory (the mouse turns the camera, so hold it while you click)** |
-| `L` | list of what the crosshair points at, on and off (`Up` `Down` `Enter` choose from it) |
+| `L` | list of what the crosshair points at, on and off (`Up` `Down` move through it, `Space` selects, `Space` again acts) |
 | `Esc` | the game menu |
 
 The rest of the game is Space Station 14 as you know it: `T` to talk, `E` or click to use things, number keys and
