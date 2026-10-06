@@ -16,8 +16,8 @@
 - **A list of what you point at (`L`).** A small panel to the right of the view lists what the crosshair points at: the thing
   under it first, then the others that lie on the same spot, such as a pile on a table, with those out of reach greyed and
   equal names counted. It is off by default; `L`, a checkbox in the `F11` view section or `render3d_pointlist` switch it.
-- **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the `F11` keys section starts with
-  a highlighted note and the key's name says what it is for, and the README and the demo guide print the row in bold.
+- **Holding Alt to free the mouse is easier to find.** The lobby picture shows it highlighted, the key is called "Free mouse
+  (Hold)" in amber in the `F11` keys section, and the README and the demo guide print the row in bold.
 
 ## 1.3.0
 See-through windows, a minimap, graphics that start high and step down by themselves, and many fixes to how things are drawn.

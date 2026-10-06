@@ -257,7 +257,7 @@ d.text((16, 171), "TIPS", font=f(8), fill=HEAD)
 tips = [
     "Aim with the cross; it turns green when it is in reach.",
     "Slow? F11, Quality preset: Low (it also lowers itself).",
-    "Windows are real glass: you can look through them.",
+    "Press L for a list of what you point at.",
 ]
 for i, t in enumerate(tips):
     d.text((16, 182 + i * 10), t, font=f(8), fill=TEXT)

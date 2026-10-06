@@ -49,9 +49,6 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
   talk. Aim with the cross in the middle of the screen.
 - **It looks good, and you can turn the looks down.** Soft lighting, glowing lamps, shadows under people and
   things, a starry sky outside. Every extra can be switched off one by one, for older computers. Press `F11`.
-- **Windows are real glass.** You see the room, the corridor or the space behind a window, through a tinted pane
-  with a steel frame and a highlight, and through grilles. Each kind of window (plain, reinforced, plasma, shuttle...) has
-  its own look.
 - **Things have a body.** Items on the floor are lifted, tilted towards you and drawn with thickness, so a crowbar
   does not look like a sticker or a stain; people and machines get a thin slab of depth too. Each of these can be
   switched off on its own.
@@ -75,8 +72,8 @@ All of these were taken on the **highest** graphics setting, in a game window of
 
 | | |
 |---|---|
-| ![A station room](docs/screenshots/hero_high.webp) | ![Glass walls](docs/screenshots/glass_windows.webp) |
-| Botany: lamps, a ceiling, items and beds with thickness | Glass walls in Chemistry: the machines and rooms behind them are visible |
+| ![A station room](docs/screenshots/hero_high.webp) | ![Chemistry](docs/screenshots/glass_windows.webp) |
+| Botany: lamps, a ceiling, items and beds with thickness | Chemistry: machines, lamps and people |
 | ![First person](docs/screenshots/first_person.webp) | ![Engineering](docs/screenshots/engineering_3d.webp) |
 | First person (`N`): you look through the character's eyes | Engineering: lockers, signs and lamps |
 | ![Large minimap](docs/screenshots/minimap_large.webp) | |

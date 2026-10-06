@@ -49,7 +49,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
 
         AddHeader("render3d-settings-keys");
-        AddFreeMouseHint();
         foreach (var (function, _, locId) in Render3DKeys.All)
             AddKeyRow(function, locId);
 
@@ -186,33 +185,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     }
 
     private static readonly Color HintColor = new(1f, 0.82f, 0.25f);
-
-    /// <summary>
-    ///     A highlighted note above the keys: the mouse turns the camera, so menus, buttons and the inventory need the free
-    ///     cursor key held, which is what new players get stuck on.
-    /// </summary>
-    private void AddFreeMouseHint()
-    {
-        var panel = new PanelContainer
-        {
-            PanelOverride = new Robust.Client.Graphics.StyleBoxFlat
-            {
-                BackgroundColor = new Color(0.92f, 0.59f, 0.08f, 0.22f),
-                BorderColor = new Color(1f, 0.82f, 0.3f, 0.9f),
-                BorderThickness = new Thickness(1),
-                ContentMarginLeftOverride = 8,
-                ContentMarginRightOverride = 8,
-                ContentMarginTopOverride = 5,
-                ContentMarginBottomOverride = 5,
-            },
-        };
-        var lines = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
-        foreach (var id in new[] { "render3d-settings-free-mouse-hint-1", "render3d-settings-free-mouse-hint-2", "render3d-settings-free-mouse-hint-3" })
-            lines.AddChild(new Label { Text = Loc.GetString(id), FontColorOverride = HintColor });
-
-        panel.AddChild(lines);
-        _body.AddChild(panel);
-    }
 
     private void AddKeyRow(BoundKeyFunction function, string locId)
     {
