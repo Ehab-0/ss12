@@ -440,8 +440,15 @@ void fragment()
         }
         else
         {
-            col = spaceSky(rd);
-            depth = maxD;
+            // Space below the floor plane. With the "stars and nebula" effect on, it is the game's own background (the parallax stars), which the
+            // ground capture holds wherever there is no tile; beyond the capture, and with the effect off, it is the procedural sky.
+            highp vec2 suv = groundUv(fl);
+            highp float inside = (1.0 - smoothstep(0.38, 0.47, max(abs(suv.x - 0.5), abs(suv.y - 0.5)))) * step(0.5, fxFlags.y);
+            highp float rlenS = length(rd);
+            highp float sinElS = max(abs(rd.z) / rlenS, 0.15);
+            highp vec3 backdrop = max(sampleGroundAA(fl, bestT * aaParams.x * rlenS / sinElS), spaceColor.rgb);
+            col = mix(spaceSky(rd), backdrop, inside);
+            depth = mix(maxD, bestT, inside);
         }
     }
     else if (planeKind == 2.0)
