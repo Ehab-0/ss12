@@ -119,6 +119,12 @@ public static class DynamicView
         return new DynamicViewState(distance, pitch, fov, height, side, iso, wall);
     }
 
+    /// <summary>
+    ///     How much of the heading the player has dragged the view to still counts: all of it up to the overhead stop, fading out to the
+    ///     straight-down view, so that the hand-over to the (north-up) classic 2D view is not turned.
+    /// </summary>
+    public static float TurnWeight(float u) => 1f - SmoothStep(OverheadStop, TopStop, u);
+
     /// <summary>How much of the classic 2D view is blended over the 3D picture: 0 until <see cref="FadeStart"/>, 1 from <see cref="FadeEnd"/>.</summary>
     public static float Fade(float u) => SmoothStep(FadeStart, FadeEnd, u);
 

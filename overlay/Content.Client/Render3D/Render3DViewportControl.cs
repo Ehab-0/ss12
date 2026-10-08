@@ -135,6 +135,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     // free orbit: the heading and the look-down angle (radians) the player has dragged the camera to
     private double _orbitYaw;
+
+    // dynamic view, high up: how far the player has turned the picture from the grid's heading by dragging (radians); see DynamicView.TurnWeight
+    private double _scrollTurn;
     private float _orbitPitch = 50f * MathF.PI / 180f;
     private bool _orbitDragging;
     private CameraMode _lastMode = CameraMode.ThirdPerson;
@@ -236,6 +239,13 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         _scrollTarget = Math.Min(_scrollTarget, max);
         ScrollU = Math.Clamp(FollowCamera.Smooth(ScrollU, _scrollTarget, dt, DynamicView.GlideRate), 0f, max);
         _scrollFree = DynamicView.Latch(_scrollFree, ScrollU, DynamicView.FreeOn, DynamicView.FreeOff);
+        if (!_scrollFree)
+        {
+            // down among the walls the view follows the mouse look again: the turn is given up
+            _scrollTurn = 0.0;
+            _orbitDragging = false;
+        }
+
         _scrollNoCeiling = DynamicView.Latch(_scrollNoCeiling, ScrollU, DynamicView.NoCeilingOn, DynamicView.NoCeilingOff);
         ScrollTwoD = allow2D && DynamicView.Latch(ScrollTwoD, ScrollU, DynamicView.TwoDOn, DynamicView.TwoDOff);
         ScrollFade = allow2D ? DynamicView.Fade(ScrollU) : 0f;
@@ -249,6 +259,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         _scrollFree = false;
         _scrollNoCeiling = false;
         _scrollBias = float.NaN;
+        _scrollTurn = 0.0;
         ScrollTwoD = false;
         ScrollFade = 0f;
         Camera.ScrollElevated = false;
@@ -297,6 +308,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     /// </summary>
     public void TurnView(int quarterTurns)
     {
+        if (Camera.Mode == CameraMode.DynamicView)
+            _scrollTurn = 0.0;
+
         if (Camera.Mode == CameraMode.Orbit)
         {
             _orbitYaw = quarterTurns == 0 ? OverheadTargetYaw(_player.LocalEntity, false) : _orbitYaw + quarterTurns * (Math.PI / 2);
@@ -406,8 +420,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         if (args.Handled)
             return;
 
-        // the orbit camera turns while the drag key (the middle mouse button) is held over the view
-        if (args.Function == Render3DKeys.OrbitDrag && Camera.Mode == CameraMode.Orbit)
+        // the orbit camera (and the dynamic view, once it is high) turns while the drag key (the middle mouse button) is held over the view
+        if (args.Function == Render3DKeys.OrbitDrag && (Camera.Mode == CameraMode.Orbit || Camera.Mode == CameraMode.DynamicView && _scrollFree))
             _orbitDragging = true;
 
         ForwardKey(args);
@@ -430,6 +444,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             return;
 
         _orbitDragging = false;
+        if (Camera.Mode != CameraMode.Orbit)
+            return;
+
         // remembered for the next time the orbit camera is used
         _cfg.SetCVar(CCVars.Render3DOrbitPitch, MathF.Round(_orbitPitch * 180f / MathF.PI * 10f) / 10f);
     }
@@ -468,6 +485,13 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // drag right: the scene turns right; drag down: the camera climbs (looks further down)
             var turn = RadiansPerPixel * Sensitivity * 1.5f;
+            if (Camera.Mode == CameraMode.DynamicView)
+            {
+                // the dynamic view keeps the look-down angle its wheel position asks for: only the heading turns
+                _scrollTurn += args.Relative.X * turn;
+                return;
+            }
+
             _orbitYaw += args.Relative.X * turn;
             var climb = (InvertY ? -args.Relative.Y : args.Relative.Y) * turn;
             _orbitPitch = Math.Clamp(_orbitPitch + climb,
@@ -1242,8 +1266,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // Turned to the grid's heading (and the isometric diagonal on the way), and fixed there; the picture glides to it, while the
             // movement keys switch to it at once.
-            targetYaw = OverheadTargetYaw(player, false) + view.IsoWeight * OverheadCamera.IsometricTurn;
-            if (_overheadSnap || dt <= 0f || dt > 0.25f || double.IsNaN(cam.Yaw))
+            targetYaw = OverheadTargetYaw(player, false) + view.IsoWeight * OverheadCamera.IsometricTurn
+                + _scrollTurn * DynamicView.TurnWeight(ScrollU);
+            if (_orbitDragging || _overheadSnap || dt <= 0f || dt > 0.25f || double.IsNaN(cam.Yaw))
                 cam.Yaw = targetYaw;
             else
                 cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(targetYaw)).Theta * (1f - MathF.Exp(-dt * 12f)), 0f);

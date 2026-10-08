@@ -37,6 +37,23 @@ public sealed class DynamicViewTest
     private static DynamicViewState At(float u) => DynamicView.Evaluate(u, Settings);
 
     [Test]
+    public void ADraggedTurnCountsUpToOverheadAndFadesOutBeforeTheClassicView()
+    {
+        Assert.That(DynamicView.TurnWeight(DynamicView.IsoStop), Is.EqualTo(1f));
+        Assert.That(DynamicView.TurnWeight(DynamicView.OverheadStop), Is.EqualTo(1f));
+        Assert.That(DynamicView.TurnWeight(DynamicView.TopStop), Is.EqualTo(0f));
+        Assert.That(DynamicView.TurnWeight(1f), Is.EqualTo(0f));
+
+        var last = 1f;
+        for (var u = DynamicView.OverheadStop; u <= DynamicView.TopStop; u += 0.005f)
+        {
+            var w = DynamicView.TurnWeight(u);
+            Assert.That(w, Is.LessThanOrEqualTo(last + 1e-5f));
+            last = w;
+        }
+    }
+
+    [Test]
     public void FirstPersonIsAtTheCharacterLookingLevel()
     {
         var view = At(0f);
