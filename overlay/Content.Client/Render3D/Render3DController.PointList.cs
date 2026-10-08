@@ -162,7 +162,8 @@ public sealed partial class Render3DController
         if (_pointList == null || _control == null)
             return;
 
-        if (!Active || !_cfg.GetCVar(CCVars.Render3DPointList))
+        // (the list is for the crosshair; the overhead view has a free cursor and the context menu for piles)
+        if (!Active || !_cfg.GetCVar(CCVars.Render3DPointList) || _control.Overhead)
         {
             _pointList.Visible = false;
             if (_pointState.Target != null)

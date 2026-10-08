@@ -61,6 +61,8 @@ public sealed class EntityPass : IDisposable
     private Vector2 _fwd = Vector2.UnitY;
     private Vector3 _camPos3;
     private float _pixelAtOneTile; // size in tiles of one screen pixel one tile from the camera
+    private bool _overhead;        // the overhead camera: high above, pitched down (see Camera3D)
+    private double _camYaw;
 
     /// <summary>Most extra quads (thickness layers) added per frame, so a crowded room cannot overload the draw.</summary>
     private const int MaxExtraQuads = 7000;
@@ -175,6 +177,8 @@ public sealed class EntityPass : IDisposable
         _camPos3 = cam.Position;
         _pixelAtOneTile = 2f * cam.TanHalfFov / MathF.Max(cam.Size.Y, 1f);
         _fwd = cam.ForwardGround;
+        _overhead = cam.Mode == CameraMode.Overhead;
+        _camYaw = cam.Yaw;
         _quads.Clear();
         _pick.Clear();
         _drawCount = 0;
@@ -191,7 +195,7 @@ public sealed class EntityPass : IDisposable
         _query.Clear();
         _spriteTree.QueryAabb(_query, mapId, aabb);
 
-        var wallHeight = _cfg.GetCVar(CCVars.Render3DWallHeight);
+        var wallHeight = _cfg.GetCVar(_overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
         var tableHeight = _cfg.GetCVar(CCVars.Render3DTableHeight);
         var effectHeight = _cfg.GetCVar(CCVars.Render3DEffectHeight);
         var r2 = radius * radius;
@@ -332,9 +336,16 @@ public sealed class EntityPass : IDisposable
                         // The card stays where it is. A viewer in front of it sees the front (the south state of the sprite); one behind
                         // it sees the card turned round, showing the back (the north state of a chair, which is its back). The card
                         // never turns gradually: it flips only when the camera crosses the plane of the thing.
-                        var behind = Vector2.Dot(camXy - pos, facing) < 0f;
+                        // (the overhead camera hangs far from the character: which side it looks from is where the camera is)
+                        var viewXy = _overhead ? new Vector2(cam.Position.X, cam.Position.Y) : camXy;
+                        var behind = Vector2.Dot(viewXy - pos, facing) < 0f;
                         e.FixedFacing = behind ? -facing : facing;
                         e.DrawDirection = behind ? Direction.North : Direction.South;
+                    }
+                    else if (_overhead)
+                    {
+                        // one heading for the whole view, as the classic 2D eye has: the sprite state follows the camera yaw
+                        e.DrawDirection = CameraYawMath.OverheadSpriteDirection(rot, new Angle(_camYaw));
                     }
                     else
                     {
@@ -440,14 +451,14 @@ public sealed class EntityPass : IDisposable
 
     private void AddQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
         Vector2 uv0, Vector2 uv1, Vector2 uv2, Vector2 uv3,
-        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true, bool layer = false)
+        Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true, bool layer = false, float kind = -1f)
     {
         if (HighlightUid == _curUid)
             shade *= 1.6f;
         var translucent = blend || _curTranslucent;
         // a layer of a slab (kind 4) is alpha tested like a plain quad but sampled without smoothing, which left bright dots along its edge
         _quads.Add(p0, p1, p2, p3, uv0, uv1, uv2, uv3, foot, shade, alpha, translucent,
-            flags: translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
+            flags: kind >= 0f ? kind : translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
         if (pick && _curClickable)
             _pick.Add(new PickQuad { Uid = _curUid, P0 = p0, P1 = p1, P3 = p3, Pos = _curPos });
     }
@@ -575,7 +586,7 @@ public sealed class EntityPass : IDisposable
                 var r = pos + right * b.Right;
                 var zb = e.Z;
                 var zt = e.Z + b.Height;
-                var lean = LeanOn(ref e) ? EntityShape.StandLean(_downPitch) : 0f;
+                var lean = LeanOn(ref e) ? (_overhead ? EntityShape.OverheadStandLean(_downPitch) : EntityShape.StandLean(_downPitch)) : 0f;
                 var layers = LayerCountFor(ref e);
                 if (lean > 0.005f)
                 {
@@ -675,6 +686,8 @@ public sealed class EntityPass : IDisposable
             {
                 var axis = PanelAxis(ref e);
                 AddVerticalFace(pos, axis, 1f, 0f, wallHeight, uvTl, uvTr, uvBr, uvBl, pos, 1f);
+                if (_overhead)
+                    AddTop(pos, axis, 1f, 0.24f, wallHeight, pos);
                 break;
             }
 
@@ -683,6 +696,8 @@ public sealed class EntityPass : IDisposable
                 var f = e.WorldRot.ToWorldVec();
                 var axis = new Vector2(-f.Y, f.X);
                 AddVerticalFace(pos + f * 0.46f, axis, 1f, 0f, wallHeight * 0.85f, uvTl, uvTr, uvBr, uvBl, pos, 1f, blend: true);
+                if (_overhead)
+                    AddTop(pos + f * 0.46f, axis, 1f, 0.10f, wallHeight * 0.85f, pos);
                 break;
             }
 
@@ -703,6 +718,17 @@ public sealed class EntityPass : IDisposable
                     AddVerticalFace(pos + ux * h, uy, 1f, 0f, wallHeight, uvTl, uvTr, uvBr, uvBl, pos, 1f, blend: true);
                 if (Vector2.Dot(camXy - (pos - ux * h), -ux) > 0f)
                     AddVerticalFace(pos - ux * h, uy, 1f, 0f, wallHeight, uvTl, uvTr, uvBr, uvBl, pos, 1f, blend: true);
+
+                if (_overhead)
+                {
+                    // the frame seen from above: a narrow solid strip along each edge, the pane between stays see-through
+                    const float frame = 0.12f;
+                    AddTop(pos + uy * (0.5f - frame / 2f), ux, 1f, frame, wallHeight, pos);
+                    AddTop(pos - uy * (0.5f - frame / 2f), ux, 1f, frame, wallHeight, pos);
+                    AddTop(pos + ux * (0.5f - frame / 2f), uy, 1f, frame, wallHeight, pos);
+                    AddTop(pos - ux * (0.5f - frame / 2f), uy, 1f, frame, wallHeight, pos);
+                }
+
                 break;
             }
 
@@ -728,7 +754,13 @@ public sealed class EntityPass : IDisposable
                 // security cameras hang near the ceiling too
                 var zMid = fixture ? wallHeight - 0.3f : _classifier.IsCeilingMounted(e.Uid) ? wallHeight - 0.35f : 0.7f;
                 var zb = zMid - height * 0.5f;
-                AddVerticalFace(center, axis, width, zb, zb + height, uvTl, uvTr, uvBr, uvBl, center + f * 0.6f, 1f);
+                // under low walls (the overhead camera) a lamp or a sign would stick out above the wall: slide it down to fit
+                var overshoot = zb + height - (wallHeight - 0.02f);
+                if (_overhead && overshoot > 0f)
+                    zb = MathF.Max(zb - overshoot, 0.02f);
+
+                var zt = _overhead ? MathF.Min(zb + height, wallHeight - 0.02f) : zb + height;
+                AddVerticalFace(center, axis, width, zb, zt, uvTl, uvTr, uvBr, uvBl, center + f * 0.6f, 1f);
                 if (fixture && _fxFixtures && light!.Enabled)
                     AddHalo(center + f * 0.06f, axis, zMid, center + f * 0.55f);
                 break;
@@ -903,7 +935,8 @@ public sealed class EntityPass : IDisposable
         if (!on || e.Thickness < 0.01f || _curTranslucent || _extraQuads >= MaxExtraQuads)
             return 0;
 
-        if (EntityShape.TooCloseForLayers(Vector2.DistanceSquared(e.Pos, _camXy)))
+        // (the overhead camera is far above whatever is under it: nothing is close enough to be faded out)
+        if (!_overhead && EntityShape.TooCloseForLayers(Vector2.DistanceSquared(e.Pos, _camXy)))
             return 0;
 
         return EntityShape.LayerCount(_thickLayers, MathF.Sqrt(e.Distance2));
@@ -996,6 +1029,23 @@ public sealed class EntityPass : IDisposable
         AddQuad(new Vector3(l, tp, z), new Vector3(r, tp, z), new Vector3(r, bt, z), new Vector3(l, bt, z),
             uvTl, uvTr, uvBr, uvBl, foot, shade);
     }
+
+    /// <summary>
+    ///     Overhead camera: the top of a door or of a window frame, a solid dark strip like the top of a wall (quad kind 5), so a wall
+    ///     line with doors and windows in it does not look as if it had holes. <paramref name="axis"/> is the direction the strip runs in.
+    /// </summary>
+    private void AddTop(Vector2 center, Vector2 axis, float length, float depth, float z, Vector2 foot)
+    {
+        var along = axis * (length * 0.5f);
+        var perp = new Vector2(-axis.Y, axis.X) * (depth * 0.5f);
+        var zero = Vector2.Zero;
+        AddQuad(new Vector3(center - along + perp, z), new Vector3(center + along + perp, z),
+            new Vector3(center + along - perp, z), new Vector3(center - along - perp, z),
+            zero, zero, zero, zero, foot, kind: OverheadTopKind);
+    }
+
+    /// <summary>The quad kind of <see cref="AddTop"/> in entity.swsl.</summary>
+    private const float OverheadTopKind = 5f;
 
     /// <summary>A vertical quad centred on <paramref name="center"/>, spanning <paramref name="width"/> along <paramref name="axis"/>.</summary>
     private void AddVerticalFace(Vector2 center, Vector2 axis, float width, float zBottom, float zTop,

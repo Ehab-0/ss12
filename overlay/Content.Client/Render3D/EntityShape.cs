@@ -75,6 +75,17 @@ public static class EntityShape
     public static float StandLean(float downPitch)
         => Math.Clamp(0.45f * downPitch, 0f, MaxStandLean);
 
+    /// <summary>Largest backwards tilt of a standing card for the overhead camera (radians, about 35 degrees).</summary>
+    public const float MaxOverheadStandLean = 0.60f;
+
+    /// <summary>
+    ///     Backwards tilt of a standing card for the overhead camera. Looking down steeply, an upright card is squashed to the
+    ///     cosine of the pitch (57% at 55 degrees); leaning it back by most of the pitch turns its face towards the camera, so
+    ///     characters and machines keep close to their normal proportions.
+    /// </summary>
+    public static float OverheadStandLean(float downPitch)
+        => Math.Clamp(0.75f * downPitch, 0f, MaxOverheadStandLean);
+
     /// <summary>Number of extra layers to draw behind the front face at this distance from the camera.</summary>
     /// <summary>
     ///     Whether an entity is so close to the camera that its thickness layers are left out. The entity shader fades what is

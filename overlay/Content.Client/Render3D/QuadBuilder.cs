@@ -106,7 +106,10 @@ public sealed class QuadBuilder
             // different heights (a lamp on a window) swapped places whenever the camera pitched or moved, because the
             // height difference times the pitch is bigger than the few hundredths of a tile that separate the planes.
             // That made lamps flicker and vanish behind the glass.
-            if (IsUpright(in q))
+            // The overhead camera looks down steeply, so the height of a flat quad (an item on a locker, a table top) would count
+            // for far more than the few tenths of a tile that separate it from the card it lies on: there every quad is ordered by
+            // its place on the ground, and what lies on something gets its place from the sort bias (see EntityPass).
+            if (cam.Mode == CameraMode.Overhead || IsUpright(in q))
                 c.Z = cam.Position.Z;
 
             q.SortDepth = Vector3.Dot(c - cam.Position, cam.Forward) + q.SortBias;

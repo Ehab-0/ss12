@@ -23,6 +23,8 @@ uniform highp vec4 ceilColor;
 uniform highp vec4 fxFlags;      // x = surface shading, y = detailed sky, z = haze, w = time in seconds
 uniform highp vec4 aaParams;     // x = angular size of one pixel (tan units)
 uniform highp vec4 ambientFill;  // x = 1: give surfaces the 2D line of sight leaves unlit a faint ambient light
+                                 // y = 1: no ceiling (the overhead camera looks down at the walls from above)
+                                 // z = view depth of the character; the haze counts from there (overhead camera)
 uniform highp vec2 tileMapInv;   // 1 / tileMap size in texels
 
 // Per grid (up to 4): A = (m11, m12, m21, m22) of the world->local matrix, B = (m31, m32, window origin x, y),
@@ -116,9 +118,29 @@ highp vec3 tileLocal(highp vec2 w)
     return r;
 }
 
+// Overhead camera, wall tops. How close (0..1) a point inside a wall cell is to an edge that borders open floor, so the
+// outline of the walls shows as a thin lighter line. A neighbour outside the window counts as wall (no line).
+highp float openEdge(highp vec4 C, highp vec2 rel, highp float dist)
+{
+    if (rel.x < 0.0 || rel.y < 0.0 || rel.x >= C.z || rel.y >= C.z)
+        return 1.0;
+    highp float s = floor(texture2D(tileMap, tileUv(C.xy + rel)).r * 255.0 + 0.5);
+    return s > 0.5 ? 1.0 : dist;
+}
+
+highp float capRim(highp vec4 C, highp vec2 rel, highp vec2 f)
+{
+    highp float e = openEdge(C, rel + vec2(-1.0, 0.0), f.x);
+    e = min(e, openEdge(C, rel + vec2(1.0, 0.0), 1.0 - f.x));
+    e = min(e, openEdge(C, rel + vec2(0.0, -1.0), f.y));
+    e = min(e, openEdge(C, rel + vec2(0.0, 1.0), 1.0 - f.y));
+    return 1.0 - smoothstep(0.0, 0.10, e);
+}
+
 // Marches the ray (world space ro + rd * t) through one grid's wall window. rd.xy is un-normalised; t is the
 // planar view depth, which is also the length parameter of the ray in grid-local space (rotation only).
-// info = (world normal x, world normal y, u along the face, wall slot)
+// info = (world normal x, world normal y, u along the face, wall slot). A ray that comes from above the walls can hit
+// the top of a block: then the normal is zero and info.z = -1 - rim (so a negative u means "top").
 void marchGrid(highp vec4 A, highp vec4 B, highp vec4 C, highp vec3 ro, highp vec3 rd, highp float tMax,
                highp float H, out highp float tHit, out highp vec4 info)
 {
@@ -138,6 +160,26 @@ void marchGrid(highp vec4 A, highp vec4 B, highp vec4 C, highp vec3 ro, highp ve
     // distance to the first cell boundary along each axis
     nextT.x = (stepDir.x > 0.0 ? (cell.x + 1.0 - o.x) : (o.x - cell.x)) * tDelta.x;
     nextT.y = (stepDir.y > 0.0 ? (cell.y + 1.0 - o.y) : (o.y - cell.y)) * tDelta.y;
+
+    // From above the walls the top of a block is hit where the ray comes down to the wall height, if that is inside the cell.
+    highp float fromAbove = (ro.z > H && rd.z < -0.00001) ? 1.0 : 0.0;
+    highp float tTop = fromAbove > 0.5 ? (H - ro.z) / rd.z : 100000.0;
+
+    if (fromAbove > 0.5 && tTop <= tMax && tTop <= min(nextT.x, nextT.y))
+    {
+        // the cell the camera is over
+        highp vec2 rel0 = cell - B.zw;
+        if (rel0.x >= 0.0 && rel0.y >= 0.0 && rel0.x < C.z && rel0.y < C.z)
+        {
+            highp float slot0 = floor(texture2D(tileMap, tileUv(C.xy + rel0)).r * 255.0 + 0.5);
+            if (slot0 > 0.5)
+            {
+                tHit = tTop;
+                info = vec4(0.0, 0.0, -1.0 - capRim(C, rel0, fract(o + d * tTop)), slot0);
+                return;
+            }
+        }
+    }
 
     for (int i = 0; i < 64; i++)
     {
@@ -189,6 +231,14 @@ void marchGrid(highp vec4 A, highp vec4 B, highp vec4 C, highp vec3 ro, highp ve
                 highp vec2 nw = vec2(nl.x * A.x + nl.y * A.y, nl.x * A.z + nl.y * A.w);
                 tHit = t;
                 info = vec4(nw, u, slot);
+                return;
+            }
+
+            // entered above the block and came down onto it before leaving the cell: its top
+            if (fromAbove > 0.5 && z > H && tTop <= tMax && tTop <= min(nextT.x, nextT.y))
+            {
+                tHit = tTop;
+                info = vec4(0.0, 0.0, -1.0 - capRim(C, rel, fract(o + d * tTop)), slot);
                 return;
             }
         }
@@ -279,10 +329,11 @@ void fragment()
             planeKind = 1.0;
         }
     }
-    else if (rd.z > 0.00001)
+    else if (rd.z > 0.00001 && ambientFill.y < 0.5)
     {
+        // (no ceiling for the overhead camera; and none to hit when the camera is above it)
         highp float tc = (H - ro.z) / rd.z;
-        if (tc < tPlane)
+        if (tc > 0.0 && tc < tPlane)
         {
             tPlane = tc;
             planeKind = 2.0;
@@ -309,7 +360,22 @@ void fragment()
     highp vec3 col;
     highp float depth = bestT;
 
-    if (wallHit)
+    if (wallHit && bestInfo.z < -0.5)
+    {
+        // The top of a wall, seen from above: a dark solid cap, lit by the light of the floor around it (the wall's own
+        // tile is dark in the light buffer), with a lighter line where it borders open floor.
+        highp float rim = -1.0 - bestInfo.z;
+        highp vec3 capLight = texture2D(lightTex, groundUv(hit.xy)).rgb;
+        capLight = max(capLight, texture2D(lightTex, groundUv(hit.xy + vec2(0.8, 0.0))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(hit.xy + vec2(-0.8, 0.0))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(hit.xy + vec2(0.0, 0.8))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(hit.xy + vec2(0.0, -0.8))).rgb);
+        capLight = clamp(capLight * 0.6, vec3(0.10), vec3(0.65));
+        col = vec3(0.17, 0.18, 0.21) * capLight * 0.7;
+        if (fxFlags.x > 0.5)
+            col *= 1.0 + rim * 1.2;
+    }
+    else if (wallHit)
     {
         highp float slot = bestInfo.w;
         // The wall picture covers 1.6 tiles of height. A taller wall repeats it a whole number of times instead of
@@ -444,7 +510,7 @@ void fragment()
         {
             // haze: the air takes on the colour of the light where it is, so lit rooms glow softly and dark ones stay dark
             highp vec3 hazeLight = texture2D(lightTex, groundUv(hit.xy)).rgb;
-            highp float amount = (1.0 - exp(-depth * 0.05)) * 0.30;
+            highp float amount = (1.0 - exp(-max(depth - ambientFill.z, 0.0) * 0.05)) * 0.30;
             col = mix(col, spaceColor.rgb * 0.5 + hazeLight * 0.30, amount);
         }
 

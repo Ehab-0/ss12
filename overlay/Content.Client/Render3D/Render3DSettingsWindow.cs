@@ -54,6 +54,11 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
 
         AddHeader("render3d-settings-view");
         AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
+        AddCheck(CCVars.Render3DOverhead, "render3d-settings-overhead");
+        AddSlider(CCVars.Render3DOverheadPitch, "render3d-settings-overhead-pitch", 35f, 75f, "0");
+        AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-overhead-distance", 4f, 16f, "0.0");
+        AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-overhead-fov", 30, 70, "0");
+        AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-overhead-wall-height", 0.6f, 2.3f, "0.00");
         AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");

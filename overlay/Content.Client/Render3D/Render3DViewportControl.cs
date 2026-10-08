@@ -125,6 +125,29 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     public Camera3D Camera { get; } = new();
 
+    /// <summary>The overhead camera is on: high above the character, no ceiling, a free cursor.</summary>
+    public bool Overhead => Camera.Mode == CameraMode.Overhead;
+
+    /// <summary>Overhead camera: how many quarter turns the view is turned from "north (the grid's) is up".</summary>
+    public int OverheadSteps;
+
+    private bool _overheadSnap = true;
+
+    /// <summary>Height of walls (and of the ceiling, if there is one): the overhead camera has its own, lower value.</summary>
+    public float WallHeight => _cfg.GetCVar(Overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
+
+    /// <summary>
+    ///     Overhead camera: how far in front of the camera the character is (view depth), 0 for the other cameras. Distance
+    ///     limits, fog and haze are counted from the character, because the camera itself hangs high above and behind it.
+    /// </summary>
+    public float ViewDepthShift => Overhead ? MathF.Max(Vector3.Dot(Camera.Head - Camera.Position, Camera.Forward), 0f) : 0f;
+
+    /// <summary>True while the cursor can point at things: the crosshair, or in the overhead view the free cursor over this view.</summary>
+    public bool PointerLive => RelativeMouse || Overhead && UserInterfaceManager.CurrentlyHovered == this;
+
+    /// <summary>Control-local pixel of what the player points at: the crosshair, or the free cursor.</summary>
+    public Vector2 PointerPixel => RelativeMouse ? CrosshairPixel : _input.MouseScreenPosition.Position - GlobalPixelPosition;
+
     /// <summary>Debug view selector: 0 = normal, 1 = raw ground capture, 2 = light target, 3 = fov target, 4 to 19 shader views, 41 = billboard atlas, 42 = its glow layer.</summary>
     public int DebugView;
 
@@ -471,19 +494,25 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         if (RelativeMouse)
         {
-            var reach = GetReach();
+            var reach = GetReach(CrosshairPixel);
             DrawCrosshair(screen, pixelSize, reach);
-            DrawHoverLabel(screen, pixelSize, reach);
+            DrawHoverLabel(screen, reach, CrosshairPixel, new Vector2(pixelSize.X / 2f, pixelSize.Y / 2f + 18f), true);
+        }
+        else if (PointerLive)
+        {
+            // the free cursor of the overhead view: the name of what it points at, beside it
+            var pointer = PointerPixel;
+            DrawHoverLabel(screen, GetReach(pointer), pointer, pointer + new Vector2(18f, 22f), false);
         }
     }
 
     private void UpdateHighlight(EntityPass pass)
     {
         pass.HighlightUid = null;
-        if (!RelativeMouse || !_cfg.GetCVar(CCVars.OutlineEnabled))
+        if (!PointerLive || !_cfg.GetCVar(CCVars.OutlineEnabled))
             return;
 
-        var first = Pick(CrosshairPixel).FirstEntity;
+        var first = Pick(PointerPixel).FirstEntity;
         if (first is { } uid && _entMan.HasComponent<InteractionOutlineComponent>(uid))
             pass.HighlightUid = uid;
     }
@@ -493,9 +522,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     ///     Held and worn things always count as in reach. Used only to tint the crosshair and its label, so the player
     ///     can tell "too far to pick up / open / cuff" from "wrong target" without trial and error.
     /// </summary>
-    private bool? GetReach()
+    private bool? GetReach(Vector2 pixel)
     {
-        if (Pick(CrosshairPixel).FirstEntity is not { } target || !_entMan.EntityExists(target)
+        if (Pick(pixel).FirstEntity is not { } target || !_entMan.EntityExists(target)
             || _player.LocalEntity == null || _xformSys == null)
         {
             return null;
@@ -601,12 +630,12 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         }
     }
 
-    private void DrawHoverLabel(DrawingHandleScreen screen, Vector2i pixelSize, bool? reach)
+    private void DrawHoverLabel(DrawingHandleScreen screen, bool? reach, Vector2 pickPixel, Vector2 labelPos, bool centered)
     {
         if (!_cfg.GetCVar(CCVars.Render3DCrosshairNames))
             return;
 
-        var first = Pick(CrosshairPixel).FirstEntity;
+        var first = Pick(pickPixel).FirstEntity;
         if (first is not { } uid || !_entMan.EntityExists(uid))
             return;
 
@@ -617,7 +646,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         _labelFont ??= new VectorFont(_resCache.GetResource<FontResource>("/Fonts/NotoSans/NotoSans-Regular.ttf"), 12);
         var dims = screen.GetDimensions(_labelFont, name, 1f);
-        var pos = new Vector2(pixelSize.X / 2f - dims.X / 2f, pixelSize.Y / 2f + 18f);
+        var pos = centered ? labelPos - new Vector2(dims.X / 2f, 0f) : labelPos;
         screen.DrawString(_labelFont, pos + new Vector2(1, 1), name, new Color(0, 0, 0, 0.8f));
         screen.DrawString(_labelFont, pos, name, reach == false ? new Color(0.72f, 0.72f, 0.72f, 0.9f) : Color.White);
     }
@@ -696,10 +725,11 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private void UpdateCamera(MapCoordinates eyePos, Vector2i sceneSize)
     {
         var cam = Camera;
+        var overhead = cam.Mode == CameraMode.Overhead;
         cam.Size = new Vector2(sceneSize.X, sceneSize.Y);
-        cam.FovY = MathHelper.DegreesToRadians((float) _cfg.GetCVar(CCVars.Render3DFov));
+        cam.FovY = MathHelper.DegreesToRadians((float) _cfg.GetCVar(overhead ? CCVars.Render3DOverheadFov : CCVars.Render3DFov));
 
-        var wallHeight = _cfg.GetCVar(CCVars.Render3DWallHeight);
+        var wallHeight = WallHeight;
         var eyeHeight = _cfg.GetCVar(CCVars.Render3DEyeHeight);
 
         var player = _player.LocalEntity;
@@ -707,6 +737,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // New body (spawn, ghosting, possession): face the way it faces.
             _controlled = player;
+            _overheadSnap = true;
             if (player is { } p && _entMan.TryGetComponent(p, out TransformComponent? pxform))
             {
                 var rot = _xformSys!.GetWorldRotation(pxform);
@@ -721,14 +752,40 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             cam.Pitch = (float) MathHelper.DegreesToRadians(look.Pitch);
         }
 
+        var overheadYaw = overhead ? OverheadTargetYaw(player) : 0.0;
+        if (overhead)
+        {
+            // Fixed, north-up (the grid's north) in quarter turns, like the classic view; the picture turns smoothly to the
+            // new heading, while the movement keys switch to it at once (see DesiredYaw below).
+            var turnDt = (float) _timing.FrameTime.TotalSeconds;
+            if (_overheadSnap || turnDt <= 0f || turnDt > 0.25f || double.IsNaN(cam.Yaw))
+                cam.Yaw = overheadYaw;
+            else
+                cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(overheadYaw)).Theta * (1f - MathF.Exp(-turnDt * 12f)), 0f);
+
+            _overheadSnap = false;
+            cam.Pitch = -MathHelper.DegreesToRadians(Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadPitch), OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees));
+        }
+
         cam.UpdateBasis();
 
         if (_yawSystem != null)
-            _yawSystem.DesiredYaw = player != null ? new Angle(cam.Yaw) : null;
+            _yawSystem.DesiredYaw = player != null ? new Angle(overhead ? overheadYaw : cam.Yaw) : null;
 
         eyeHeight += HeadBob(eyePos.Position, cam.Mode == CameraMode.FirstPerson);
         var head = new Vector3(eyePos.X, eyePos.Y, eyeHeight);
         cam.Head = head;
+
+        if (overhead)
+        {
+            // High above and behind the character, looking down at it. No ceiling and no spring arm: nothing is above the walls.
+            var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance), OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
+            cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y), cam.Forward, armLength);
+            _cameraToHead = armLength;
+            _armFraction = 1f;
+            cam.UpdateBasis();
+            return;
+        }
 
         if (cam.Mode == CameraMode.FirstPerson)
         {
@@ -771,13 +828,27 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         cam.UpdateBasis();
     }
 
+    /// <summary>The heading the overhead view has: the grid the character stands on turned by the quarter turns the player chose.</summary>
+    private double OverheadTargetYaw(EntityUid? player)
+    {
+        var grid = Angle.Zero;
+        if (player is { } p && _xformSys != null && _entMan.TryGetComponent(p, out TransformComponent? xform) && xform.GridUid is { } g)
+            grid = _xformSys.GetWorldRotation(g);
+
+        return OverheadCamera.Yaw(grid, OverheadSteps);
+    }
+
     private void SetRaymarchParams(GroundLayer ground, TileWorldSystem tileWorld, Vector2i sceneSize, int radius)
     {
         var sh = _raymarch!;
         var cam = Camera;
 
-        var wallHeight = _cfg.GetCVar(CCVars.Render3DWallHeight);
-        var maxDist = radius - 0.5f;
+        var wallHeight = WallHeight;
+        var overhead = cam.Mode == CameraMode.Overhead;
+
+        // The far cutoff and the fog count from the character; the overhead camera hangs high above and behind it.
+        var shift = ViewDepthShift;
+        var maxDist = radius - 0.5f + shift;
 
         if (ground.GroundTexture is { } groundTex)
             sh.SetParameter("groundTex", groundTex);
@@ -793,7 +864,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         sh.SetParameter("camUpS", cam.Up * cam.TanHalfFov);
         sh.SetParameter("viewSize", new Vector2(sceneSize.X, sceneSize.Y));
         sh.SetParameter("groundParams", new Vector4(ground.Center.X, ground.Center.Y, ground.WorldSize, 1f / ground.WorldSize));
-        sh.SetParameter("sceneParams", new Vector4(wallHeight, maxDist, maxDist * 0.7f, DebugView is >= 4 and < 20 or 30 ? DebugView : 0f));
+        sh.SetParameter("sceneParams", new Vector4(wallHeight, maxDist, shift + (maxDist - shift) * 0.7f, DebugView is >= 4 and < 20 or 30 ? DebugView : 0f));
         sh.SetParameter("atlasParams", new Vector4(WallAtlas.SlotsPerRow, 1f / WallAtlas.SlotsPerRow, 0.5f / WallAtlas.SlotPixels, 0f));
         sh.SetParameter("wallUv", ParseUvRect(_cfg.GetCVar(CCVars.Render3DWallUvRect)));
         sh.SetParameter("spaceColor", new Color(0.01f, 0.01f, 0.03f));
@@ -804,7 +875,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             _cfg.GetCVar(CCVars.Render3DFxSky) ? 1f : 0f,
             _cfg.GetCVar(CCVars.Render3DFxHaze) ? 1f : 0f,
             (float) (_timing.RealTime.TotalSeconds % 3600.0)));
-        sh.SetParameter("ambientFill", new Vector4(_cfg.GetCVar(CCVars.Render3DFxAmbient) ? 1f : 0f, 0f, 0f, 0f));
+        sh.SetParameter("ambientFill", new Vector4(_cfg.GetCVar(CCVars.Render3DFxAmbient) ? 1f : 0f, overhead ? 1f : 0f, shift, 0f));
         sh.SetParameter("tileMapInv", new Vector2(1f / (TileWorldSystem.WindowSize * 2), 1f / (TileWorldSystem.WindowSize * 2)));
 
         var grids = tileWorld.ActiveGrids;
@@ -868,16 +939,16 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var ndc = ToNdc(localPixel);
         var dir = cam.Forward + cam.Right * (ndc.X * cam.TanHalfFov * cam.Aspect) + cam.Up * (ndc.Y * cam.TanHalfFov);
         var origin = cam.Position;
-        var wallHeight = _cfg.GetCVar(CCVars.Render3DWallHeight);
+        var wallHeight = WallHeight;
 
         var tFloor = dir.Z < -1e-5f ? -origin.Z / dir.Z : float.PositiveInfinity;
         const float maxRange = 48f;
 
         if (_tileWorld != null && _lastMap != MapId.Nullspace
             && _tileWorld.RayCastWalls(_lastMap, origin, dir, MathF.Min(tFloor, maxRange), wallHeight,
-                out var tWall, out var normal, out _, out _))
+                out var tWall, out var normal, out _, out _, out _))
         {
-            // nudge into the wall tile so the point resolves to the wall
+            // nudge into the wall tile so the point resolves to the wall (a hit on the top of a wall is already inside it)
             point = new Vector2(origin.X + dir.X * tWall, origin.Y + dir.Y * tWall) - normal * 0.05f;
             distance = tWall;
             return true;
@@ -943,7 +1014,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var ndc = ToNdc(localPixel);
         var dir = cam.Forward + cam.Right * (ndc.X * cam.TanHalfFov * cam.Aspect) + cam.Up * (ndc.Y * cam.TanHalfFov);
         var origin = cam.Position;
-        var wallHeight = _cfg.GetCVar(CCVars.Render3DWallHeight);
+        var wallHeight = WallHeight;
 
         TryCastToGround(localPixel, out var worldPoint, out var worldT);
 
@@ -1098,12 +1169,16 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         var anchor = new Vector3(map, _cfg.GetCVar(CCVars.Render3DUiAnchorHeight));
         var cam = Camera;
-        if (!cam.Project(anchor, out _, out var depth) || depth > maxDistance)
+        if (!cam.Project(anchor, out _, out var depth))
+            return false;
+
+        // the overhead camera hangs far from the character: count from the character, not from the camera
+        if (depth - ViewDepthShift > maxDistance)
             return false;
 
         return _tileWorld == null
             || !_tileWorld.RayCastWalls(_lastMap, cam.Position, anchor - cam.Position, 0.97f,
-                _cfg.GetCVar(CCVars.Render3DWallHeight), out _, out _, out _, out _);
+                WallHeight, out _, out _, out _, out _);
     }
 
     public Vector2 WorldToScreen(Vector2 map)

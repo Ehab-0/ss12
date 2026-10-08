@@ -38,7 +38,8 @@ public sealed partial class Render3DViewportControl
         }
 
         var cam = Camera;
-        var wallHeight = _cfg.GetCVar(Content.Shared.CCVar.CCVars.Render3DWallHeight);
+        var wallHeight = WallHeight;
+        var depthShift = ViewDepthShift;
         var sceneToControl = new Vector2(PixelSize.X, PixelSize.Y) / cam.Size;
         var now = _timing.RealTime;
         var draws = _entityPass.DrawArray;
@@ -76,10 +77,12 @@ public sealed partial class Render3DViewportControl
             var scale = ppt / IconPixelsPerTile;
             if (scale > MaxIconScale)
                 scale = MaxIconScale; // the own character in third person is only ~1.5 tiles away
-            if (scale < 0.15f || depth > IconFadeEnd)
+            // (the overhead camera hangs far from the character: distance counts from the character)
+            var fadeDepth = depth - depthShift;
+            if (scale < 0.15f || fadeDepth > IconFadeEnd)
                 continue;
 
-            var fade = Math.Clamp((IconFadeEnd - depth) / (IconFadeEnd - IconFadeStart), 0f, 1f);
+            var fade = Math.Clamp((IconFadeEnd - fadeDepth) / (IconFadeEnd - IconFadeStart), 0f, 1f);
             var tint = new Color(1f, 1f, 1f, fade);
 
             var textures = new List<Texture>(MaxIconsPerEntity);

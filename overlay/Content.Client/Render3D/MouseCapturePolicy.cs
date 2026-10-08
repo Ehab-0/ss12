@@ -10,6 +10,9 @@ public enum MouseCaptureReason : byte
     UiFocus,
     WindowOpen,
     NoPlayer,
+
+    /// <summary>The overhead camera: the cursor is always free and points at the world.</summary>
+    CursorMode,
 }
 
 /// <summary>
@@ -18,12 +21,15 @@ public enum MouseCaptureReason : byte
 /// </summary>
 public static class MouseCapturePolicy
 {
-    public static MouseCaptureReason Decide(bool shown, bool windowFocused, bool freeKeyHeld, bool uiKeyboardFocused, bool windowOpen, bool hasPlayer)
+    public static MouseCaptureReason Decide(bool shown, bool windowFocused, bool freeKeyHeld, bool uiKeyboardFocused, bool windowOpen, bool hasPlayer,
+        bool cursorMode = false)
     {
         if (!shown)
             return MouseCaptureReason.NotShown;
         if (!windowFocused)
             return MouseCaptureReason.Unfocused;
+        if (cursorMode)
+            return MouseCaptureReason.CursorMode;
         if (freeKeyHeld)
             return MouseCaptureReason.FreeKey;
         if (uiKeyboardFocused)

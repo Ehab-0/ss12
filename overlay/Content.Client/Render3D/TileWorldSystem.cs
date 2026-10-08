@@ -404,7 +404,18 @@ public sealed partial class TileWorldSystem : EntitySystem
     public bool RayCastWalls(MapId mapId, Vector3 origin, Vector3 dir, float maxT, float wallHeight,
         out float hitT, out Vector2 hitNormal, out EntityUid hitGrid, out Vector2i hitTile, bool includeClosedDoors = false)
     {
+        return RayCastWalls(mapId, origin, dir, maxT, wallHeight, out hitT, out hitNormal, out hitGrid, out hitTile, out _, includeClosedDoors);
+    }
+
+    /// <summary>
+    ///     As above, and says whether the hit is on the top of a wall block (a ray that comes from above the walls, as the
+    ///     overhead camera's does); the normal is then zero.
+    /// </summary>
+    public bool RayCastWalls(MapId mapId, Vector3 origin, Vector3 dir, float maxT, float wallHeight,
+        out float hitT, out Vector2 hitNormal, out EntityUid hitGrid, out Vector2i hitTile, out bool hitTop, bool includeClosedDoors = false)
+    {
         hitT = maxT;
+        hitTop = false;
         hitNormal = default;
         hitGrid = default;
         hitTile = default;
@@ -419,11 +430,12 @@ public sealed partial class TileWorldSystem : EntitySystem
             var o = Vector2.Transform(new Vector2(origin.X, origin.Y), inv);
             var d = Vector2.TransformNormal(new Vector2(dir.X, dir.Y), inv);
 
-            if (DdaWalls(grid, data, includeClosedDoors, o, d, origin.Z, dir.Z, hitT, wallHeight, out var t, out var nLocal, out var tile))
+            if (DdaWalls(grid, data, includeClosedDoors, o, d, origin.Z, dir.Z, hitT, wallHeight, out var t, out var nLocal, out var tile, out var top))
             {
                 if (t < hitT)
                 {
                     hitT = t;
+                    hitTop = top;
                     hitGrid = grid;
                     hitTile = tile;
                     // local normal -> world normal
@@ -445,9 +457,21 @@ public sealed partial class TileWorldSystem : EntitySystem
     public static bool Dda(Func<Vector2i, bool> isWall, Vector2 o, Vector2 d, float z0, float dz, float tMax, float wallHeight,
         out float tHit, out Vector2 normal, out Vector2i hitTile)
     {
+        return Dda(isWall, o, d, z0, dz, tMax, wallHeight, out tHit, out normal, out hitTile, out _);
+    }
+
+    /// <summary>
+    ///     As above, and a ray that starts above the walls and comes down onto a wall block hits its top
+    ///     (<paramref name="top"/> true, normal zero). That is what the overhead camera sees; a ray that starts at or below
+    ///     the wall height can never meet a top face, so the other cameras are not affected.
+    /// </summary>
+    public static bool Dda(Func<Vector2i, bool> isWall, Vector2 o, Vector2 d, float z0, float dz, float tMax, float wallHeight,
+        out float tHit, out Vector2 normal, out Vector2i hitTile, out bool top)
+    {
         tHit = 0;
         normal = default;
         hitTile = default;
+        top = false;
 
         var cell = new Vector2i((int) MathF.Floor(o.X), (int) MathF.Floor(o.Y));
         var stepX = d.X >= 0 ? 1 : -1;
@@ -459,13 +483,29 @@ public sealed partial class TileWorldSystem : EntitySystem
         var nextX = (stepX > 0 ? (cell.X + 1 - o.X) : (o.X - cell.X)) * tDeltaX;
         var nextY = (stepY > 0 ? (cell.Y + 1 - o.Y) : (o.Y - cell.Y)) * tDeltaY;
 
+        // From above, the top of a wall block is hit where the ray comes down to the wall height, if that is inside the cell.
+        var fromAbove = z0 > wallHeight && dz < -1e-6f;
+        var tTop = fromAbove ? (wallHeight - z0) / dz : float.PositiveInfinity;
+
         // The starting cell counts too if it's a wall (camera pushed inside).
-        if (isWall(cell) && z0 >= 0 && z0 <= wallHeight)
+        if (isWall(cell))
         {
-            tHit = 0;
-            hitTile = cell;
-            normal = Vector2.Zero;
-            return true;
+            if (z0 >= 0 && z0 <= wallHeight)
+            {
+                tHit = 0;
+                hitTile = cell;
+                normal = Vector2.Zero;
+                return true;
+            }
+
+            if (fromAbove && tTop <= MathF.Min(nextX, nextY) && tTop <= tMax)
+            {
+                tHit = tTop;
+                hitTile = cell;
+                normal = Vector2.Zero;
+                top = true;
+                return true;
+            }
         }
 
         for (var i = 0; i < 256; i++)
@@ -500,6 +540,16 @@ public sealed partial class TileWorldSystem : EntitySystem
                     hitTile = cell;
                     return true;
                 }
+
+                // entered above the block and came down onto it before leaving the cell
+                if (fromAbove && z > wallHeight && tTop <= MathF.Min(nextX, nextY) && tTop <= tMax)
+                {
+                    tHit = tTop;
+                    hitTile = cell;
+                    normal = Vector2.Zero;
+                    top = true;
+                    return true;
+                }
             }
         }
 
@@ -507,12 +557,12 @@ public sealed partial class TileWorldSystem : EntitySystem
     }
 
     private bool DdaWalls(EntityUid grid, GridData data, bool doors, Vector2 o, Vector2 d, float z0, float dz, float tMax, float wallHeight,
-        out float tHit, out Vector2 normal, out Vector2i hitTile)
+        out float tHit, out Vector2 normal, out Vector2i hitTile, out bool top)
     {
         if (!doors || (ClosedDoors.Count == 0 && GlassTiles.Count == 0))
-            return Dda(data.Walls.ContainsKey, o, d, z0, dz, tMax, wallHeight, out tHit, out normal, out hitTile);
+            return Dda(data.Walls.ContainsKey, o, d, z0, dz, tMax, wallHeight, out tHit, out normal, out hitTile, out top);
 
         return Dda(t => data.Walls.ContainsKey(t) || ClosedDoors.Contains((grid, t)) || GlassTiles.Contains((grid, t)),
-            o, d, z0, dz, tMax, wallHeight, out tHit, out normal, out hitTile);
+            o, d, z0, dz, tMax, wallHeight, out tHit, out normal, out hitTile, out top);
     }
 }

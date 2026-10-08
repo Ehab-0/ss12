@@ -5,6 +5,7 @@ using Content.Client.UserInterface.Controls;
 using Content.Client.UserInterface.Systems.Gameplay;
 using Content.Shared.CCVar;
 using Content.Shared.Input;
+using Content.Shared.Movement.Systems;
 using Robust.Client.Graphics;
 using Robust.Client.Input;
 using Robust.Client.Player;
@@ -68,6 +69,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         load.OnScreenUnload += OnScreenUnload;
         _captureLog = _logManager.GetSawmill("render3d.mouse");
         _clyde.OnWindowFocused += OnWindowFocused;
+        _cfg.OnValueChanged(CCVars.Render3DOverhead, _ => ApplyCameraMode());
+        _cfg.OnValueChanged(CCVars.Render3DFirstPerson, _ => ApplyCameraMode());
         _console.RegisterCommand("render3d_capture_state", "Say why the mouse is or is not captured for mouse-look", "render3d_capture_state",
             (shell, _, _) => shell.WriteLine($"mouse capture: {_captureReason}, relative={_relative}, focused={_clyde.MainWindow.IsFocused}, "
                 + $"freeKey={_freeKeyHeld}, uiFocus={UIManager.KeyboardFocused?.GetType().Name ?? "none"}, window open={AnyWindowOrPopupOpen()}"));
@@ -89,6 +92,11 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         CommandBinds.Builder
             .Bind(Render3DKeys.ToggleView, new Render3DInputHandler(down => { if (down) ToggleView(); }, consume: true))
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
+            .Bind(Render3DKeys.ToggleOverhead, new Render3DInputHandler(down => { if (down) ToggleOverhead(); }, consume: true))
+            // the quarter-turn keys turn the overhead view; they go before the mover's own handlers, which would turn the mover alone
+            .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && OverheadOn), typeof(SharedMoverController))
+            .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && OverheadOn), typeof(SharedMoverController))
+            .BindBefore(EngineKeyFunctions.CameraReset, new Render3DInputHandler(down => { if (down) TurnOverhead(0); }, () => Active && OverheadOn), typeof(SharedMoverController))
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
             .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
             .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
@@ -184,7 +192,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             VerticalExpand = true,
             Visible = false,
         };
-        _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
+        ApplyCameraMode();
         host.AddChild(_control);
         AddMinimap(_control);
         AddPointList(_control);
@@ -250,20 +258,63 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _cfg.SetCVar(CCVars.Render3DEnabled, !_cfg.GetCVar(CCVars.Render3DEnabled));
     }
 
+    private bool OverheadOn => _control is { Overhead: true };
+
+    /// <summary>The camera the settings ask for: overhead, else first person, else third person. Called when either setting changes.</summary>
+    private void ApplyCameraMode()
+    {
+        if (_control == null)
+            return;
+
+        _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DOverhead) ? CameraMode.Overhead
+            : _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson
+            : CameraMode.ThirdPerson;
+    }
+
+    /// <summary>The key that switches between first and third person; from the overhead view it goes back to the walking view.</summary>
     private void ToggleCameraMode()
     {
         if (_control == null || !Active)
             return;
 
-        var first = _control.Camera.Mode != CameraMode.FirstPerson;
-        _control.Camera.Mode = first ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
-        _cfg.SetCVar(CCVars.Render3DFirstPerson, first);
+        if (OverheadOn)
+        {
+            _cfg.SetCVar(CCVars.Render3DOverhead, false);
+            return;
+        }
+
+        _cfg.SetCVar(CCVars.Render3DFirstPerson, _control.Camera.Mode != CameraMode.FirstPerson);
+    }
+
+    private void ToggleOverhead()
+    {
+        if (_control == null || !Active)
+            return;
+
+        _cfg.SetCVar(CCVars.Render3DOverhead, !OverheadOn);
+    }
+
+    /// <summary>Turns the overhead view by a quarter turn (1 = to the left, -1 = to the right), or back to north up (0).</summary>
+    private void TurnOverhead(int quarterTurns)
+    {
+        if (_control == null)
+            return;
+
+        _control.OverheadSteps = OverheadCamera.Turn(_control.OverheadSteps, quarterTurns);
     }
 
     private void AdjustDistance(float delta)
     {
         if (!Active)
             return;
+
+        if (OverheadOn)
+        {
+            // the zoom keys move the overhead camera in and out: one tile per press
+            _cfg.SetCVar(CCVars.Render3DOverheadDistance,
+                Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance) + delta * 5f, OverheadCamera.MinDistance, OverheadCamera.MaxDistance));
+            return;
+        }
 
         var d = Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance) + delta, 0.8f, 3.0f);
         _cfg.SetCVar(CCVars.Render3DThirdPersonDistance, d);
@@ -332,7 +383,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             _freeKeyHeld,
             UIManager.KeyboardFocused != null,
             AnyWindowOrPopupOpen(),
-            _player.LocalEntity != null);
+            _player.LocalEntity != null,
+            control is { Overhead: true });
         var want = reason == MouseCaptureReason.Capture;
 
         if (reason != _captureReason)

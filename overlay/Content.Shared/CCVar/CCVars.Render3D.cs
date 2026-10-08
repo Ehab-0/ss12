@@ -85,6 +85,29 @@ public sealed partial class CCVars
         CVarDef.Create("render3d.first_person", false, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
+    ///     Use the overhead camera: high above the character, pitched down, no ceiling, a free mouse cursor (like the
+    ///     classic view, but in 3D). Takes the place of first / third person while it is on.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DOverhead =
+        CVarDef.Create("render3d.overhead", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Overhead camera: how many degrees the view is pitched down.</summary>
+    public static readonly CVarDef<float> Render3DOverheadPitch =
+        CVarDef.Create("render3d.overhead_pitch", 55f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Overhead camera: distance from the character along the line of sight, in tiles.</summary>
+    public static readonly CVarDef<float> Render3DOverheadDistance =
+        CVarDef.Create("render3d.overhead_distance", 9f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Overhead camera: vertical field of view in degrees (narrower than the walking view, so it looks less bent).</summary>
+    public static readonly CVarDef<int> Render3DOverheadFov =
+        CVarDef.Create("render3d.overhead_fov", 45, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Overhead camera: height of the walls in tile units. Low, so a wall does not hide the floor behind it.</summary>
+    public static readonly CVarDef<float> Render3DOverheadWallHeight =
+        CVarDef.Create("render3d.overhead_wall_height", 1.1f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
     ///     Sub-rectangle (u0,v0,u1,v1; v measured from the top of the icon) of a wall icon that is used as the
     ///     front-face texture of a wall block. SS14 wall art is 3/4 view, so the front face is the lower part.
     /// </summary>

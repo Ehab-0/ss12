@@ -58,6 +58,13 @@ public static class CameraYawMath
     }
 
     /// <summary>
+    ///     The sprite direction for the overhead camera: one heading for the whole view, as the classic 2D eye has (the on-screen angle
+    ///     of an entity is its rotation plus the eye rotation, which is <c>-yaw</c>), instead of the angle towards each entity.
+    /// </summary>
+    public static Direction OverheadSpriteDirection(Angle entityWorldRotation, Angle cameraYaw)
+        => (entityWorldRotation - cameraYaw).GetDir();
+
+    /// <summary>
     ///     Picks the cardinal sprite direction to display for an entity rotated by <paramref name="entityWorldRotation"/>
     ///     seen by a camera looking from <paramref name="cameraPos"/> to <paramref name="entityPos"/>.
     ///     With a standard SS14 sprite (South = facing the viewer on screen), an entity facing away from the camera

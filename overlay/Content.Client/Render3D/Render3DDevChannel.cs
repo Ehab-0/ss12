@@ -126,7 +126,9 @@ public sealed partial class Render3DDevChannel : UIController
         if (control == null || args.Length != 1)
             return;
 
-        control.Camera.Mode = args[0] == "fp" ? CameraMode.FirstPerson : CameraMode.ThirdPerson;
+        // tp, fp or oh (overhead); the controller follows the settings
+        _cfg.SetCVar(CCVars.Render3DOverhead, args[0] == "oh");
+        _cfg.SetCVar(CCVars.Render3DFirstPerson, args[0] == "fp");
     }
 
     public override void FrameUpdate(FrameEventArgs args)

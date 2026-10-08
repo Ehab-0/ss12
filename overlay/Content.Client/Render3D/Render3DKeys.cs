@@ -17,6 +17,7 @@ public static class Render3DKeys
 {
     public static readonly BoundKeyFunction ToggleView = Render3DKeyFunctions.Toggle3DView;
     public static readonly BoundKeyFunction ToggleCameraMode = Render3DKeyFunctions.Toggle3DCameraMode;
+    public static readonly BoundKeyFunction ToggleOverhead = Render3DKeyFunctions.Toggle3DOverhead;
     public static readonly BoundKeyFunction FreeCursor = Render3DKeyFunctions.Render3DFreeCursor;
     public static readonly BoundKeyFunction OpenSettings = Render3DKeyFunctions.Render3DSettings;
     public static readonly BoundKeyFunction Minimap = Render3DKeyFunctions.Render3DMinimap;
@@ -33,6 +34,7 @@ public static class Render3DKeys
         (FreeCursor, Keyboard.Key.Alt, "render3d-key-free-cursor"),
         (ToggleView, Keyboard.Key.F12, "render3d-key-toggle-view"),
         (ToggleCameraMode, Keyboard.Key.N, "render3d-key-toggle-camera"),
+        (ToggleOverhead, Keyboard.Key.O, "render3d-key-toggle-overhead"),
         (Minimap, Keyboard.Key.M, "render3d-key-minimap"),
         (MinimapSize, Keyboard.Key.Minus, "render3d-key-minimap-size"),
         (PointList, Keyboard.Key.L, "render3d-key-point-list"),

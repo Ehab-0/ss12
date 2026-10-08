@@ -68,7 +68,8 @@ void fragment()
     if (nearFade < 0.02)
         discard;
 
-    // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow, 3 lamp halo, 4 layer of a slab (alpha tested, no smoothing); +0.5 = draw the edge outline
+    // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow, 3 lamp halo, 4 layer of a slab (alpha tested, no smoothing),
+    // 5 solid top of a door or window frame (overhead camera); +0.5 = draw the edge outline
     highp float kind = floor(vData.w + 0.1);
     highp float outline = (vData.w - kind) > 0.25 ? 1.0 : 0.0;
 
@@ -86,6 +87,18 @@ void fragment()
             discard;
 
         COLOR = vec4(tint, k * vData.z * nearFade * haloFade);
+    }
+    else if (kind > 4.5 && kind < 5.5)
+    {
+        // the top of a door or a window frame seen from above (overhead camera): the same dark solid cap the wall tops
+        // have (raymarch.swsl), lit by the brightest light around it
+        highp vec3 capLight = texture2D(lightTex, groundUv(vData.xy)).rgb;
+        capLight = max(capLight, texture2D(lightTex, groundUv(vData.xy + vec2(0.8, 0.0))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(vData.xy + vec2(-0.8, 0.0))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(vData.xy + vec2(0.0, 0.8))).rgb);
+        capLight = max(capLight, texture2D(lightTex, groundUv(vData.xy + vec2(0.0, -0.8))).rgb);
+        capLight = clamp(capLight * 0.6, vec3(0.10), vec3(0.65));
+        COLOR = vec4(vec3(0.17, 0.18, 0.21) * capLight * 0.7 * vShade, nearFade);
     }
     else if (kind > 1.5 && kind < 2.5)
     {

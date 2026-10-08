@@ -6,6 +6,9 @@ public enum CameraMode : byte
 {
     ThirdPerson,
     FirstPerson,
+
+    /// <summary>High above the character, pitched down, no ceiling, a free mouse cursor.</summary>
+    Overhead,
 }
 
 /// <summary>
