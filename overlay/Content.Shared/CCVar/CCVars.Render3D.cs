@@ -20,7 +20,7 @@ public sealed partial class CCVars
 
     /// <summary>Height of the ceiling (and of wall blocks) in tile units.</summary>
     public static readonly CVarDef<float> Render3DWallHeight =
-        CVarDef.Create("render3d.wall_height", 2.3f, CVar.CLIENTONLY | CVar.ARCHIVE);
+        CVarDef.Create("render3d.wall_height", 2.7f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>First-person eye height in tile units.</summary>
     public static readonly CVarDef<float> Render3DEyeHeight =
