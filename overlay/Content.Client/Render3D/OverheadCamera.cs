@@ -12,8 +12,11 @@ public static class OverheadCamera
     /// <summary>Height of the point the camera looks at, above the floor under the character (about the middle of the body).</summary>
     public const float TargetHeight = 0.5f;
 
-    public const float MinPitchDegrees = 35f;
-    public const float MaxPitchDegrees = 75f;
+    public const float MinPitchDegrees = 15f;
+    public const float MaxPitchDegrees = 85f;
+
+    /// <summary>The extra turn of the isometric view from the grid's axes (radians): a diagonal.</summary>
+    public const double IsometricTurn = Math.PI / 4;
     public const float MinDistance = 4f;
     public const float MaxDistance = 16f;
 
@@ -24,6 +27,10 @@ public static class OverheadCamera
     /// </summary>
     public static double Yaw(Angle gridRotation, int quarterTurns)
         => (gridRotation + quarterTurns * (Math.PI / 2)).Reduced().Theta;
+
+    /// <summary>The isometric yaw: <see cref="Yaw"/> turned by a diagonal, so the grid's axes run along the screen's diagonals.</summary>
+    public static double IsometricYaw(Angle gridRotation, int quarterTurns)
+        => (gridRotation + quarterTurns * (Math.PI / 2) + IsometricTurn).Reduced().Theta;
 
     /// <summary>The next number of quarter turns after pressing the turn key (<paramref name="delta"/> 0 resets to north up).</summary>
     public static int Turn(int quarterTurns, int delta)

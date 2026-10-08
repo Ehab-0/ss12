@@ -71,6 +71,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _clyde.OnWindowFocused += OnWindowFocused;
         _cfg.OnValueChanged(CCVars.Render3DOverhead, _ => ApplyCameraMode());
         _cfg.OnValueChanged(CCVars.Render3DFirstPerson, _ => ApplyCameraMode());
+        _cfg.OnValueChanged(CCVars.Render3DCameraExtra, _ => ApplyCameraMode());
         _console.RegisterCommand("render3d_capture_state", "Say why the mouse is or is not captured for mouse-look", "render3d_capture_state",
             (shell, _, _) => shell.WriteLine($"mouse capture: {_captureReason}, relative={_relative}, focused={_clyde.MainWindow.IsFocused}, "
                 + $"freeKey={_freeKeyHeld}, uiFocus={UIManager.KeyboardFocused?.GetType().Name ?? "none"}, window open={AnyWindowOrPopupOpen()}"));
@@ -78,8 +79,9 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         InitializeMinimap();
         InitializePointList();
 
-        _console.RegisterCommand("render3d_settings", "Open the 3D view settings window", "render3d_settings",
-            (_, _, _) => ToggleSettingsWindow());
+        _console.RegisterCommand("render3d_settings", "Open the 3D view settings window, on a tab if one is named (general, camera, interface, controls, graphics)",
+            "render3d_settings [tab]",
+            (_, _, args) => ToggleSettingsWindow(args.Length > 0 ? args[0] : null));
         _console.RegisterCommand("render3d_tune", "Open the developer tuning window: a slider for every client-side render3d.* setting", "render3d_tune",
             (_, _, _) => ToggleTuneWindow());
 
@@ -93,10 +95,12 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleView, new Render3DInputHandler(down => { if (down) ToggleView(); }, consume: true))
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
             .Bind(Render3DKeys.ToggleOverhead, new Render3DInputHandler(down => { if (down) ToggleOverhead(); }, consume: true))
-            // the quarter-turn keys turn the overhead view; they go before the mover's own handlers, which would turn the mover alone
-            .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && OverheadOn), typeof(SharedMoverController))
-            .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && OverheadOn), typeof(SharedMoverController))
-            .BindBefore(EngineKeyFunctions.CameraReset, new Render3DInputHandler(down => { if (down) TurnOverhead(0); }, () => Active && OverheadOn), typeof(SharedMoverController))
+            .Bind(Render3DKeys.CycleCamera, new Render3DInputHandler(down => { if (down) CycleCamera(); }, consume: true))
+            .Bind(Render3DKeys.ToggleDynamic, new Render3DInputHandler(down => { if (down) ToggleDynamicCamera(); }, consume: true))
+            // the quarter-turn keys turn the high views; they go before the mover's own handlers, which would turn the mover alone
+            .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
+            .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
+            .BindBefore(EngineKeyFunctions.CameraReset, new Render3DInputHandler(down => { if (down) TurnOverhead(0); }, () => Active && ElevatedOn), typeof(SharedMoverController))
             .Bind(Render3DKeys.OpenSettings, new Render3DInputHandler(down => { if (down) ToggleSettingsWindow(); }, consume: true))
             .Bind(Render3DKeys.Minimap, new Render3DInputHandler(down => { if (down) ToggleMinimap(); }, consume: true))
             .Bind(Render3DKeys.MinimapSize, new Render3DInputHandler(down => { if (down) SwitchMinimapSize(); }, consume: true))
@@ -160,15 +164,21 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _tuneWindow.OpenToRight();
     }
 
-    private void ToggleSettingsWindow()
+    /// <summary>Opens the settings window, or closes it if it is open. With a tab name (see <see cref="Render3DSettingsWindow.TabNames"/>) it opens on that tab, or switches to it if it is already open.</summary>
+    private void ToggleSettingsWindow(string? tab = null)
     {
         if (_settingsWindow is { Disposed: false, IsOpen: true })
         {
+            if (tab != null && _settingsWindow.ShowTab(tab))
+                return;
+
             _settingsWindow.Close();
             return;
         }
 
         _settingsWindow = new Render3DSettingsWindow();
+        if (tab != null)
+            _settingsWindow.ShowTab(tab);
         _settingsWindow.OpenCentered();
     }
 
@@ -258,61 +268,82 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _cfg.SetCVar(CCVars.Render3DEnabled, !_cfg.GetCVar(CCVars.Render3DEnabled));
     }
 
-    private bool OverheadOn => _control is { Overhead: true };
+    /// <summary>A camera high above the character is on (overhead, isometric or orbit).</summary>
+    private bool ElevatedOn => _control is { Elevated: true };
 
-    /// <summary>The camera the settings ask for: overhead, else first person, else third person. Called when either setting changes.</summary>
+    /// <summary>The camera the settings ask for (see <see cref="CameraModes.FromSettings"/>). Called when any of them changes.</summary>
     private void ApplyCameraMode()
     {
         if (_control == null)
             return;
 
-        _control.Camera.Mode = _cfg.GetCVar(CCVars.Render3DOverhead) ? CameraMode.Overhead
-            : _cfg.GetCVar(CCVars.Render3DFirstPerson) ? CameraMode.FirstPerson
-            : CameraMode.ThirdPerson;
+        _control.Camera.Mode = CameraModes.FromSettings(
+            _cfg.GetCVar(CCVars.Render3DFirstPerson), _cfg.GetCVar(CCVars.Render3DOverhead), _cfg.GetCVar(CCVars.Render3DCameraExtra));
     }
 
-    /// <summary>The key that switches between first and third person; from the overhead view it goes back to the walking view.</summary>
-    private void ToggleCameraMode()
+    /// <summary>Switches to a camera: sets the three settings that store it (the change is applied by <see cref="ApplyCameraMode"/>).</summary>
+    public void SetCameraMode(CameraMode mode)
+    {
+        var (first, overhead, extra) = CameraModes.ToSettings(mode, _cfg.GetCVar(CCVars.Render3DFirstPerson));
+        _cfg.SetCVar(CCVars.Render3DCameraExtra, extra);
+        _cfg.SetCVar(CCVars.Render3DOverhead, overhead);
+        _cfg.SetCVar(CCVars.Render3DFirstPerson, first);
+    }
+
+    private CameraMode CurrentCameraMode => _control?.Camera.Mode ?? CameraMode.ThirdPerson;
+
+    private void SwitchCamera(CameraMode mode)
     {
         if (_control == null || !Active)
             return;
 
-        if (OverheadOn)
-        {
-            _cfg.SetCVar(CCVars.Render3DOverhead, false);
-            return;
-        }
-
-        _cfg.SetCVar(CCVars.Render3DFirstPerson, _control.Camera.Mode != CameraMode.FirstPerson);
+        SetCameraMode(mode);
+        _control.ShowNotice(Robust.Shared.Localization.Loc.GetString("render3d-notice-camera",
+            ("camera", Robust.Shared.Localization.Loc.GetString(CameraModes.LocId(mode)))), 2.5f);
     }
+
+    /// <summary>The key that switches between first and third person; from any other camera it goes back to the walking one.</summary>
+    private void ToggleCameraMode()
+        => SwitchCamera(CameraModes.ToggleWalking(CurrentCameraMode, _cfg.GetCVar(CCVars.Render3DFirstPerson)));
 
     private void ToggleOverhead()
+        => SwitchCamera(CurrentCameraMode == CameraMode.Overhead
+            ? CameraModes.ToggleWalking(CameraMode.Overhead, _cfg.GetCVar(CCVars.Render3DFirstPerson))
+            : CameraMode.Overhead);
+
+    /// <summary>The camera key: the next camera in <see cref="CameraModes.Cycle"/>.</summary>
+    private void CycleCamera() => SwitchCamera(CameraModes.Next(CurrentCameraMode));
+
+    private void ToggleDynamicCamera()
     {
         if (_control == null || !Active)
             return;
 
-        _cfg.SetCVar(CCVars.Render3DOverhead, !OverheadOn);
+        var on = !_cfg.GetCVar(CCVars.Render3DDynamicCamera);
+        _cfg.SetCVar(CCVars.Render3DDynamicCamera, on);
+        _control.ShowNotice(Robust.Shared.Localization.Loc.GetString(on ? "render3d-notice-dynamic-on" : "render3d-notice-dynamic-off"), 2.5f);
     }
 
-    /// <summary>Turns the overhead view by a quarter turn (1 = to the left, -1 = to the right), or back to north up (0).</summary>
-    private void TurnOverhead(int quarterTurns)
-    {
-        if (_control == null)
-            return;
-
-        _control.OverheadSteps = OverheadCamera.Turn(_control.OverheadSteps, quarterTurns);
-    }
+    /// <summary>Turns the high views by a quarter turn (1 = to the left, -1 = to the right), or back to the grid's north (0).</summary>
+    private void TurnOverhead(int quarterTurns) => _control?.TurnView(quarterTurns);
 
     private void AdjustDistance(float delta)
     {
         if (!Active)
             return;
 
-        if (OverheadOn)
+        if (ElevatedOn)
         {
-            // the zoom keys move the overhead camera in and out: one tile per press
+            // the zoom keys move the high cameras in and out: one tile per press
             _cfg.SetCVar(CCVars.Render3DOverheadDistance,
                 Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance) + delta * 5f, OverheadCamera.MinDistance, OverheadCamera.MaxDistance));
+            return;
+        }
+
+        if (CurrentCameraMode == CameraMode.Shoulder)
+        {
+            _cfg.SetCVar(CCVars.Render3DShoulderDistance,
+                Math.Clamp(_cfg.GetCVar(CCVars.Render3DShoulderDistance) + delta, Render3DViewportControl.ShoulderMinDistance, Render3DViewportControl.ShoulderMaxDistance));
             return;
         }
 
@@ -384,7 +415,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             UIManager.KeyboardFocused != null,
             AnyWindowOrPopupOpen(),
             _player.LocalEntity != null,
-            control is { Overhead: true });
+            control is { Elevated: true });
         var want = reason == MouseCaptureReason.Capture;
 
         if (reason != _captureReason)

@@ -91,6 +91,40 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> Render3DOverhead =
         CVarDef.Create("render3d.overhead", false, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     Which of the other cameras is on: 0 none, 1 isometric, 2 free orbit, 3 shoulder. It wins over <see cref="Render3DOverhead"/> and
+    ///     <see cref="Render3DFirstPerson"/> (the camera key and the settings window set all three together).
+    /// </summary>
+    public static readonly CVarDef<int> Render3DCameraExtra =
+        CVarDef.Create("render3d.camera_extra", 0, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    ///     Dynamic camera (overhead and isometric views): the camera moves in and tilts up a little in tight places and moves out in
+    ///     big open ones, and pulls back a little when running, all smoothly.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DDynamicCamera =
+        CVarDef.Create("render3d.dynamic_camera", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Isometric camera: how many degrees the view is pitched down (the classic isometric look is about 35).</summary>
+    public static readonly CVarDef<float> Render3DIsoPitch =
+        CVarDef.Create("render3d.iso_pitch", 38f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Isometric camera: vertical field of view in degrees (narrow, so parallel lines stay nearly parallel).</summary>
+    public static readonly CVarDef<int> Render3DIsoFov =
+        CVarDef.Create("render3d.iso_fov", 30, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Free orbit camera: how many degrees it looks down (changed by dragging; kept for the next time).</summary>
+    public static readonly CVarDef<float> Render3DOrbitPitch =
+        CVarDef.Create("render3d.orbit_pitch", 50f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Shoulder camera: distance behind the character in tiles (closer than third person).</summary>
+    public static readonly CVarDef<float> Render3DShoulderDistance =
+        CVarDef.Create("render3d.shoulder_distance", 1.4f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Shoulder camera: vertical field of view in degrees.</summary>
+    public static readonly CVarDef<int> Render3DShoulderFov =
+        CVarDef.Create("render3d.shoulder_fov", 70, CVar.CLIENTONLY | CVar.ARCHIVE);
+
     /// <summary>Overhead camera: how many degrees the view is pitched down.</summary>
     public static readonly CVarDef<float> Render3DOverheadPitch =
         CVarDef.Create("render3d.overhead_pitch", 55f, CVar.CLIENTONLY | CVar.ARCHIVE);

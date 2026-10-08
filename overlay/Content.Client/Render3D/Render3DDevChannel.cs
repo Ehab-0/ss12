@@ -126,9 +126,17 @@ public sealed partial class Render3DDevChannel : UIController
         if (control == null || args.Length != 1)
             return;
 
-        // tp, fp or oh (overhead); the controller follows the settings
-        _cfg.SetCVar(CCVars.Render3DOverhead, args[0] == "oh");
-        _cfg.SetCVar(CCVars.Render3DFirstPerson, args[0] == "fp");
+        // tp, fp, oh (overhead), iso, orbit or sh (shoulder); the controller follows the settings
+        var mode = args[0] switch
+        {
+            "fp" => CameraMode.FirstPerson,
+            "oh" => CameraMode.Overhead,
+            "iso" => CameraMode.Isometric,
+            "orbit" => CameraMode.Orbit,
+            "sh" => CameraMode.Shoulder,
+            _ => CameraMode.ThirdPerson,
+        };
+        UIManager.GetUIController<Render3DController>().SetCameraMode(mode);
     }
 
     public override void FrameUpdate(FrameEventArgs args)

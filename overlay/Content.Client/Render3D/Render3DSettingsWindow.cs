@@ -18,16 +18,35 @@ namespace Content.Client.Render3D;
 ///     server codebase the 3D view is installed into. Changes apply immediately. Opened with the
 ///     <c>render3d_settings</c> command or the Render3DSettings key.
 /// </summary>
+/// <remarks>
+///     Five tabs: General (on/off, quality preset, render scale), Camera (the camera, and only the settings that camera has), Interface
+///     (crosshair, pointing list, minimap), Controls (the keys) and Graphics (the individual effects and the shape of things).
+/// </remarks>
 public sealed partial class Render3DSettingsWindow : DefaultWindow
 {
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IInputManager _input = default!;
+    [Dependency] private IUserInterfaceManager _ui = default!;
 
-    private readonly BoxContainer _body;
+    // The tabs are a row of toggle buttons that swap pages (not the engine's TabContainer, whose header layout asserted in a debug build).
+    private readonly BoxContainer _tabBar;
+    private readonly Control _pages;
+    private readonly ButtonGroup _tabGroup = new();
+    private readonly List<(string Key, Button Button, Control Page)> _tabList = new();
+
+    /// <summary>The names of the tabs, as the <c>render3d_settings</c> command takes them.</summary>
+    public static readonly string[] TabNames = { "general", "camera", "interface", "controls", "graphics" };
+
+    /// <summary>The page (or section of a page) the Add... helpers put their controls into.</summary>
+    private BoxContainer _body;
+
     private readonly List<(BoundKeyFunction Function, Button Button)> _keyButtons = new();
     private BoundKeyFunction? _capturing;
     private readonly List<(Render3DQuality.Effect Effect, CheckBox Box)> _fxBoxes = new();
     private OptionButton? _qualityButton;
+    private OptionButton? _cameraButton;
+    private readonly Dictionary<CameraMode, BoxContainer> _cameraSections = new();
+    private Control? _dynamicBox;
     private bool _refreshing;
 
     public Render3DSettingsWindow()
@@ -35,42 +54,197 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         IoCManager.InjectDependencies(this);
 
         Title = Loc.GetString("render3d-settings-title");
-        MinSize = new Vector2(460, 520);
+        MinSize = new Vector2(500, 560);
 
-        _body = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical, Margin = new Thickness(8), SeparationOverride = 4 };
-        var scroll = new ScrollContainer { VerticalExpand = true, HScrollEnabled = false };
-        scroll.AddChild(_body);
-        ContentsContainer.AddChild(scroll);
+        var root = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical, VerticalExpand = true, HorizontalExpand = true, SeparationOverride = 4 };
+        _tabBar = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, HorizontalExpand = true };
+        _pages = new Control { VerticalExpand = true, HorizontalExpand = true };
+        root.AddChild(_tabBar);
+        root.AddChild(_pages);
+        ContentsContainer.AddChild(root);
+        _body = null!;
 
-        AddHeader("render3d-settings-general");
+        BuildGeneral();
+        BuildCamera();
+        BuildInterface();
+        BuildControls();
+        BuildGraphics();
+        ShowTab(0);
+    }
+
+    // ---------------------------------------------------------------- pages
+
+    /// <summary>Adds a scrolling tab page with its button in the tab bar, and makes the page the target of the Add... helpers.</summary>
+    private BoxContainer NewPage(string titleLocId)
+    {
+        var index = _tabList.Count;
+        var page = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical, Margin = new Thickness(8), SeparationOverride = 4 };
+        var scroll = new ScrollContainer { VerticalExpand = true, HorizontalExpand = true, HScrollEnabled = false, Visible = false };
+        scroll.AddChild(page);
+        _pages.AddChild(scroll);
+
+        var button = new Button
+        {
+            Text = Loc.GetString(titleLocId),
+            ToggleMode = true,
+            Group = _tabGroup,
+            HorizontalExpand = true,
+        };
+        button.OnPressed += _ => ShowTab(index);
+        _tabBar.AddChild(button);
+
+        _tabList.Add((TabNames[index], button, scroll));
+        _body = page;
+        return page;
+    }
+
+    /// <summary>Shows a tab by its number.</summary>
+    public void ShowTab(int index)
+    {
+        index = Math.Clamp(index, 0, _tabList.Count - 1);
+        for (var i = 0; i < _tabList.Count; i++)
+        {
+            _tabList[i].Page.Visible = i == index;
+            _tabList[i].Button.Pressed = i == index;
+        }
+    }
+
+    /// <summary>Shows a tab by name (see <see cref="TabNames"/>); an unknown name leaves the tab as it is. Returns whether it was found.</summary>
+    public bool ShowTab(string name)
+    {
+        for (var i = 0; i < _tabList.Count; i++)
+        {
+            if (!string.Equals(_tabList[i].Key, name, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            ShowTab(i);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void BuildGeneral()
+    {
+        NewPage("render3d-tab-general");
         AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
+        AddHeader("render3d-settings-performance");
         AddQualityRow();
-        AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
-        AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
-
-        AddHeader("render3d-settings-keys");
-        foreach (var (function, _, locId) in Render3DKeys.All)
-            AddKeyRow(function, locId);
-
-        AddHeader("render3d-settings-view");
-        AddCheck(CCVars.Render3DFirstPerson, "render3d-settings-first-person");
-        AddCheck(CCVars.Render3DOverhead, "render3d-settings-overhead");
-        AddSlider(CCVars.Render3DOverheadPitch, "render3d-settings-overhead-pitch", 35f, 75f, "0");
-        AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-overhead-distance", 4f, 16f, "0.0");
-        AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-overhead-fov", 30, 70, "0");
-        AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-overhead-wall-height", 0.6f, 2.3f, "0.00");
-        AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
+        AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
+    }
+
+    private void BuildCamera()
+    {
+        var page = NewPage("render3d-tab-camera");
+
+        // the camera, and the settings only some of the cameras have
+        var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
+        row.AddChild(new Label { Text = Loc.GetString("render3d-settings-camera"), MinWidth = 170 });
+        _cameraButton = new OptionButton { HorizontalExpand = true };
+        foreach (var mode in CameraModes.Cycle)
+            _cameraButton.AddItem(Loc.GetString(CameraModes.LocId(mode)), (int) mode);
+
+        _cameraButton.OnItemSelected += args =>
+        {
+            if (_refreshing)
+                return;
+
+            _ui.GetUIController<Render3DController>().SetCameraMode((CameraMode) args.Id);
+            RefreshCamera();
+        };
+        row.AddChild(_cameraButton);
+        page.AddChild(row);
+
+        _dynamicBox = AddCheck(CCVars.Render3DDynamicCamera, "render3d-settings-dynamic");
+
+        foreach (var mode in CameraModes.Cycle)
+        {
+            var section = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical, SeparationOverride = 4, Visible = false };
+            page.AddChild(section);
+            _cameraSections[mode] = section;
+            _body = section;
+
+            section.AddChild(new Label
+            {
+                Text = Loc.GetString(CameraModes.LocId(mode) + "-hint"),
+                FontColorOverride = HintColor,
+            });
+
+            switch (mode)
+            {
+                case CameraMode.ThirdPerson:
+                    AddSlider(CCVars.Render3DThirdPersonDistance, "render3d-settings-distance", 0.8f, 3f, "0.0");
+                    AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
+                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
+                    AddLookSettings();
+                    break;
+                case CameraMode.FirstPerson:
+                    AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
+                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
+                    AddLookSettings();
+                    break;
+                case CameraMode.Shoulder:
+                    AddSlider(CCVars.Render3DShoulderDistance, "render3d-settings-distance", 0.5f, 2f, "0.0");
+                    AddSlider(CCVars.Render3DShoulderFov, "render3d-settings-fov", 40, 100, "0");
+                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
+                    AddLookSettings();
+                    break;
+                case CameraMode.Overhead:
+                    AddSlider(CCVars.Render3DOverheadPitch, "render3d-settings-pitch", 35f, 85f, "0");
+                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
+                    AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
+                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
+                    break;
+                case CameraMode.Isometric:
+                    AddSlider(CCVars.Render3DIsoPitch, "render3d-settings-pitch", 20f, 60f, "0");
+                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
+                    AddSlider(CCVars.Render3DIsoFov, "render3d-settings-fov", 15, 60, "0");
+                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
+                    break;
+                case CameraMode.Orbit:
+                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
+                    AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
+                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
+                    AddLookSettings();
+                    break;
+            }
+        }
+
+        _body = page;
+        RefreshCamera();
+    }
+
+    /// <summary>The mouse look settings (the cameras that turn with the mouse; the orbit camera uses them for its drag).</summary>
+    private void AddLookSettings()
+    {
+        AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
+    }
+
+    private void BuildInterface()
+    {
+        NewPage("render3d-tab-interface");
+        AddHeader("render3d-settings-pointing");
         AddCheck(CCVars.Render3DCrosshairNames, "render3d-settings-crosshair-names");
         AddCheck(CCVars.Render3DPointList, "render3d-settings-point-list");
+        AddHeader("render3d-settings-minimap-header");
         AddMinimapShowCheck();
         AddCheck(CCVars.Render3DMinimapRotate, "render3d-settings-minimap-rotate");
         AddSlider(CCVars.Render3DMinimapSize, "render3d-settings-minimap-size", 120, 360, "0");
         AddSlider(CCVars.Render3DMinimapRange, "render3d-settings-minimap-range", 10, 40, "0");
+    }
 
-        AddHeader("render3d-settings-graphics");
-        AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
+    private void BuildControls()
+    {
+        NewPage("render3d-tab-controls");
+        foreach (var (function, _, locId) in Render3DKeys.All)
+            AddKeyRow(function, locId);
+    }
+
+    private void BuildGraphics()
+    {
+        NewPage("render3d-tab-graphics");
         AddSliderRow("render3d-settings-supersample", 1f, 2f, "0.00", _cfg.GetCVar(CCVars.Render3DSupersample), v =>
         {
             _cfg.SetCVar(CCVars.Render3DSupersample, MathF.Round(v * 20f) / 20f);
@@ -89,16 +263,19 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
             AddEffectCheck(effect);
     }
 
+    // ---------------------------------------------------------------- controls
+
     private void AddHeader(string locId)
     {
         _body.AddChild(new Label { Text = Loc.GetString(locId), Margin = new Thickness(0, 6, 0, 2), StyleClasses = { "LabelHeading" } });
     }
 
-    private void AddCheck(CVarDef<bool> cvar, string locId)
+    private CheckBox AddCheck(CVarDef<bool> cvar, string locId)
     {
         var box = new CheckBox { Text = Loc.GetString(locId), Pressed = _cfg.GetCVar(cvar) };
         box.OnToggled += args => _cfg.SetCVar(cvar, args.Pressed);
         _body.AddChild(box);
+        return box;
     }
 
     /// <summary>The minimap box: ticked when the minimap is small or large, and ticking it brings back the small one.</summary>
@@ -182,11 +359,34 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _refreshing = false;
     }
 
+    /// <summary>
+    ///     Brings the camera dropdown in line with the settings (the camera keys change it too) and shows the settings of that camera only; the
+    ///     dynamic camera box is only there for the overhead and isometric views.
+    /// </summary>
+    private void RefreshCamera()
+    {
+        var mode = CameraModes.FromSettings(
+            _cfg.GetCVar(CCVars.Render3DFirstPerson), _cfg.GetCVar(CCVars.Render3DOverhead), _cfg.GetCVar(CCVars.Render3DCameraExtra));
+
+        _refreshing = true;
+        _cameraButton?.SelectId((int) mode);
+        _refreshing = false;
+
+        foreach (var (m, section) in _cameraSections)
+            section.Visible = m == mode;
+
+        if (_dynamicBox != null)
+            _dynamicBox.Visible = mode is CameraMode.Overhead or CameraMode.Isometric;
+    }
+
     protected override void FrameUpdate(FrameEventArgs args)
     {
         base.FrameUpdate(args);
-        if (_capturing == null)
-            RefreshGraphics();
+        if (_capturing != null)
+            return;
+
+        RefreshGraphics();
+        RefreshCamera();
     }
 
     private static readonly Color HintColor = new(1f, 0.82f, 0.25f);

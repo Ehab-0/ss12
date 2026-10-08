@@ -125,25 +125,51 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     public Camera3D Camera { get; } = new();
 
-    /// <summary>The overhead camera is on: high above the character, no ceiling, a free cursor.</summary>
-    public bool Overhead => Camera.Mode == CameraMode.Overhead;
+    /// <summary>A camera high above the character is on (overhead, isometric or orbit): no ceiling, low walls with tops, a free cursor.</summary>
+    public bool Elevated => Camera.Elevated;
 
-    /// <summary>Overhead camera: how many quarter turns the view is turned from "north (the grid's) is up".</summary>
+    /// <summary>Overhead and isometric views: how many quarter turns the view is turned from "the grid's north (or its diagonal) is up".</summary>
     public int OverheadSteps;
 
     private bool _overheadSnap = true;
 
-    /// <summary>Height of walls (and of the ceiling, if there is one): the overhead camera has its own, lower value.</summary>
-    public float WallHeight => _cfg.GetCVar(Overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
+    // free orbit: the heading and the look-down angle (radians) the player has dragged the camera to
+    private double _orbitYaw;
+    private float _orbitPitch = 50f * MathF.PI / 180f;
+    private bool _orbitDragging;
+    private CameraMode _lastMode = CameraMode.ThirdPerson;
+
+    // dynamic camera: the smoothed scale of the camera distance and offset of the look-down angle (degrees), and the probe rays
+    private float _dynScale = 1f;
+    private float _dynPitch;
+    private readonly float[] _probe = new float[8];
 
     /// <summary>
-    ///     Overhead camera: how far in front of the camera the character is (view depth), 0 for the other cameras. Distance
+    ///     Turns the orbit camera by quarter turns (the camera rotate keys), or back to the grid's north (<paramref name="quarterTurns"/> 0);
+    ///     for the other high cameras the number of quarter turns is <see cref="OverheadSteps"/>.
+    /// </summary>
+    public void TurnView(int quarterTurns)
+    {
+        if (Camera.Mode == CameraMode.Orbit)
+        {
+            _orbitYaw = quarterTurns == 0 ? OverheadTargetYaw(_player.LocalEntity, false) : _orbitYaw + quarterTurns * (Math.PI / 2);
+            return;
+        }
+
+        OverheadSteps = OverheadCamera.Turn(OverheadSteps, quarterTurns);
+    }
+
+    /// <summary>Height of walls (and of the ceiling, if there is one): the high cameras have their own, lower value.</summary>
+    public float WallHeight => _cfg.GetCVar(Elevated ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
+
+    /// <summary>
+    ///     High cameras: how far in front of the camera the character is (view depth), 0 for the other cameras. Distance
     ///     limits, fog and haze are counted from the character, because the camera itself hangs high above and behind it.
     /// </summary>
-    public float ViewDepthShift => Overhead ? MathF.Max(Vector3.Dot(Camera.Head - Camera.Position, Camera.Forward), 0f) : 0f;
+    public float ViewDepthShift => Elevated ? MathF.Max(Vector3.Dot(Camera.Head - Camera.Position, Camera.Forward), 0f) : 0f;
 
-    /// <summary>True while the cursor can point at things: the crosshair, or in the overhead view the free cursor over this view.</summary>
-    public bool PointerLive => RelativeMouse || Overhead && UserInterfaceManager.CurrentlyHovered == this;
+    /// <summary>True while the cursor can point at things: the crosshair, or in the high views the free cursor over this view.</summary>
+    public bool PointerLive => RelativeMouse || Elevated && UserInterfaceManager.CurrentlyHovered == this;
 
     /// <summary>Control-local pixel of what the player points at: the crosshair, or the free cursor.</summary>
     public Vector2 PointerPixel => RelativeMouse ? CrosshairPixel : _input.MouseScreenPosition.Position - GlobalPixelPosition;
@@ -226,15 +252,39 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         base.KeyBindDown(args);
         if (args.Handled)
             return;
+
+        // the orbit camera turns while the drag key (the middle mouse button) is held over the view
+        if (args.Function == Render3DKeys.OrbitDrag && Camera.Mode == CameraMode.Orbit)
+            _orbitDragging = true;
+
         ForwardKey(args);
     }
 
     protected override void KeyBindUp(GUIBoundKeyEventArgs args)
     {
         base.KeyBindUp(args);
+        if (args.Function == Render3DKeys.OrbitDrag)
+            EndOrbitDrag();
+
         if (args.Handled)
             return;
         ForwardKey(args);
+    }
+
+    private void EndOrbitDrag()
+    {
+        if (!_orbitDragging)
+            return;
+
+        _orbitDragging = false;
+        // remembered for the next time the orbit camera is used
+        _cfg.SetCVar(CCVars.Render3DOrbitPitch, MathF.Round(_orbitPitch * 180f / MathF.PI * 10f) / 10f);
+    }
+
+    protected override void MouseExited()
+    {
+        base.MouseExited();
+        EndOrbitDrag();
     }
 
     /// <summary>
@@ -260,6 +310,17 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     protected override void MouseMove(GUIMouseMoveEventArgs args)
     {
         base.MouseMove(args);
+
+        if (_orbitDragging)
+        {
+            // drag right: the scene turns right; drag down: the camera climbs (looks further down)
+            var turn = RadiansPerPixel * Sensitivity * 1.5f;
+            _orbitYaw += args.Relative.X * turn;
+            var climb = (InvertY ? -args.Relative.Y : args.Relative.Y) * turn;
+            _orbitPitch = Math.Clamp(_orbitPitch + climb,
+                OverheadCamera.MinPitchDegrees * MathF.PI / 180f, OverheadCamera.MaxPitchDegrees * MathF.PI / 180f);
+            return;
+        }
 
         if (!RelativeMouse)
             return;
@@ -725,9 +786,16 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private void UpdateCamera(MapCoordinates eyePos, Vector2i sceneSize)
     {
         var cam = Camera;
-        var overhead = cam.Mode == CameraMode.Overhead;
+        var mode = cam.Mode;
+        var elevated = cam.Elevated;
         cam.Size = new Vector2(sceneSize.X, sceneSize.Y);
-        cam.FovY = MathHelper.DegreesToRadians((float) _cfg.GetCVar(overhead ? CCVars.Render3DOverheadFov : CCVars.Render3DFov));
+        cam.FovY = MathHelper.DegreesToRadians((float) _cfg.GetCVar(mode switch
+        {
+            CameraMode.Overhead or CameraMode.Orbit => CCVars.Render3DOverheadFov,
+            CameraMode.Isometric => CCVars.Render3DIsoFov,
+            CameraMode.Shoulder => CCVars.Render3DShoulderFov,
+            _ => CCVars.Render3DFov,
+        }));
 
         var wallHeight = WallHeight;
         var eyeHeight = _cfg.GetCVar(CCVars.Render3DEyeHeight);
@@ -746,40 +814,79 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             }
         }
 
+        if (mode != _lastMode)
+        {
+            // A new camera. The orbit camera starts from the way the view looks now and the angle it was left at.
+            if (mode == CameraMode.Orbit)
+            {
+                _orbitYaw = cam.Yaw;
+                _orbitPitch = MathHelper.DegreesToRadians(Math.Clamp(_cfg.GetCVar(CCVars.Render3DOrbitPitch),
+                    OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees));
+            }
+
+            // Leaving a high camera for a walking one: look level again (the high cameras look steeply down, and that angle would carry over).
+            if (_lastMode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit && !elevated)
+                cam.Pitch = mode == CameraMode.FirstPerson ? 0f : -0.15f;
+
+            _orbitDragging = false;
+            _lastMode = mode;
+        }
+
         if (LookOverride is { } look)
         {
             cam.Yaw = MathHelper.DegreesToRadians(look.Yaw);
             cam.Pitch = (float) MathHelper.DegreesToRadians(look.Pitch);
         }
 
-        var overheadYaw = overhead ? OverheadTargetYaw(player) : 0.0;
-        if (overhead)
+        var targetYaw = mode switch
         {
-            // Fixed, north-up (the grid's north) in quarter turns, like the classic view; the picture turns smoothly to the
-            // new heading, while the movement keys switch to it at once (see DesiredYaw below).
+            CameraMode.Overhead => OverheadTargetYaw(player, false),
+            CameraMode.Isometric => OverheadTargetYaw(player, true),
+            CameraMode.Orbit => _orbitYaw,
+            _ => 0.0,
+        };
+
+        if (elevated)
+        {
+            // Fixed to the grid in quarter turns (overhead, isometric), or turned by dragging (orbit). The picture turns smoothly to a new
+            // heading, while the movement keys switch to it at once (see DesiredYaw below).
             var turnDt = (float) _timing.FrameTime.TotalSeconds;
-            if (_overheadSnap || turnDt <= 0f || turnDt > 0.25f || double.IsNaN(cam.Yaw))
-                cam.Yaw = overheadYaw;
+            if (mode == CameraMode.Orbit || _overheadSnap || turnDt <= 0f || turnDt > 0.25f || double.IsNaN(cam.Yaw))
+                cam.Yaw = targetYaw;
             else
-                cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(overheadYaw)).Theta * (1f - MathF.Exp(-turnDt * 12f)), 0f);
+                cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(targetYaw)).Theta * (1f - MathF.Exp(-turnDt * 12f)), 0f);
+
+            if (mode == CameraMode.Orbit)
+                _orbitYaw = new Angle(_orbitYaw).Reduced().Theta;
 
             _overheadSnap = false;
-            cam.Pitch = -MathHelper.DegreesToRadians(Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadPitch), OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees));
+
+            // the dynamic camera (overhead and isometric): closer and steeper in tight places, further and shallower in open ones
+            UpdateDynamic(eyePos, mode != CameraMode.Orbit && _cfg.GetCVar(CCVars.Render3DDynamicCamera), turnDt);
+
+            var pitchDegrees = mode switch
+            {
+                CameraMode.Isometric => _cfg.GetCVar(CCVars.Render3DIsoPitch),
+                CameraMode.Orbit => _orbitPitch * 180f / MathF.PI,
+                _ => _cfg.GetCVar(CCVars.Render3DOverheadPitch),
+            };
+            pitchDegrees = Math.Clamp(pitchDegrees + _dynPitch, OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
+            cam.Pitch = -MathHelper.DegreesToRadians(pitchDegrees);
         }
 
         cam.UpdateBasis();
 
         if (_yawSystem != null)
-            _yawSystem.DesiredYaw = player != null ? new Angle(overhead ? overheadYaw : cam.Yaw) : null;
+            _yawSystem.DesiredYaw = player != null ? new Angle(elevated ? targetYaw : cam.Yaw) : null;
 
         eyeHeight += HeadBob(eyePos.Position, cam.Mode == CameraMode.FirstPerson);
         var head = new Vector3(eyePos.X, eyePos.Y, eyeHeight);
         cam.Head = head;
 
-        if (overhead)
+        if (elevated)
         {
             // High above and behind the character, looking down at it. No ceiling and no spring arm: nothing is above the walls.
-            var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance), OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
+            var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance) * _dynScale, OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
             cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y), cam.Forward, armLength);
             _cameraToHead = armLength;
             _armFraction = 1f;
@@ -794,13 +901,18 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             return;
         }
 
-        var dist = Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance), 0.8f, 3.0f);
+        // third person, or the shoulder camera: closer, a wider offset to the side and a little lower, for aiming
+        var shoulder = mode == CameraMode.Shoulder;
+        var dist = shoulder
+            ? Math.Clamp(_cfg.GetCVar(CCVars.Render3DShoulderDistance), ShoulderMinDistance, ShoulderMaxDistance)
+            : Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance), 0.8f, 3.0f);
+        var side = shoulder ? 0.55f : 0.35f;
         var fwd = cam.ForwardGround;
         var right = new Vector2(cam.Right.X, cam.Right.Y);
-        var height = MathF.Min(eyeHeight + 0.25f, wallHeight - 0.2f);
+        var height = MathF.Min(eyeHeight + (shoulder ? 0.2f : 0.25f), wallHeight - 0.2f);
         var desired = new Vector3(
-            head.X - fwd.X * dist + right.X * 0.35f,
-            head.Y - fwd.Y * dist + right.Y * 0.35f,
+            head.X - fwd.X * dist + right.X * side,
+            head.Y - fwd.Y * dist + right.Y * side,
             height);
 
         // Spring arm: never let the camera sit inside or behind a wall, a window or a closed door. The arm is swept
@@ -828,14 +940,51 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         cam.UpdateBasis();
     }
 
-    /// <summary>The heading the overhead view has: the grid the character stands on turned by the quarter turns the player chose.</summary>
-    private double OverheadTargetYaw(EntityUid? player)
+    /// <summary>The shoulder camera's distance range (tiles); the zoom keys move it within it.</summary>
+    public const float ShoulderMinDistance = 0.5f;
+    public const float ShoulderMaxDistance = 2.0f;
+
+    /// <summary>
+    ///     The heading the overhead view has: the grid the character stands on turned by the quarter turns the player chose, and for the
+    ///     isometric view by a diagonal as well.
+    /// </summary>
+    private double OverheadTargetYaw(EntityUid? player, bool isometric)
     {
         var grid = Angle.Zero;
         if (player is { } p && _xformSys != null && _entMan.TryGetComponent(p, out TransformComponent? xform) && xform.GridUid is { } g)
             grid = _xformSys.GetWorldRotation(g);
 
-        return OverheadCamera.Yaw(grid, OverheadSteps);
+        return isometric ? OverheadCamera.IsometricYaw(grid, OverheadSteps) : OverheadCamera.Yaw(grid, OverheadSteps);
+    }
+
+    /// <summary>
+    ///     Settles the dynamic camera's distance scale and look-down offset on what the place around the character asks for (see
+    ///     <see cref="DynamicCamera"/>): eight rays along the floor measure how open it is. With the dynamic camera off they settle back to nothing.
+    /// </summary>
+    private void UpdateDynamic(MapCoordinates eyePos, bool active, float dt)
+    {
+        var targetScale = 1f;
+        var targetPitch = 0f;
+        if (active && _tileWorld != null)
+        {
+            var origin = new Vector3(eyePos.X, eyePos.Y, OverheadCamera.TargetHeight);
+            var wallHeight = WallHeight;
+            for (var i = 0; i < _probe.Length; i++)
+            {
+                var angle = i * MathF.Tau / _probe.Length;
+                var dir = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
+                _probe[i] = _tileWorld.RayCastWalls(eyePos.MapId, origin, dir, DynamicCamera.ProbeRange, wallHeight,
+                    out var hit, out _, out _, out _, includeClosedDoors: true)
+                    ? hit
+                    : DynamicCamera.ProbeRange;
+            }
+
+            var speed = Math.Clamp(_bobSpeed / 6f, 0f, 1f);
+            (targetScale, targetPitch) = DynamicCamera.Target(DynamicCamera.Openness(_probe, DynamicCamera.ProbeRange), speed);
+        }
+
+        _dynScale = DynamicCamera.Smooth(_dynScale, targetScale, dt);
+        _dynPitch = DynamicCamera.Smooth(_dynPitch, targetPitch, dt);
     }
 
     private void SetRaymarchParams(GroundLayer ground, TileWorldSystem tileWorld, Vector2i sceneSize, int radius)
@@ -844,9 +993,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var cam = Camera;
 
         var wallHeight = WallHeight;
-        var overhead = cam.Mode == CameraMode.Overhead;
+        var overhead = cam.Elevated;
 
-        // The far cutoff and the fog count from the character; the overhead camera hangs high above and behind it.
+        // The far cutoff and the fog count from the character; the high cameras hang far above and behind it.
         var shift = ViewDepthShift;
         var maxDist = radius - 0.5f + shift;
 

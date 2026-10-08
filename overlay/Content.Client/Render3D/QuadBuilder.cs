@@ -109,7 +109,7 @@ public sealed class QuadBuilder
             // The overhead camera looks down steeply, so the height of a flat quad (an item on a locker, a table top) would count
             // for far more than the few tenths of a tile that separate it from the card it lies on: there every quad is ordered by
             // its place on the ground, and what lies on something gets its place from the sort bias (see EntityPass).
-            if (cam.Mode == CameraMode.Overhead || IsUpright(in q))
+            if (cam.Elevated || IsUpright(in q))
                 c.Z = cam.Position.Z;
 
             q.SortDepth = Vector3.Dot(c - cam.Position, cam.Forward) + q.SortBias;

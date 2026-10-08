@@ -15,6 +15,9 @@ public static class Render3DKeyFunctions
     public static readonly BoundKeyFunction Toggle3DView = "Toggle3DView";
     public static readonly BoundKeyFunction Toggle3DCameraMode = "Toggle3DCameraMode";
     public static readonly BoundKeyFunction Toggle3DOverhead = "Toggle3DOverhead";
+    public static readonly BoundKeyFunction Cycle3DCamera = "Cycle3DCamera";
+    public static readonly BoundKeyFunction Toggle3DDynamicCamera = "Toggle3DDynamicCamera";
+    public static readonly BoundKeyFunction Render3DOrbitDrag = "Render3DOrbitDrag";
     public static readonly BoundKeyFunction Render3DFreeCursor = "Render3DFreeCursor";
     public static readonly BoundKeyFunction Render3DSettings = "Render3DSettings";
     public static readonly BoundKeyFunction Render3DMinimap = "Render3DMinimap";

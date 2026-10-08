@@ -177,7 +177,7 @@ public sealed class EntityPass : IDisposable
         _camPos3 = cam.Position;
         _pixelAtOneTile = 2f * cam.TanHalfFov / MathF.Max(cam.Size.Y, 1f);
         _fwd = cam.ForwardGround;
-        _overhead = cam.Mode == CameraMode.Overhead;
+        _overhead = cam.Elevated;
         _camYaw = cam.Yaw;
         _quads.Clear();
         _pick.Clear();

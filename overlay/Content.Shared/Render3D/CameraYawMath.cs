@@ -62,7 +62,9 @@ public static class CameraYawMath
     ///     of an entity is its rotation plus the eye rotation, which is <c>-yaw</c>), instead of the angle towards each entity.
     /// </summary>
     public static Direction OverheadSpriteDirection(Angle entityWorldRotation, Angle cameraYaw)
-        => (entityWorldRotation - cameraYaw).GetDir();
+        // (a hair of bias: with a diagonal view, things turned by a quarter turn sit exactly between two directions, and rounding
+        // error must not flip them from frame to frame)
+        => (entityWorldRotation - cameraYaw + 0.001).GetDir();
 
     /// <summary>
     ///     Picks the cardinal sprite direction to display for an entity rotated by <paramref name="entityWorldRotation"/>

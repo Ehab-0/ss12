@@ -9,6 +9,15 @@ public enum CameraMode : byte
 
     /// <summary>High above the character, pitched down, no ceiling, a free mouse cursor.</summary>
     Overhead,
+
+    /// <summary>Like <see cref="Overhead"/>, turned a diagonal (45 degrees) and lower, with a narrow field of view: the classic isometric look.</summary>
+    Isometric,
+
+    /// <summary>Like <see cref="Overhead"/>, but the player turns and tilts it freely by dragging the mouse.</summary>
+    Orbit,
+
+    /// <summary>Close behind the character's shoulder, with a crosshair: third person tightened for aiming.</summary>
+    Shoulder,
 }
 
 /// <summary>
@@ -23,6 +32,12 @@ public sealed class Camera3D
     public double Yaw;
     public float Pitch;
     public CameraMode Mode = CameraMode.ThirdPerson;
+
+    /// <summary>
+    ///     A camera high above the character that looks down at the walls from above (overhead, isometric, orbit): no ceiling, low walls
+    ///     with tops, and a free mouse cursor.
+    /// </summary>
+    public bool Elevated => Mode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit;
 
     /// <summary>Position the camera looks out of, after the spring arm.</summary>
     public Vector3 Position;

@@ -18,6 +18,9 @@ public static class Render3DKeys
     public static readonly BoundKeyFunction ToggleView = Render3DKeyFunctions.Toggle3DView;
     public static readonly BoundKeyFunction ToggleCameraMode = Render3DKeyFunctions.Toggle3DCameraMode;
     public static readonly BoundKeyFunction ToggleOverhead = Render3DKeyFunctions.Toggle3DOverhead;
+    public static readonly BoundKeyFunction CycleCamera = Render3DKeyFunctions.Cycle3DCamera;
+    public static readonly BoundKeyFunction ToggleDynamic = Render3DKeyFunctions.Toggle3DDynamicCamera;
+    public static readonly BoundKeyFunction OrbitDrag = Render3DKeyFunctions.Render3DOrbitDrag;
     public static readonly BoundKeyFunction FreeCursor = Render3DKeyFunctions.Render3DFreeCursor;
     public static readonly BoundKeyFunction OpenSettings = Render3DKeyFunctions.Render3DSettings;
     public static readonly BoundKeyFunction Minimap = Render3DKeyFunctions.Render3DMinimap;
@@ -35,6 +38,9 @@ public static class Render3DKeys
         (ToggleView, Keyboard.Key.F12, "render3d-key-toggle-view"),
         (ToggleCameraMode, Keyboard.Key.N, "render3d-key-toggle-camera"),
         (ToggleOverhead, Keyboard.Key.O, "render3d-key-toggle-overhead"),
+        (CycleCamera, Keyboard.Key.Insert, "render3d-key-cycle-camera"),
+        (ToggleDynamic, Keyboard.Key.PageUp, "render3d-key-toggle-dynamic"),
+        (OrbitDrag, Keyboard.Key.MouseMiddle, "render3d-key-orbit-drag"),
         (Minimap, Keyboard.Key.M, "render3d-key-minimap"),
         (MinimapSize, Keyboard.Key.Minus, "render3d-key-minimap-size"),
         (PointList, Keyboard.Key.L, "render3d-key-point-list"),
@@ -69,7 +75,8 @@ public static class Render3DKeys
                 Function = function,
                 BaseKey = key,
                 Type = KeyBindingType.State,
-                CanFocus = false,
+                // a mouse button has to be able to focus, or the viewport never sees it (the orbit drag)
+                CanFocus = key is Keyboard.Key.MouseLeft or Keyboard.Key.MouseRight or Keyboard.Key.MouseMiddle,
                 CanRepeat = false,
             }, markModified: false);
         }
