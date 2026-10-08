@@ -75,7 +75,7 @@ public static class Render3DKeys
                 Function = function,
                 BaseKey = key,
                 Type = KeyBindingType.State,
-                // a mouse button has to be able to focus, or the viewport never sees it (the orbit drag)
+                // a mouse button has to be able to focus, or the viewport never sees it (the overhead camera's turn drag)
                 CanFocus = key is Keyboard.Key.MouseLeft or Keyboard.Key.MouseRight or Keyboard.Key.MouseMiddle,
                 CanRepeat = false,
             }, markModified: false);

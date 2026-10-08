@@ -7,17 +7,8 @@ public enum CameraMode : byte
     ThirdPerson,
     FirstPerson,
 
-    /// <summary>High above the character, pitched down, no ceiling, a free mouse cursor.</summary>
+    /// <summary>High above the character, pitched down, no ceiling, a free mouse cursor. The player turns and tilts it by dragging the middle mouse button.</summary>
     Overhead,
-
-    /// <summary>Like <see cref="Overhead"/>, turned a diagonal (45 degrees) and lower, with a narrow field of view: the classic isometric look.</summary>
-    Isometric,
-
-    /// <summary>Like <see cref="Overhead"/>, but the player turns and tilts it freely by dragging the mouse.</summary>
-    Orbit,
-
-    /// <summary>Close behind the character's shoulder, with a crosshair: third person tightened for aiming.</summary>
-    Shoulder,
 
     /// <summary>The mouse wheel moves one camera all the way from first person, through third person and isometric, to the classic 2D view.</summary>
     DynamicView,
@@ -37,10 +28,10 @@ public sealed class Camera3D
     public CameraMode Mode = CameraMode.ThirdPerson;
 
     /// <summary>
-    ///     A camera high above the character that looks down at the walls from above (overhead, isometric, orbit): no ceiling, low walls
+    ///     A camera high above the character that looks down at the walls from above (overhead, or the dynamic view once it is high): no ceiling, low walls
     ///     with tops, and a free mouse cursor.
     /// </summary>
-    public bool Elevated => Mode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit || Mode == CameraMode.DynamicView && ScrollElevated;
+    public bool Elevated => Mode == CameraMode.Overhead || Mode == CameraMode.DynamicView && ScrollElevated;
 
     /// <summary>
     ///     The dynamic view is high enough to count as a high camera (set by the view as the wheel moves it): from there up the mouse is a free

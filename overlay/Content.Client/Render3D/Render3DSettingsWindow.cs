@@ -19,7 +19,7 @@ namespace Content.Client.Render3D;
 ///     <c>render3d_settings</c> command or the Render3DSettings key.
 /// </summary>
 /// <remarks>
-///     Five tabs: General (on/off, quality preset, render scale), Camera (the camera, and only the settings that camera has), Interface
+///     Four tabs: General (quality preset and performance, on/off, the camera and all its sliders), Interface
 ///     (crosshair, pointing list, minimap), Controls (the keys) and Graphics (the individual effects and the shape of things).
 /// </remarks>
 public sealed partial class Render3DSettingsWindow : DefaultWindow
@@ -45,9 +45,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     private readonly List<(Render3DQuality.Effect Effect, CheckBox Box)> _fxBoxes = new();
     private OptionButton? _qualityButton;
     private OptionButton? _cameraButton;
-    private readonly Dictionary<CameraMode, BoxContainer> _cameraSections = new();
-    private Control? _followBox;
-    private Control? _followLeadRow;
+    private Label? _cameraHint;
     private bool _refreshing;
 
     public Render3DSettingsWindow()
@@ -128,21 +126,22 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         return false;
     }
 
-    /// <summary>The General tab: on / off, the camera and the settings of the camera picked, and the performance settings.</summary>
+    /// <summary>
+    ///     The General tab: the quality preset and the performance settings first, then on / off and the camera with all the camera sliders
+    ///     (grouped, none hidden behind the camera picked).
+    /// </summary>
     private void BuildGeneral()
     {
         var page = NewPage("render3d-tab-general");
-        AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
-        AddHeader("render3d-settings-camera-header");
-        BuildCamera(page);
-        _body = page;
-        AddHeader("render3d-settings-performance");
         AddQualityRow();
         AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
+        AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
+        AddHeader("render3d-settings-camera-header");
+        BuildCamera(page);
     }
 
-    /// <summary>The camera dropdown and, under it, only the settings of the camera picked (the others are hidden).</summary>
+    /// <summary>The camera dropdown, the follow camera, and the sliders of every camera, grouped by the camera they belong to.</summary>
     private void BuildCamera(BoxContainer page)
     {
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
@@ -162,74 +161,40 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         row.AddChild(_cameraButton);
         page.AddChild(row);
 
-        _followBox = AddCheck(CCVars.Render3DFollowCamera, "render3d-settings-follow");
-        _followLeadRow = AddSlider(CCVars.Render3DFollowLead, "render3d-settings-follow-lead", FollowCamera.MinLead, FollowCamera.MaxLead, "0.0");
+        _cameraHint = new Label { FontColorOverride = HintColor };
+        page.AddChild(_cameraHint);
 
-        foreach (var mode in CameraModes.Cycle)
-        {
-            var section = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical, SeparationOverride = 4, Visible = false };
-            page.AddChild(section);
-            _cameraSections[mode] = section;
-            _body = section;
+        AddCheck(CCVars.Render3DFollowCamera, "render3d-settings-follow");
+        AddSlider(CCVars.Render3DFollowLead, "render3d-settings-follow-lead", FollowCamera.MinLead, FollowCamera.MaxLead, "0.0");
 
-            section.AddChild(new Label
-            {
-                Text = Loc.GetString(CameraModes.LocId(mode) + "-hint"),
-                FontColorOverride = HintColor,
-            });
+        AddSubHeader("render3d-settings-group-walking");
+        AddSlider(CCVars.Render3DThirdPersonDistance, "render3d-settings-distance", 0.8f, 3f, "0.0");
+        AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
+        AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
+        AddLookSettings();
 
-            switch (mode)
-            {
-                case CameraMode.ThirdPerson:
-                    AddSlider(CCVars.Render3DThirdPersonDistance, "render3d-settings-distance", 0.8f, 3f, "0.0");
-                    AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
-                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
-                    AddLookSettings();
-                    break;
-                case CameraMode.FirstPerson:
-                    AddSlider(CCVars.Render3DFov, "render3d-settings-fov", 50, 110, "0");
-                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
-                    AddLookSettings();
-                    break;
-                case CameraMode.Shoulder:
-                    AddSlider(CCVars.Render3DShoulderDistance, "render3d-settings-distance", 0.5f, 2f, "0.0");
-                    AddSlider(CCVars.Render3DShoulderFov, "render3d-settings-fov", 40, 100, "0");
-                    AddSlider(CCVars.Render3DWallHeight, "render3d-settings-wall-height", 1f, 4f, "0.00");
-                    AddLookSettings();
-                    break;
-                case CameraMode.Overhead:
-                    AddSlider(CCVars.Render3DOverheadPitch, "render3d-settings-pitch", 35f, 85f, "0");
-                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
-                    AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
-                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
-                    break;
-                case CameraMode.Isometric:
-                    AddSlider(CCVars.Render3DIsoPitch, "render3d-settings-pitch", 20f, 60f, "0");
-                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
-                    AddSlider(CCVars.Render3DIsoFov, "render3d-settings-fov", 15, 60, "0");
-                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
-                    break;
-                case CameraMode.Orbit:
-                    AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
-                    AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
-                    AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
-                    AddLookSettings();
-                    break;
-                case CameraMode.DynamicView:
-                    // its stops are the other cameras' settings (third person, isometric, overhead); these are the wheel's own
-                    AddSlider(CCVars.Render3DDynamicViewSpeed, "render3d-settings-dynamic-view-speed", 0.02f, 0.2f, "0.00");
-                    AddCheck(CCVars.Render3DDynamicViewInvert, "render3d-settings-dynamic-view-invert");
-                    AddCheck(CCVars.Render3DDynamicView2D, "render3d-settings-dynamic-view-2d");
-                    AddLookSettings();
-                    break;
-            }
-        }
+        AddSubHeader("render3d-settings-group-overhead");
+        AddSlider(CCVars.Render3DOverheadPitch, "render3d-settings-pitch", 35f, 85f, "0");
+        AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
+        AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
+        AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.7f, "0.00");
 
-        _body = page;
+        AddSubHeader("render3d-settings-group-dynamic-view");
+        AddSlider(CCVars.Render3DDynamicViewSpeed, "render3d-settings-dynamic-view-speed", 0.02f, 0.2f, "0.00");
+        AddCheck(CCVars.Render3DDynamicViewInvert, "render3d-settings-dynamic-view-invert");
+        AddCheck(CCVars.Render3DDynamicView2D, "render3d-settings-dynamic-view-2d");
+        AddSlider(CCVars.Render3DIsoPitch, "render3d-settings-dynamic-view-iso-pitch", 20f, 60f, "0");
+        AddSlider(CCVars.Render3DIsoFov, "render3d-settings-dynamic-view-iso-fov", 15, 60, "0");
+
         RefreshCamera();
     }
 
-    /// <summary>The mouse look settings (the cameras that turn with the mouse; the orbit camera uses them for its drag).</summary>
+    private void AddSubHeader(string locId)
+    {
+        _body.AddChild(new Label { Text = Loc.GetString(locId), Margin = new Thickness(0, 8, 0, 0), FontColorOverride = HintColor });
+    }
+
+    /// <summary>The mouse look settings (the cameras that turn with the mouse; the overhead camera uses them for its drag).</summary>
     private void AddLookSettings()
     {
         AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
@@ -374,10 +339,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _refreshing = false;
     }
 
-    /// <summary>
-    ///     Brings the camera dropdown in line with the settings (the camera keys change it too) and shows the settings of that camera only; the
-    ///     follow camera box is only there for the overhead and isometric views.
-    /// </summary>
+    /// <summary>Brings the camera dropdown and its hint in line with the settings (the camera keys change them too).</summary>
     private void RefreshCamera()
     {
         var mode = CameraModes.FromSettings(
@@ -387,14 +349,8 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _cameraButton?.SelectId((int) mode);
         _refreshing = false;
 
-        foreach (var (m, section) in _cameraSections)
-            section.Visible = m == mode;
-
-        var follows = mode is CameraMode.Overhead or CameraMode.Isometric;
-        if (_followBox != null)
-            _followBox.Visible = follows;
-        if (_followLeadRow != null)
-            _followLeadRow.Visible = follows;
+        if (_cameraHint != null)
+            _cameraHint.Text = Loc.GetString(CameraModes.LocId(mode) + "-hint");
     }
 
     protected override void FrameUpdate(FrameEventArgs args)

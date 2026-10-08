@@ -113,7 +113,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleOverhead, new Render3DInputHandler(down => { if (down) ToggleOverhead(); }, consume: true))
             .Bind(Render3DKeys.CycleCamera, new Render3DInputHandler(down => { if (down) CycleCamera(); }, consume: true))
             .Bind(Render3DKeys.ToggleFollow, new Render3DInputHandler(down => { if (down) ToggleFollowCamera(); }, consume: true))
-            // the quarter-turn keys turn the high views; they go before the mover's own handlers, which would turn the mover alone
+            // the rotate keys turn the high views (the overhead camera by eighth turns, the dynamic view by quarter turns); they go before the mover's own handlers, which would turn the mover alone
             .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
             .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
             .BindBefore(EngineKeyFunctions.CameraReset, new Render3DInputHandler(down => { if (down) TurnOverhead(0); }, () => Active && ElevatedOn), typeof(SharedMoverController))
@@ -299,7 +299,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _cfg.SetCVar(CCVars.Render3DEnabled, !_cfg.GetCVar(CCVars.Render3DEnabled));
     }
 
-    /// <summary>A camera high above the character is on (overhead, isometric or orbit).</summary>
+    /// <summary>A camera high above the character is on (overhead, or the dynamic view once it is high).</summary>
     private bool ElevatedOn => _control is { Elevated: true };
 
     /// <summary>The camera the settings ask for (see <see cref="CameraModes.FromSettings"/>). Called when any of them changes.</summary>
@@ -358,7 +358,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _control.ShowNotice(Robust.Shared.Localization.Loc.GetString(on ? "render3d-notice-follow-on" : "render3d-notice-follow-off"), 2.5f);
     }
 
-    /// <summary>Turns the high views by a quarter turn (1 = to the left, -1 = to the right), or back to the grid's north (0).</summary>
+    /// <summary>Turns the high views a step (1 = to the left, -1 = to the right), or back to the grid's north (0).</summary>
     private void TurnOverhead(int quarterTurns) => _control?.TurnView(quarterTurns);
 
     private void AdjustDistance(float delta)
@@ -378,13 +378,6 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             // the zoom keys move the high cameras in and out: one tile per press
             _cfg.SetCVar(CCVars.Render3DOverheadDistance,
                 Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance) + delta * 5f, OverheadCamera.MinDistance, OverheadCamera.MaxDistance));
-            return;
-        }
-
-        if (CurrentCameraMode == CameraMode.Shoulder)
-        {
-            _cfg.SetCVar(CCVars.Render3DShoulderDistance,
-                Math.Clamp(_cfg.GetCVar(CCVars.Render3DShoulderDistance) + delta, Render3DViewportControl.ShoulderMinDistance, Render3DViewportControl.ShoulderMaxDistance));
             return;
         }
 

@@ -7,7 +7,7 @@ using Robust.Shared.Maths;
 
 namespace Content.Tests.Client.Render3D;
 
-/// <summary>The isometric camera: a diagonal heading on the grid, movement that still follows the screen, and stable sprite directions.</summary>
+/// <summary>The isometric heading (the overhead camera turned a diagonal, and the dynamic view's isometric step): a diagonal heading on the grid, movement that still follows the screen, and stable sprite directions.</summary>
 [TestFixture]
 public sealed class IsometricCameraTest
 {
@@ -15,7 +15,7 @@ public sealed class IsometricCameraTest
     {
         var cam = new Camera3D
         {
-            Mode = CameraMode.Isometric,
+            Mode = CameraMode.Overhead,
             Yaw = yaw,
             Pitch = -MathHelper.DegreesToRadians(38f),
             FovY = MathHelper.DegreesToRadians(30f),

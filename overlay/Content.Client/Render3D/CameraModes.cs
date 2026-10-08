@@ -11,10 +11,7 @@ public static class CameraModes
     {
         CameraMode.ThirdPerson,
         CameraMode.FirstPerson,
-        CameraMode.Shoulder,
         CameraMode.Overhead,
-        CameraMode.Isometric,
-        CameraMode.Orbit,
         CameraMode.DynamicView,
     };
 
@@ -25,21 +22,19 @@ public static class CameraModes
         return Cycle[(index + 1) % Cycle.Length];
     }
 
-    /// <summary>The camera the three settings ask for: the "extra" one if set (1 isometric, 2 orbit, 3 shoulder, 4 dynamic view), else overhead, else first person, else third person.</summary>
+    /// <summary>The camera the three settings ask for: the dynamic view if the "extra" setting is 4, else overhead (the old isometric and orbit values, 1 and 2, also mean overhead), else first person, else third person (the old shoulder value, 3, means third person).</summary>
     public static CameraMode FromSettings(bool firstPerson, bool overhead, int extra)
     {
         return extra switch
         {
-            1 => CameraMode.Isometric,
-            2 => CameraMode.Orbit,
-            3 => CameraMode.Shoulder,
             4 => CameraMode.DynamicView,
+            1 or 2 => CameraMode.Overhead,
             _ => overhead ? CameraMode.Overhead : firstPerson ? CameraMode.FirstPerson : CameraMode.ThirdPerson,
         };
     }
 
     /// <summary>
-    ///     The three settings for a camera. First person is also the remembered walking camera: the high and the shoulder cameras
+    ///     The three settings for a camera. First person is also the remembered walking camera: the high cameras
     ///     leave it as it was, so leaving them goes back to the walking camera the player had.
     /// </summary>
     public static (bool FirstPerson, bool Overhead, int Extra) ToSettings(CameraMode mode, bool currentFirstPerson)
@@ -49,9 +44,6 @@ public static class CameraModes
             CameraMode.ThirdPerson => (false, false, 0),
             CameraMode.FirstPerson => (true, false, 0),
             CameraMode.Overhead => (currentFirstPerson, true, 0),
-            CameraMode.Isometric => (currentFirstPerson, false, 1),
-            CameraMode.Orbit => (currentFirstPerson, false, 2),
-            CameraMode.Shoulder => (currentFirstPerson, false, 3),
             CameraMode.DynamicView => (currentFirstPerson, false, 4),
             _ => (currentFirstPerson, false, 0),
         };
@@ -72,10 +64,7 @@ public static class CameraModes
     public static string LocId(CameraMode mode) => mode switch
     {
         CameraMode.FirstPerson => "render3d-camera-first-person",
-        CameraMode.Shoulder => "render3d-camera-shoulder",
         CameraMode.Overhead => "render3d-camera-overhead",
-        CameraMode.Isometric => "render3d-camera-isometric",
-        CameraMode.Orbit => "render3d-camera-orbit",
         CameraMode.DynamicView => "render3d-camera-dynamic-view",
         _ => "render3d-camera-third-person",
     };

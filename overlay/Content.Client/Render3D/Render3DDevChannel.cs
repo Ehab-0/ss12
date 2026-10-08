@@ -126,14 +126,11 @@ public sealed partial class Render3DDevChannel : UIController
         if (control == null || args.Length != 1)
             return;
 
-        // tp, fp, oh (overhead), iso, orbit or sh (shoulder); the controller follows the settings
+        // tp, fp, oh (overhead) or dynamic; the controller follows the settings
         var mode = args[0] switch
         {
             "fp" => CameraMode.FirstPerson,
             "oh" => CameraMode.Overhead,
-            "iso" => CameraMode.Isometric,
-            "orbit" => CameraMode.Orbit,
-            "sh" => CameraMode.Shoulder,
             "dynamic" => CameraMode.DynamicView,
             _ => CameraMode.ThirdPerson,
         };

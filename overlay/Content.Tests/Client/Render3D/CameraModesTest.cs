@@ -41,9 +41,9 @@ public sealed class CameraModesTest
     }
 
     [Test]
-    public void TheHighAndShoulderCamerasKeepTheWalkingCameraTheyCameFrom([Values(false, true)] bool firstPerson)
+    public void TheHighCamerasKeepTheWalkingCameraTheyCameFrom([Values(false, true)] bool firstPerson)
     {
-        foreach (var mode in new[] { CameraMode.Overhead, CameraMode.Isometric, CameraMode.Orbit, CameraMode.Shoulder })
+        foreach (var mode in new[] { CameraMode.Overhead, CameraMode.DynamicView })
             Assert.That(CameraModes.ToSettings(mode, firstPerson).FirstPerson, Is.EqualTo(firstPerson), $"{mode}");
 
         // and the walking cameras set it
@@ -54,9 +54,8 @@ public sealed class CameraModesTest
     [Test]
     public void TheOtherCameraSettingWinsOverTheOldFlags()
     {
-        Assert.That(CameraModes.FromSettings(true, true, 1), Is.EqualTo(CameraMode.Isometric));
-        Assert.That(CameraModes.FromSettings(false, false, 2), Is.EqualTo(CameraMode.Orbit));
-        Assert.That(CameraModes.FromSettings(false, false, 3), Is.EqualTo(CameraMode.Shoulder));
+        Assert.That(CameraModes.FromSettings(true, false, 4), Is.EqualTo(CameraMode.DynamicView));
+        Assert.That(CameraModes.FromSettings(true, true, 4), Is.EqualTo(CameraMode.DynamicView));
         Assert.That(CameraModes.FromSettings(true, true, 0), Is.EqualTo(CameraMode.Overhead));
         Assert.That(CameraModes.FromSettings(true, false, 0), Is.EqualTo(CameraMode.FirstPerson));
         Assert.That(CameraModes.FromSettings(false, false, 0), Is.EqualTo(CameraMode.ThirdPerson));
@@ -65,12 +64,22 @@ public sealed class CameraModesTest
     }
 
     [Test]
+    public void TheRemovedCamerasOfOlderBuildsMapToTheOnesThatReplacedThem()
+    {
+        // isometric (1) and free orbit (2) are the overhead camera now, shoulder (3) is third person
+        Assert.That(CameraModes.FromSettings(false, false, 1), Is.EqualTo(CameraMode.Overhead));
+        Assert.That(CameraModes.FromSettings(true, false, 2), Is.EqualTo(CameraMode.Overhead));
+        Assert.That(CameraModes.FromSettings(false, false, 3), Is.EqualTo(CameraMode.ThirdPerson));
+        Assert.That(CameraModes.FromSettings(true, false, 3), Is.EqualTo(CameraMode.FirstPerson));
+    }
+
+    [Test]
     public void TheWalkingKeySwitchesBetweenTheTwoWalkingCamerasAndLeavesTheOthers()
     {
         Assert.That(CameraModes.ToggleWalking(CameraMode.ThirdPerson, false), Is.EqualTo(CameraMode.FirstPerson));
         Assert.That(CameraModes.ToggleWalking(CameraMode.FirstPerson, true), Is.EqualTo(CameraMode.ThirdPerson));
 
-        foreach (var mode in new[] { CameraMode.Overhead, CameraMode.Isometric, CameraMode.Orbit, CameraMode.Shoulder })
+        foreach (var mode in new[] { CameraMode.Overhead, CameraMode.DynamicView })
         {
             Assert.That(CameraModes.ToggleWalking(mode, true), Is.EqualTo(CameraMode.FirstPerson), $"{mode}");
             Assert.That(CameraModes.ToggleWalking(mode, false), Is.EqualTo(CameraMode.ThirdPerson), $"{mode}");
@@ -83,7 +92,7 @@ public sealed class CameraModesTest
         foreach (var mode in CameraModes.Cycle)
         {
             var cam = new Camera3D { Mode = mode };
-            var high = mode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit;
+            var high = mode == CameraMode.Overhead;
             Assert.That(cam.Elevated, Is.EqualTo(high), $"{mode}");
         }
     }

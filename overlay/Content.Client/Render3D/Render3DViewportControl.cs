@@ -125,7 +125,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     public Camera3D Camera { get; } = new();
 
-    /// <summary>A camera high above the character is on (overhead, isometric or orbit): no ceiling, low walls with tops, a free cursor.</summary>
+    /// <summary>A camera high above the character is on (overhead, or the dynamic view once it is high): no ceiling, low walls with tops, a free cursor.</summary>
     public bool Elevated => Camera.Elevated;
 
     /// <summary>Overhead and isometric views: how many quarter turns the view is turned from "the grid's north (or its diagonal) is up".</summary>
@@ -133,13 +133,13 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     private bool _overheadSnap = true;
 
-    // free orbit: the heading and the look-down angle (radians) the player has dragged the camera to
-    private double _orbitYaw;
+    // overhead camera: how far the player has turned it from the grid's heading, by dragging or with the rotate keys (radians); the
+    // look-down angle the drag sets is the overhead pitch setting itself
+    private double _overheadTurn;
 
     // dynamic view, high up: how far the player has turned the picture from the grid's heading by dragging (radians); see DynamicView.TurnWeight
     private double _scrollTurn;
-    private float _orbitPitch = 50f * MathF.PI / 180f;
-    private bool _orbitDragging;
+    private bool _turnDragging;
     private CameraMode _lastMode = CameraMode.ThirdPerson;
 
     // follow camera: how far ahead of the character (a world offset) the camera looks, smoothed
@@ -243,7 +243,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // down among the walls the view follows the mouse look again: the turn is given up
             _scrollTurn = 0.0;
-            _orbitDragging = false;
+            _turnDragging = false;
         }
 
         _scrollNoCeiling = DynamicView.Latch(_scrollNoCeiling, ScrollU, DynamicView.NoCeilingOn, DynamicView.NoCeilingOff);
@@ -303,19 +303,20 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     }
 
     /// <summary>
-    ///     Turns the orbit camera by quarter turns (the camera rotate keys), or back to the grid's north (<paramref name="quarterTurns"/> 0);
-    ///     for the other high cameras the number of quarter turns is <see cref="OverheadSteps"/>.
+    ///     Turns the overhead camera by eighth turns (the camera rotate keys, snapping to the nearest one), or back to the grid's north
+    ///     (<paramref name="quarterTurns"/> 0); the dynamic view turns by quarter turns, counted in <see cref="OverheadSteps"/>.
     /// </summary>
     public void TurnView(int quarterTurns)
     {
-        if (Camera.Mode == CameraMode.DynamicView)
-            _scrollTurn = 0.0;
-
-        if (Camera.Mode == CameraMode.Orbit)
+        if (Camera.Mode == CameraMode.Overhead)
         {
-            _orbitYaw = quarterTurns == 0 ? OverheadTargetYaw(_player.LocalEntity, false) : _orbitYaw + quarterTurns * (Math.PI / 2);
+            const double step = Math.PI / 4;
+            _overheadTurn = quarterTurns == 0 ? 0.0 : (Math.Round(_overheadTurn / step) + quarterTurns) * step;
             return;
         }
+
+        if (quarterTurns == 0)
+            _scrollTurn = 0.0;
 
         OverheadSteps = OverheadCamera.Turn(OverheadSteps, quarterTurns);
     }
@@ -420,9 +421,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         if (args.Handled)
             return;
 
-        // the orbit camera (and the dynamic view, once it is high) turns while the drag key (the middle mouse button) is held over the view
-        if (args.Function == Render3DKeys.OrbitDrag && (Camera.Mode == CameraMode.Orbit || Camera.Mode == CameraMode.DynamicView && _scrollFree))
-            _orbitDragging = true;
+        // the overhead camera (and the dynamic view, once it is high) turns while the drag key (the middle mouse button) is held over the view
+        if (args.Function == Render3DKeys.OrbitDrag && (Camera.Mode == CameraMode.Overhead || Camera.Mode == CameraMode.DynamicView && _scrollFree))
+            _turnDragging = true;
 
         ForwardKey(args);
     }
@@ -431,30 +432,25 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     {
         base.KeyBindUp(args);
         if (args.Function == Render3DKeys.OrbitDrag)
-            EndOrbitDrag();
+            EndTurnDrag();
 
         if (args.Handled)
             return;
         ForwardKey(args);
     }
 
-    private void EndOrbitDrag()
+    private void EndTurnDrag()
     {
-        if (!_orbitDragging)
+        if (!_turnDragging)
             return;
 
-        _orbitDragging = false;
-        if (Camera.Mode != CameraMode.Orbit)
-            return;
-
-        // remembered for the next time the orbit camera is used
-        _cfg.SetCVar(CCVars.Render3DOrbitPitch, MathF.Round(_orbitPitch * 180f / MathF.PI * 10f) / 10f);
+        _turnDragging = false;
     }
 
     protected override void MouseExited()
     {
         base.MouseExited();
-        EndOrbitDrag();
+        EndTurnDrag();
     }
 
     /// <summary>
@@ -481,7 +477,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     {
         base.MouseMove(args);
 
-        if (_orbitDragging)
+        if (_turnDragging)
         {
             // drag right: the scene turns right; drag down: the camera climbs (looks further down)
             var turn = RadiansPerPixel * Sensitivity * 1.5f;
@@ -492,10 +488,10 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
                 return;
             }
 
-            _orbitYaw += args.Relative.X * turn;
-            var climb = (InvertY ? -args.Relative.Y : args.Relative.Y) * turn;
-            _orbitPitch = Math.Clamp(_orbitPitch + climb,
-                OverheadCamera.MinPitchDegrees * MathF.PI / 180f, OverheadCamera.MaxPitchDegrees * MathF.PI / 180f);
+            _overheadTurn += args.Relative.X * turn;
+            var climb = (InvertY ? -args.Relative.Y : args.Relative.Y) * turn * 180f / MathF.PI;
+            _cfg.SetCVar(CCVars.Render3DOverheadPitch,
+                Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadPitch) + climb, OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees));
             return;
         }
 
@@ -1028,9 +1024,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         cam.Size = new Vector2(sceneSize.X, sceneSize.Y);
         cam.FovY = MathHelper.DegreesToRadians((float) _cfg.GetCVar(mode switch
         {
-            CameraMode.Overhead or CameraMode.Orbit => CCVars.Render3DOverheadFov,
-            CameraMode.Isometric => CCVars.Render3DIsoFov,
-            CameraMode.Shoulder => CCVars.Render3DShoulderFov,
+            CameraMode.Overhead => CCVars.Render3DOverheadFov,
             _ => CCVars.Render3DFov,
         }));
 
@@ -1053,19 +1047,11 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         if (mode != _lastMode)
         {
-            // A new camera. The orbit camera starts from the way the view looks now and the angle it was left at.
-            if (mode == CameraMode.Orbit)
-            {
-                _orbitYaw = cam.Yaw;
-                _orbitPitch = MathHelper.DegreesToRadians(Math.Clamp(_cfg.GetCVar(CCVars.Render3DOrbitPitch),
-                    OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees));
-            }
-
-            // Leaving a high camera for a walking one: look level again (the high cameras look steeply down, and that angle would carry over).
-            if (_lastMode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit or CameraMode.DynamicView && !elevated)
+            // A new camera. Leaving a high camera for a walking one: look level again (the high cameras look steeply down, and that angle would carry over).
+            if (_lastMode is CameraMode.Overhead or CameraMode.DynamicView && !elevated)
                 cam.Pitch = mode == CameraMode.FirstPerson ? 0f : -0.15f;
 
-            _orbitDragging = false;
+            _turnDragging = false;
             _lastMode = mode;
         }
 
@@ -1075,39 +1061,25 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             cam.Pitch = (float) MathHelper.DegreesToRadians(look.Pitch);
         }
 
-        var targetYaw = mode switch
-        {
-            CameraMode.Overhead => OverheadTargetYaw(player, false),
-            CameraMode.Isometric => OverheadTargetYaw(player, true),
-            CameraMode.Orbit => _orbitYaw,
-            _ => 0.0,
-        };
+        var targetYaw = mode == CameraMode.Overhead ? OverheadTargetYaw(player) + _overheadTurn : 0.0;
 
         if (elevated)
         {
-            // Fixed to the grid in quarter turns (overhead, isometric), or turned by dragging (orbit). The picture turns smoothly to a new
-            // heading, while the movement keys switch to it at once (see DesiredYaw below).
+            // Fixed to the grid's heading, turned by the rotate keys and by dragging. The picture glides to a new heading (and follows a drag
+            // at once), while the movement keys switch to it at once (see DesiredYaw below).
             var turnDt = (float) _timing.FrameTime.TotalSeconds;
-            if (mode == CameraMode.Orbit || _overheadSnap || turnDt <= 0f || turnDt > 0.25f || double.IsNaN(cam.Yaw))
+            if (_turnDragging || _overheadSnap || turnDt <= 0f || turnDt > 0.25f || double.IsNaN(cam.Yaw))
                 cam.Yaw = targetYaw;
             else
                 cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(targetYaw)).Theta * (1f - MathF.Exp(-turnDt * 12f)), 0f);
 
-            if (mode == CameraMode.Orbit)
-                _orbitYaw = new Angle(_orbitYaw).Reduced().Theta;
-
+            _overheadTurn = new Angle(_overheadTurn).Reduced().Theta;
             _overheadSnap = false;
 
-            // the follow camera (overhead and isometric): the camera looks where the character is looking
-            UpdateFollow(eyePos, player, mode != CameraMode.Orbit && _cfg.GetCVar(CCVars.Render3DFollowCamera), turnDt);
+            // the follow camera: the camera looks where the character is looking
+            UpdateFollow(eyePos, player, _cfg.GetCVar(CCVars.Render3DFollowCamera), turnDt);
 
-            var pitchDegrees = mode switch
-            {
-                CameraMode.Isometric => _cfg.GetCVar(CCVars.Render3DIsoPitch),
-                CameraMode.Orbit => _orbitPitch * 180f / MathF.PI,
-                _ => _cfg.GetCVar(CCVars.Render3DOverheadPitch),
-            };
-            pitchDegrees = Math.Clamp(pitchDegrees, OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
+            var pitchDegrees = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadPitch), OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
             cam.Pitch = -MathHelper.DegreesToRadians(pitchDegrees);
         }
 
@@ -1138,15 +1110,12 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             return;
         }
 
-        // third person, or the shoulder camera: closer, a wider offset to the side and a little lower, for aiming
-        var shoulder = mode == CameraMode.Shoulder;
-        var dist = shoulder
-            ? Math.Clamp(_cfg.GetCVar(CCVars.Render3DShoulderDistance), ShoulderMinDistance, ShoulderMaxDistance)
-            : Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance), 0.8f, 3.0f);
-        var side = shoulder ? 0.55f : 0.35f;
+        // third person
+        var dist = Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance), 0.8f, 3.0f);
+        const float side = 0.35f;
         var fwd = cam.ForwardGround;
         var right = new Vector2(cam.Right.X, cam.Right.Y);
-        var height = MathF.Min(eyeHeight + (shoulder ? 0.2f : 0.25f), wallHeight - 0.2f);
+        var height = MathF.Min(eyeHeight + 0.25f, wallHeight - 0.2f);
         var desired = new Vector3(
             head.X - fwd.X * dist + right.X * side,
             head.Y - fwd.Y * dist + right.Y * side,
@@ -1177,21 +1146,17 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         cam.UpdateBasis();
     }
 
-    /// <summary>The shoulder camera's distance range (tiles); the zoom keys move it within it.</summary>
-    public const float ShoulderMinDistance = 0.5f;
-    public const float ShoulderMaxDistance = 2.0f;
-
     /// <summary>
-    ///     The heading the overhead view has: the grid the character stands on turned by the quarter turns the player chose, and for the
-    ///     isometric view by a diagonal as well.
+    ///     The heading the overhead view starts from: the grid the character stands on, turned by the quarter turns the player chose (the
+    ///     dynamic view's rotate keys count them; the overhead camera's turn is added on top).
     /// </summary>
-    private double OverheadTargetYaw(EntityUid? player, bool isometric)
+    private double OverheadTargetYaw(EntityUid? player)
     {
         var grid = Angle.Zero;
         if (player is { } p && _xformSys != null && _entMan.TryGetComponent(p, out TransformComponent? xform) && xform.GridUid is { } g)
             grid = _xformSys.GetWorldRotation(g);
 
-        return isometric ? OverheadCamera.IsometricYaw(grid, OverheadSteps) : OverheadCamera.Yaw(grid, OverheadSteps);
+        return OverheadCamera.Yaw(grid, OverheadSteps);
     }
 
     /// <summary>
@@ -1266,9 +1231,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // Turned to the grid's heading (and the isometric diagonal on the way), and fixed there; the picture glides to it, while the
             // movement keys switch to it at once.
-            targetYaw = OverheadTargetYaw(player, false) + view.IsoWeight * OverheadCamera.IsometricTurn
+            targetYaw = OverheadTargetYaw(player) + view.IsoWeight * OverheadCamera.IsometricTurn
                 + _scrollTurn * DynamicView.TurnWeight(ScrollU);
-            if (_orbitDragging || _overheadSnap || dt <= 0f || dt > 0.25f || double.IsNaN(cam.Yaw))
+            if (_turnDragging || _overheadSnap || dt <= 0f || dt > 0.25f || double.IsNaN(cam.Yaw))
                 cam.Yaw = targetYaw;
             else
                 cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(targetYaw)).Theta * (1f - MathF.Exp(-dt * 12f)), 0f);
@@ -1284,6 +1249,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var head = new Vector3(eyePos.X, eyePos.Y, eyeHeight);
         cam.Head = head;
 
+        // the follow camera, once the view is high (it fades out towards the straight-down view, which hands over to the classic 2D picture)
+        UpdateFollow(eyePos, player, free && _cfg.GetCVar(CCVars.Render3DFollowCamera), dt);
+
         if (view.Distance < 0.02f)
         {
             // first person
@@ -1295,6 +1263,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         var right = new Vector2(cam.Right.X, cam.Right.Y);
         var target = new Vector3(head.X, head.Y, view.TargetHeight);
+        target += new Vector3(_followLead * DynamicView.TurnWeight(ScrollU), 0f);
         var desired = target - cam.Forward * view.Distance + new Vector3(right * view.Side, 0f);
 
         // Spring arm while the camera is down among the walls (the same one the third person camera has); above them nothing is in the way.

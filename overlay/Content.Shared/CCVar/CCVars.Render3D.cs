@@ -92,14 +92,15 @@ public sealed partial class CCVars
         CVarDef.Create("render3d.overhead", false, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
-    ///     Which of the other cameras is on: 0 none, 1 isometric, 2 free orbit, 3 shoulder. It wins over <see cref="Render3DOverhead"/> and
+    ///     Which of the other cameras is on: 0 none, 4 the dynamic view (the old values 1 isometric and 2 free orbit mean overhead, 3 shoulder
+    ///     means third person). It wins over <see cref="Render3DOverhead"/> and
     ///     <see cref="Render3DFirstPerson"/> (the camera key and the settings window set all three together).
     /// </summary>
     public static readonly CVarDef<int> Render3DCameraExtra =
         CVarDef.Create("render3d.camera_extra", 0, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
-    ///     Follow camera (overhead and isometric views): the camera looks where the character is looking. Its focus moves ahead of the
+    ///     Follow camera (overhead camera, and the dynamic view once it is high): the camera looks where the character is looking. Its focus moves ahead of the
     ///     character in the direction it faces (but not through a wall), smoothly.
     /// </summary>
     public static readonly CVarDef<bool> Render3DFollowCamera =
@@ -109,17 +110,13 @@ public sealed partial class CCVars
     public static readonly CVarDef<float> Render3DFollowLead =
         CVarDef.Create("render3d.follow_lead", 2.5f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
-    /// <summary>Isometric camera: how many degrees the view is pitched down (the classic isometric look is about 35).</summary>
+    /// <summary>Dynamic view: how many degrees the isometric step is pitched down (the classic isometric look is about 35).</summary>
     public static readonly CVarDef<float> Render3DIsoPitch =
         CVarDef.Create("render3d.iso_pitch", 38f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
-    /// <summary>Isometric camera: vertical field of view in degrees (narrow, so parallel lines stay nearly parallel).</summary>
+    /// <summary>Dynamic view: vertical field of view in degrees of the isometric step (narrow, so parallel lines stay nearly parallel).</summary>
     public static readonly CVarDef<int> Render3DIsoFov =
         CVarDef.Create("render3d.iso_fov", 30, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>Free orbit camera: how many degrees it looks down (changed by dragging; kept for the next time).</summary>
-    public static readonly CVarDef<float> Render3DOrbitPitch =
-        CVarDef.Create("render3d.orbit_pitch", 50f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>Dynamic view: where the wheel left it, 0 (first person) to 1 (the classic 2D view).</summary>
     public static readonly CVarDef<float> Render3DDynamicViewU =
@@ -136,14 +133,6 @@ public sealed partial class CCVars
     /// <summary>Dynamic view: the last step is the classic 2D view (when the server allows 2D), reached by a cross-fade.</summary>
     public static readonly CVarDef<bool> Render3DDynamicView2D =
         CVarDef.Create("render3d.dynamic_view_2d", true, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>Shoulder camera: distance behind the character in tiles (closer than third person).</summary>
-    public static readonly CVarDef<float> Render3DShoulderDistance =
-        CVarDef.Create("render3d.shoulder_distance", 1.4f, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>Shoulder camera: vertical field of view in degrees.</summary>
-    public static readonly CVarDef<int> Render3DShoulderFov =
-        CVarDef.Create("render3d.shoulder_fov", 70, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>Overhead camera: how many degrees the view is pitched down.</summary>
     public static readonly CVarDef<float> Render3DOverheadPitch =
