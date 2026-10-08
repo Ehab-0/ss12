@@ -3,6 +3,10 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Turn the dynamic view by dragging.** Once the dynamic view is high (isometric and overhead), holding the middle mouse button and
+  dragging turns the picture as in free orbit (the heading only; the look-down angle stays as the wheel set it). It is given up on the way
+  down and fades out towards the straight-down view, so the hand-over to 2D stays north-up.
+- **Taller walls by default.** `render3d.wall_height` is now 2.7 tiles (it was 2.3); a value you set yourself is kept.
 - **Space is no longer black.** Looking at the edge of the station from a high or elevated camera, the space around it now shows the game's own
   space background (the parallax stars of the 2D view) instead of flat black; it fades into the procedural stars farther out. It follows the
   existing `render3d.fx.sky` switch.

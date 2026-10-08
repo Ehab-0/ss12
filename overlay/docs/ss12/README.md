@@ -119,6 +119,10 @@ that way so the view never pokes through one. The focus settles on the new place
 - Close to the character the mouse looks around with the crosshair, as in first and third person. A little above the high third person the
   camera counts as a high one: the mouse is released and becomes a free cursor, the camera turns to the grid's heading (and to the isometric
   diagonal on the way), there is no ceiling and the walls come down to their low height. On the way back the mouse look returns.
+- From there up (isometric and overhead, until the view starts to go straight down) holding the middle mouse button over the view and dragging
+  turns the picture, as in the free orbit camera; only the heading turns, the look-down angle stays what the wheel set. WASD follows the screen
+  at the new heading. The turn is given up on the way down to the walking cameras and fades out towards the straight-down view, so the hand-over
+  to the classic 2D view is not turned; the camera rotate keys reset it.
 - **The last step is the real 2D view**, if the server allows 2D (`render3d.dynamic_view_2d`, on by default; a server that makes 3D mandatory stops
   the scroll at the straight-down view). The straight-down camera is set up to cover as many tiles as the 2D view does, and the 2D picture is
   faded in over it; at the very end the 3D view is switched off and the game shows its own 2D view, where the wheel still works and the
@@ -171,7 +175,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.enforced` (false, server, replicated) | Living players may not use 2D. |
 | `render3d.yaw_send_rate` (12, client) | How many camera yaw updates per second the client sends while the mouse turns the view (4 to 30). Lower sends less over a lossy connection; WASD follows the new direction at this rate. |
 | `render3d.settings_on_join` (0, server, replicated), `render3d.settings_shown` (false) | Opens the 3D settings window by itself when a player enters a round: 0 never, 1 the first time only (`settings_shown` remembers it on that computer), 2 every round. |
-| `render3d.wall_height` (2.3), `eye_height` (0.9) | Tiles are 1 unit wide; the plan's 1.25 / 0.75 felt cramped, so rooms are 2.3 tiles tall (also a slider in the F11 window). |
+| `render3d.wall_height` (2.7), `eye_height` (0.9) | Tiles are 1 unit wide; the plan's 1.25 / 0.75 felt cramped, so rooms are 2.7 tiles tall (also a slider in the F11 window). |
 | `render3d.table_height` (0.45), `effect_height` (0.6), `ui_anchor_height` (0.9) | Where table tops, flat effects and floating labels sit. |
 | `render3d.fov` (80, degrees, integer) | Vertical field of view. |
 | `render3d.render_scale` (1.0) | Resolution of the 3D scene relative to the window (below 1 draws fewer pixels). |
