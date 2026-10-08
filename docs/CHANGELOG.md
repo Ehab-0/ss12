@@ -11,6 +11,19 @@
   quarter turns. The zoom keys move the camera in and out. Standing things lean back by most of the camera pitch so they keep their
   proportions. Pitch, distance, field of view and wall height have settings (`render3d.overhead_*`). `N` goes back to walking.
   The other cameras are unchanged.
+- **Three more cameras and a camera key.** `Insert` goes through third person, first person, **shoulder**, overhead, **isometric** and
+  **free orbit**, and a short notice names the one you land on (`N` and `O` work as before). Shoulder is a closer, lower third person
+  shifted to one side with a narrower field of view, for aiming. Isometric is the overhead view turned a diagonal, lower, with a narrow
+  field of view. Free orbit is the overhead view where holding the middle mouse button over the view and dragging turns and tilts the
+  camera around the character; the camera rotate keys snap its heading. New settings: `render3d.camera_extra`, `iso_pitch`, `iso_fov`,
+  `orbit_pitch`, `shoulder_distance`, `shoulder_fov`; new keys: `Insert` (next camera) and the orbit drag (middle mouse), both
+  rebindable. `r3d_cam tp|fp|sh|oh|iso|orbit` for the dev channel.
+- **A dynamic camera for the overhead and isometric views** (`PageUp`, `render3d.dynamic_camera`, off by default). Eight probe rays
+  along the floor measure how open the place around the character is: in a tight place the camera moves in and looks down a little
+  steeper, in a big room it moves out and looks down a little shallower, and running pulls it back a little, all smoothly.
+- **The settings window (`F11`) is split into tabs**: General (on/off, quality preset, render scale), Camera (a dropdown for the camera
+  and only the settings that camera has), Interface (crosshair, pointing list, minimap), Controls (keys) and Graphics (effects, shapes).
+  The "start in first person" and "overhead view" checkboxes are replaced by the camera dropdown.
 
 ## 1.4.0
 - **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in

@@ -48,6 +48,11 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
 - **An overhead view.** The `O` key lifts the camera high above your character, like the classic top-down game: no ceiling, walls
   shown as dark caps, and a free mouse cursor you click the world with as in 2D. `W A S D` walks along the screen and the camera
   rotate keys turn the view by quarter turns.
+- **More cameras.** `Insert` goes through third person, first person, **shoulder** (close, for aiming), **overhead**, **isometric**
+  (a fixed diagonal view) and **free orbit** (hold the middle mouse button and drag to turn it). A **dynamic camera** option for the
+  overhead and isometric views moves in in tight places and out in open ones by itself (`PageUp`).
+- **A tidier settings window.** `F11` now has tabs (General, Camera, Interface, Controls, Graphics), and the Camera tab only shows the
+  settings of the camera you picked.
 - **Mouse look.** Move the mouse to look around, `W A S D` to walk where you are looking.
 - **Everything still works.** Pick things up, throw, shoot, open doors and lockers, drag things around, cuff people,
   talk. Aim with the cross in the middle of the screen.
@@ -104,6 +109,8 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Walk | `W` `A` `S` `D` |
 | Switch between first and third person | `N` |
 | Switch the overhead view on and off (the mouse is always free in it) | `O` |
+| Next camera: shoulder, overhead, isometric, free orbit... | `Insert` |
+| Dynamic camera on and off (overhead and isometric views) | `PageUp` |
 | **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
 | Minimap on and off; small or large | `M`; `-` |
 | List of what you point at, on and off | `L` |

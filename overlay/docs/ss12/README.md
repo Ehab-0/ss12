@@ -41,9 +41,12 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle 3D / 2D (when allowed) | `F12` |
 | Toggle first / third person (from the overhead view: back to walking) | `N` |
 | Toggle the overhead view | `O` |
+| Next camera (third person, first person, shoulder, overhead, isometric, free orbit, and round again) | `Insert` |
+| Dynamic camera on and off (overhead and isometric views) | `PageUp` |
+| Free orbit camera: turn and tilt it | hold the middle mouse button over the view and drag |
 | Turn the overhead view a quarter turn left or right, or back to north up | the existing Camera rotate left / right / reset keys (while the overhead view is on) |
 | **Free the mouse to click menus, buttons and the inventory (hold)** | **`Alt`** (Alt-click keeps its normal meaning) |
-| 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
+| 3D settings window (tabs: General, Camera, Interface, Controls, Graphics) | `F11`, or the console command `render3d_settings [tab]` (`general`, `camera`, `interface`, `controls`, `graphics`) |
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
 | List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
@@ -75,11 +78,32 @@ no hole.
   the Camera rotate left / right keys turn it by quarter turns, smoothly; the reset key goes back to north up. The movement keys
   follow the new heading at once. The yaw goes to the server through the same message as in the other views.
 - The zoom keys move the camera in and out. Characters and machines lean back by most of the pitch, so they keep their proportions.
-- Switch it with `O`, with the checkbox in the settings window (`render3d.overhead`, kept between rounds) or `r3d_cam oh`. `N` goes back to walking.
+- Switch it with `O`, with the camera dropdown in the settings window (`render3d.overhead`, kept between rounds) or `r3d_cam oh`. `N` goes back to walking.
   Pitch, distance, field of view and wall height have sliders (`render3d.overhead_*`).
 
 The overhead view shows what the classic view shows: the field of view and the lights are the 2D ones, and entities and walls are hidden the
 same way, so it gives no extra sight.
+
+### The other cameras
+
+`Insert` goes through all six cameras (a short notice names the one you land on); `N` and `O` still switch first / third person and
+the overhead view. The Camera tab of the settings window (`F11`) has a dropdown for the camera and shows only the settings of the camera
+you picked.
+
+| Camera | What it is |
+|--------|------------|
+| Third person (default) | Behind the character, with a crosshair; the mouse looks around. |
+| First person | Through the character's eyes. |
+| **Shoulder** | A closer, lower third person, shifted to one side, with a narrower field of view (70), for aiming. The zoom keys change its distance (0.5 - 2). |
+| **Overhead** | See above. |
+| **Isometric** | The overhead view turned a diagonal (45 degrees, so the grid's axes run along the screen's diagonals), lower (38 degrees) and with a narrow field of view (30), so parallel lines stay close to parallel. North up is a diagonal; the camera rotate keys turn it by quarter turns. The mouse is free, as in the overhead view. |
+| **Free orbit** | The overhead view with a free mouse, where the middle mouse button turns it: hold it over the view and drag to turn and tilt the camera around the character. WASD walks along the screen at whatever heading it has. The camera rotate keys snap the heading by quarter turns (reset: the grid's north). It starts from the way you were looking and from the look-down angle you left it at (`render3d.orbit_pitch`). |
+
+**Dynamic camera** (overhead and isometric views only; `PageUp` or the checkbox in the Camera tab, `render3d.dynamic_camera`): eight probe
+rays along the floor measure how open the place around the character is. In a tight place (a corridor, a closet) the camera moves in and
+looks down a little steeper, so the walls hide less; in a big open room it moves out and looks down a little shallower; running pulls it
+back a little. It settles on all of this smoothly (about a third of a second) and the distance and angle sliders are the starting point it
+works from. It is off by default.
 
 ## Status: what has been verified
 
@@ -92,6 +116,7 @@ real human play.**
 | Rendering: walls, floors, ceilings, space, fog, lights, FOV hiding, doors, windows, tables, wall decals, glowing layers | working |
 | Camera: third-person spring arm, first person, yaw sync to the server, camera-relative movement | working, covered by unit + integration tests |
 | Overhead camera (high, no ceiling, free cursor) | unit tests (camera geometry, wall-top ray casts, quad order, mouse capture); drawn and turned by the quarter-turn key in a local round. **Needs a human:** clicking, aiming and dragging with a real cursor, a rotating shuttle, doors and windows seen from above |
+| Isometric, free orbit and shoulder cameras, the dynamic camera, the tabbed settings window | unit tests (camera modes and their settings, the isometric heading, the dynamic camera's numbers); in a local round the isometric, orbit and shoulder cameras were drawn, the camera key went through them, the dynamic key was pressed, and the settings tabs were opened (a Debug build, about 4 FPS). **Needs a human:** the middle-mouse orbit drag, how the dynamic camera feels, aiming with the shoulder camera |
 | Interaction: pick up, drop, throw, open lockers, doors, pull, cuff, melee, flash, gun firing at the crosshair, context menu, examine | each exercised live |
 | HUD in 3D: health bars, status/sec HUD icons, speech bubbles, popups, map text | working |
 | Enforcement (`render3d.enforced`), options tab, key rebinding | working |
@@ -137,7 +162,12 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
 | `render3d.overhead` (false) | Use the overhead camera (see [The overhead view](#the-overhead-view)); it takes the place of first and third person while on. |
-| `render3d.overhead_pitch` (55, degrees), `overhead_distance` (9, tiles; 4 to 16), `overhead_fov` (45, degrees), `overhead_wall_height` (1.1, tiles) | The overhead camera: how far it looks down, how far it hangs from the character along the line of sight, its field of view, and the height walls have in this view. |
+| `render3d.overhead_pitch` (55, degrees), `overhead_distance` (9, tiles; 4 to 16), `overhead_fov` (45, degrees), `overhead_wall_height` (1.1, tiles) | The overhead camera: how far it looks down, how far it hangs from the character along the line of sight, its field of view, and the height walls have in this view. The distance, field of view and wall height are shared by the isometric and orbit cameras. |
+| `render3d.camera_extra` (0) | Which of the other cameras is on: 0 none, 1 isometric, 2 free orbit, 3 shoulder. It wins over `overhead` and `first_person`; the camera key and the settings window set all three together, and a high or shoulder camera leaves `first_person` as it was so leaving it returns to the walking camera you had. |
+| `render3d.dynamic_camera` (false) | The dynamic camera (overhead and isometric views). |
+| `render3d.iso_pitch` (38, degrees), `iso_fov` (30, degrees) | The isometric camera: how far it looks down, and its field of view. |
+| `render3d.orbit_pitch` (50, degrees) | The free orbit camera's look-down angle (saved when a drag ends). |
+| `render3d.shoulder_distance` (1.4, tiles), `shoulder_fov` (70, degrees) | The shoulder camera. |
 | `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight, Space (or a click with `Alt` held) selects the row as the target and Space again acts on it like a left click (the target is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |
 | `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
@@ -148,7 +178,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 ## Graphics, and turning things off for older PCs
 
 Every visual effect is its own on/off setting, so older machines can drop exactly what they cannot afford. Open the
-settings window (`F11`) and use the **Graphics** section: a quality preset (Low / Medium / High) plus one checkbox per
+settings window (`F11`) and use the **Graphics** tab: a quality preset (Low / Medium / High) plus one checkbox per
 effect. Toggling a single effect by hand makes the preset read "Custom". The same switches exist as console commands:
 `render3d_quality low|medium|high` and `render3d_fx <effect> on|off` (`render3d_fx` alone lists them).
 
@@ -294,7 +324,7 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 |---------|---------|
 | `r3d_shot <name>` | PNG of the 3D view into `Screenshots/` |
 | `r3d_look <yaw> <pitch>` / `r3d_look off`, `r3d_aim <x> <y>` | point the camera (degrees) or at a floor point |
-| `r3d_cam fp\|tp\|oh` | camera mode (first person, third person, overhead) |
+| `r3d_cam tp\|fp\|sh\|oh\|iso\|orbit` | camera mode (third person, first person, shoulder, overhead, isometric, free orbit) |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
 | `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |
