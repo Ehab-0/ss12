@@ -41,12 +41,13 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle 3D / 2D (when allowed) | `F12` |
 | Toggle first / third person (from the overhead view: back to walking) | `N` |
 | Toggle the overhead view | `O` |
-| Next camera (third person, first person, shoulder, overhead, isometric, free orbit, and round again) | `Insert` |
-| Dynamic camera on and off (overhead and isometric views) | `PageUp` |
+| Next camera (third person, first person, shoulder, overhead, isometric, free orbit, dynamic view, and round again) | `Insert` |
+| Follow camera on and off (overhead and isometric views) | `PageUp` |
+| Dynamic view: closer to the character / further and higher, all the way to the 2D view | the mouse wheel (the zoom keys do the same) |
 | Free orbit camera: turn and tilt it | hold the middle mouse button over the view and drag |
 | Turn the overhead view a quarter turn left or right, or back to north up | the existing Camera rotate left / right / reset keys (while the overhead view is on) |
 | **Free the mouse to click menus, buttons and the inventory (hold)** | **`Alt`** (Alt-click keeps its normal meaning) |
-| 3D settings window (tabs: General, Camera, Interface, Controls, Graphics) | `F11`, or the console command `render3d_settings [tab]` (`general`, `camera`, `interface`, `controls`, `graphics`) |
+| 3D settings window (tabs: General, Interface, Controls, Graphics) | `F11`, or the console command `render3d_settings [tab]` (`general`, `interface`, `controls`, `graphics`) |
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
 | List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
@@ -86,9 +87,9 @@ same way, so it gives no extra sight.
 
 ### The other cameras
 
-`Insert` goes through all six cameras (a short notice names the one you land on); `N` and `O` still switch first / third person and
-the overhead view. The Camera tab of the settings window (`F11`) has a dropdown for the camera and shows only the settings of the camera
-you picked.
+`Insert` goes through all seven cameras (a short notice names the one you land on); `N` and `O` still switch first / third person and
+the overhead view. The General tab of the settings window (`F11`) has a dropdown for the camera, and under it only the settings of the
+camera you picked.
 
 | Camera | What it is |
 |--------|------------|
@@ -98,12 +99,32 @@ you picked.
 | **Overhead** | See above. |
 | **Isometric** | The overhead view turned a diagonal (45 degrees, so the grid's axes run along the screen's diagonals), lower (38 degrees) and with a narrow field of view (30), so parallel lines stay close to parallel. North up is a diagonal; the camera rotate keys turn it by quarter turns. The mouse is free, as in the overhead view. |
 | **Free orbit** | The overhead view with a free mouse, where the middle mouse button turns it: hold it over the view and drag to turn and tilt the camera around the character. WASD walks along the screen at whatever heading it has. The camera rotate keys snap the heading by quarter turns (reset: the grid's north). It starts from the way you were looking and from the look-down angle you left it at (`render3d.orbit_pitch`). |
+| **Dynamic view** | One camera that the mouse wheel moves all the way: first person, third person, a high third person, isometric, overhead, straight down, and last the classic 2D view. See below. |
 
-**Dynamic camera** (overhead and isometric views only; `PageUp` or the checkbox in the Camera tab, `render3d.dynamic_camera`): eight probe
-rays along the floor measure how open the place around the character is. In a tight place (a corridor, a closet) the camera moves in and
-looks down a little steeper, so the walls hide less; in a big open room it moves out and looks down a little shallower; running pulls it
-back a little. It settles on all of this smoothly (about a third of a second) and the distance and angle sliders are the starting point it
-works from. It is off by default.
+**Follow camera** (overhead and isometric views only; `PageUp` or the checkbox in the General tab, `render3d.follow_camera`): the camera
+looks where the character is looking. Its focus moves ahead of the character, in the direction the character faces (the character turns
+to face the cursor, so this follows where you aim), by `render3d.follow_lead` tiles (2.5 by default), but stops 0.75 tiles short of a wall
+that way so the view never pokes through one. The focus settles on the new place smoothly (about a third of a second). It is off by default.
+
+**The dynamic view** (`render3d.camera_extra` 4; the cameras in `Insert`'s order, last):
+
+- The wheel moves one number from 0 (first person) to 1 (the classic 2D view); the camera glides there. Rolling the wheel away from you
+  brings the camera closer to the character, towards first person; `render3d.dynamic_view_invert` turns that round, `render3d.dynamic_view_speed`
+  (0.06, the part of the whole way per notch) says how far a notch goes, and the zoom keys do the same as the wheel. Where it was left is
+  kept (`render3d.dynamic_view_u`).
+- The stops, from close to far: first person, third person (the third person settings), a high third person, isometric (the isometric
+  settings), overhead (the overhead settings), straight down. The sliders of those cameras are the stops, so there is nothing else to tune. Between the stops the distance is worked out so
+  that the picture shows steadily more of the floor with every notch (by ratio, so a notch feels the same near third person and near
+  isometric): the field of view narrows towards isometric, so a distance that merely grew would have zoomed the picture in again on the way.
+- Close to the character the mouse looks around with the crosshair, as in first and third person. A little above the high third person the
+  camera counts as a high one: the mouse is released and becomes a free cursor, the camera turns to the grid's heading (and to the isometric
+  diagonal on the way), there is no ceiling and the walls come down to their low height. On the way back the mouse look returns.
+- **The last step is the real 2D view**, if the server allows 2D (`render3d.dynamic_view_2d`, on by default; a server that makes 3D mandatory stops
+  the scroll at the straight-down view). The straight-down camera is set up to cover as many tiles as the 2D view does, and the 2D picture is
+  faded in over it; at the very end the 3D view is switched off and the game shows its own 2D view, where the wheel still works and the
+  game's camera keys turn the view. Scrolling back fades the 3D picture in again.
+- Limitation: the wheel goes to whatever is under the mouse pointer. With the mouse captured (first and third person) that is wherever the
+  pointer was left, so the wheel can land on a HUD element; the zoom keys always work.
 
 ## Status: what has been verified
 
@@ -116,7 +137,7 @@ real human play.**
 | Rendering: walls, floors, ceilings, space, fog, lights, FOV hiding, doors, windows, tables, wall decals, glowing layers | working |
 | Camera: third-person spring arm, first person, yaw sync to the server, camera-relative movement | working, covered by unit + integration tests |
 | Overhead camera (high, no ceiling, free cursor) | unit tests (camera geometry, wall-top ray casts, quad order, mouse capture); drawn and turned by the quarter-turn key in a local round. **Needs a human:** clicking, aiming and dragging with a real cursor, a rotating shuttle, doors and windows seen from above |
-| Isometric, free orbit and shoulder cameras, the dynamic camera, the tabbed settings window | unit tests (camera modes and their settings, the isometric heading, the dynamic camera's numbers); in a local round the isometric, orbit and shoulder cameras were drawn, the camera key went through them, the dynamic key was pressed, and the settings tabs were opened (a Debug build, about 4 FPS). **Needs a human:** the middle-mouse orbit drag, how the dynamic camera feels, aiming with the shoulder camera |
+| Isometric, free orbit, shoulder and dynamic-view cameras, the follow camera, the tabbed settings window | unit tests (camera modes and their settings, the isometric heading, the follow camera's numbers, the dynamic view's stops, its steadily growing picture, its wheel steps and switches); in a local round all of them were drawn, the camera key went through them, the follow camera moved the focus ahead of the character by the set lead, the dynamic view was put at positions from third person to the classic 2D view (the cross-fade and the real 2D view were seen, and scrolling back), and the settings tabs were opened (a Debug build, about 4 FPS). **Needs a human:** the mouse wheel itself (it was not turned in these runs), the middle-mouse orbit drag, aiming with the shoulder camera, how the follow camera feels |
 | Interaction: pick up, drop, throw, open lockers, doors, pull, cuff, melee, flash, gun firing at the crosshair, context menu, examine | each exercised live |
 | HUD in 3D: health bars, status/sec HUD icons, speech bubbles, popups, map text | working |
 | Enforcement (`render3d.enforced`), options tab, key rebinding | working |
@@ -164,7 +185,8 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.overhead` (false) | Use the overhead camera (see [The overhead view](#the-overhead-view)); it takes the place of first and third person while on. |
 | `render3d.overhead_pitch` (55, degrees), `overhead_distance` (9, tiles; 4 to 16), `overhead_fov` (45, degrees), `overhead_wall_height` (1.1, tiles) | The overhead camera: how far it looks down, how far it hangs from the character along the line of sight, its field of view, and the height walls have in this view. The distance, field of view and wall height are shared by the isometric and orbit cameras. |
 | `render3d.camera_extra` (0) | Which of the other cameras is on: 0 none, 1 isometric, 2 free orbit, 3 shoulder. It wins over `overhead` and `first_person`; the camera key and the settings window set all three together, and a high or shoulder camera leaves `first_person` as it was so leaving it returns to the walking camera you had. |
-| `render3d.dynamic_camera` (false) | The dynamic camera (overhead and isometric views). |
+| `render3d.follow_camera` (false), `render3d.follow_lead` (2.5, tiles) | The follow camera (overhead and isometric views): the camera looks where the character looks, this many tiles ahead. |
+| `render3d.dynamic_view_u` (0.2), `dynamic_view_speed` (0.06), `dynamic_view_invert` (false), `dynamic_view_2d` (true) | The dynamic view: where the wheel left it (0 first person to 1 the classic 2D view), how far a notch goes, the wheel turned round, and whether the last step is the real 2D view. |
 | `render3d.iso_pitch` (38, degrees), `iso_fov` (30, degrees) | The isometric camera: how far it looks down, and its field of view. |
 | `render3d.orbit_pitch` (50, degrees) | The free orbit camera's look-down angle (saved when a drag ends). |
 | `render3d.shoulder_distance` (1.4, tiles), `shoulder_fov` (70, degrees) | The shoulder camera. |
@@ -324,7 +346,8 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 |---------|---------|
 | `r3d_shot <name>` | PNG of the 3D view into `Screenshots/` |
 | `r3d_look <yaw> <pitch>` / `r3d_look off`, `r3d_aim <x> <y>` | point the camera (degrees) or at a floor point |
-| `r3d_cam tp\|fp\|sh\|oh\|iso\|orbit` | camera mode (third person, first person, shoulder, overhead, isometric, free orbit) |
+| `r3d_cam tp\|fp\|sh\|oh\|iso\|orbit\|dynamic` | camera mode (third person, first person, shoulder, overhead, isometric, free orbit, dynamic view) |
+| `render3d_dynamic_view <0 to 1>` | put the dynamic view at a position (0 first person, 1 the classic 2D view) |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
 | `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |

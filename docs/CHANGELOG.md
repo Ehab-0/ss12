@@ -11,19 +11,28 @@
   quarter turns. The zoom keys move the camera in and out. Standing things lean back by most of the camera pitch so they keep their
   proportions. Pitch, distance, field of view and wall height have settings (`render3d.overhead_*`). `N` goes back to walking.
   The other cameras are unchanged.
-- **Three more cameras and a camera key.** `Insert` goes through third person, first person, **shoulder**, overhead, **isometric** and
-  **free orbit**, and a short notice names the one you land on (`N` and `O` work as before). Shoulder is a closer, lower third person
+- **Three more cameras and a camera key.** `Insert` goes through third person, first person, **shoulder**, overhead, **isometric**,
+  **free orbit** and the **dynamic view** (below), and a short notice names the one you land on (`N` and `O` work as before). Shoulder is a closer, lower third person
   shifted to one side with a narrower field of view, for aiming. Isometric is the overhead view turned a diagonal, lower, with a narrow
   field of view. Free orbit is the overhead view where holding the middle mouse button over the view and dragging turns and tilts the
   camera around the character; the camera rotate keys snap its heading. New settings: `render3d.camera_extra`, `iso_pitch`, `iso_fov`,
   `orbit_pitch`, `shoulder_distance`, `shoulder_fov`; new keys: `Insert` (next camera) and the orbit drag (middle mouse), both
-  rebindable. `r3d_cam tp|fp|sh|oh|iso|orbit` for the dev channel.
-- **A dynamic camera for the overhead and isometric views** (`PageUp`, `render3d.dynamic_camera`, off by default). Eight probe rays
-  along the floor measure how open the place around the character is: in a tight place the camera moves in and looks down a little
-  steeper, in a big room it moves out and looks down a little shallower, and running pulls it back a little, all smoothly.
-- **The settings window (`F11`) is split into tabs**: General (on/off, quality preset, render scale), Camera (a dropdown for the camera
-  and only the settings that camera has), Interface (crosshair, pointing list, minimap), Controls (keys) and Graphics (effects, shapes).
-  The "start in first person" and "overhead view" checkboxes are replaced by the camera dropdown.
+  rebindable. `r3d_cam tp|fp|sh|oh|iso|orbit|dynamic` for the dev channel.
+- **A follow camera for the overhead and isometric views** (`PageUp`, `render3d.follow_camera`, off by default): the camera looks where
+  your character is looking. Its focus moves ahead of the character in the direction it faces (it turns to face the cursor, so this follows
+  where you aim) by `render3d.follow_lead` tiles (2.5), stops short of a wall that way, and settles smoothly.
+- **A dynamic view.** The mouse wheel moves one camera all the way from first person, through third person, a high third person, isometric
+  and overhead, to a straight-down view, and **then to the real classic 2D view** if the server allows 2D: the 2D picture fades in over the
+  3D one, then the 3D view is switched off and the game's own 2D view is shown, where the wheel still works. Close to the character the
+  mouse looks around with the crosshair; from the high third person up it is a free cursor, the view turns to the grid's heading, the ceiling
+  goes and the walls come down. The stops are the third person, isometric and overhead sliders. `Insert` reaches it last; settings
+  `render3d.dynamic_view_u`, `dynamic_view_speed`, `dynamic_view_invert`, `dynamic_view_2d`; command `render3d_dynamic_view <0 to 1>`; the zoom keys do what the wheel does.
+  Between the stops the distance is worked out so that every notch shows more of the floor (a first version moved the camera back but narrowed
+  the field of view towards isometric faster, so the picture zoomed in a little for about four notches before zooming out again).
+- **The settings window (`F11`) is split into tabs**: General (on/off, the camera dropdown with only the settings of the camera picked,
+  quality preset, render scale), Interface (crosshair, pointing list, minimap), Controls (keys) and Graphics (effects, shapes). The "start in
+  first person" and "overhead view" checkboxes are replaced by the camera dropdown.
+- Leaving a high camera for a walking one no longer keeps its steep look-down angle (this also affected going from overhead back to third person).
 
 ## 1.4.0
 - **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in
