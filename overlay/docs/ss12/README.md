@@ -216,7 +216,7 @@ effect. Toggling a single effect by hand makes the preset read "Custom". The sam
 | `sharp` | sharp-bilinear sprites: no shimmer or stair-steps, pixels stay crisp | - | on | on |
 | `grade` | tone mapping, colour grading, vignette, dithering | - | on | on |
 | `haze` | distance haze tinted by the local light | - | - | on |
-| `sky` | layered stars and a faint nebula | - | on | on |
+| `sky` | layered stars and a faint nebula; the game's own space background (the 2D parallax stars) shows through where there is no tile, instead of black | - | on | on |
 | `fixtures` | wall lamps get a soft glow halo (they hang near the ceiling at every level) | - | on | on |
 | `glass` | windows, window doors and grilles are drawn as see-through glass (a thin frame and a mostly transparent pane) instead of the sprite's top-down picture, which looked like a solid wall | on | on | on |
 | `head_bob` | gentle bob while walking in first person | - | - | - |

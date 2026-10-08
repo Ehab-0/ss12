@@ -3,6 +3,9 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Space is no longer black.** Looking at the edge of the station from a high or elevated camera, the space around it now shows the game's own
+  space background (the parallax stars of the 2D view) instead of flat black; it fades into the procedural stars farther out. It follows the
+  existing `render3d.fx.sky` switch.
 - **An overhead view.** A third camera, switched with `O` (or `render3d.overhead`, or the checkbox in `F11`): high above the character,
   pitched down 55 degrees, with no ceiling and lower walls (1.1 tiles) that show as dark caps with a lighter line along the edges that
   border open floor. Doors and window frames get caps too. The mouse is always free: the cursor points at the world, so clicking,
