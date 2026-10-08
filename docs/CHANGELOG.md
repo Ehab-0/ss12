@@ -3,8 +3,15 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **One high camera, and a tidier settings window.** The shoulder, isometric and free orbit cameras are gone: the **overhead** camera now does
+  it all. Hold the middle mouse button over the view and drag to turn it to any heading (a diagonal is the isometric look) and to tilt it;
+  the Camera rotate keys snap to eighth turns. Old saved choices carry over (isometric and free orbit become overhead, shoulder becomes
+  third person); `render3d.orbit_pitch`, `shoulder_distance` and `shoulder_fov` are removed, and `iso_pitch` / `iso_fov` now belong to the
+  dynamic view's isometric step. In the `F11` General tab the quality preset and the performance settings come first (no title), and the
+  sliders of every camera are always shown, in groups, instead of hiding behind the camera picked. The follow camera now also works
+  in the dynamic view once it is high.
 - **Turn the dynamic view by dragging.** Once the dynamic view is high (isometric and overhead), holding the middle mouse button and
-  dragging turns the picture as in free orbit (the heading only; the look-down angle stays as the wheel set it). It is given up on the way
+  dragging turns the picture as in the overhead camera (the heading only; the look-down angle stays as the wheel set it). It is given up on the way
   down and fades out towards the straight-down view, so the hand-over to 2D stays north-up.
 - **Taller walls by default.** `render3d.wall_height` is now 2.7 tiles (it was 2.3); a value you set yourself is kept.
 - **Space is no longer black.** Looking at the edge of the station from a high or elevated camera, the space around it now shows the game's own
@@ -18,14 +25,10 @@
   quarter turns. The zoom keys move the camera in and out. Standing things lean back by most of the camera pitch so they keep their
   proportions. Pitch, distance, field of view and wall height have settings (`render3d.overhead_*`). `N` goes back to walking.
   The other cameras are unchanged.
-- **Three more cameras and a camera key.** `Insert` goes through third person, first person, **shoulder**, overhead, **isometric**,
-  **free orbit** and the **dynamic view** (below), and a short notice names the one you land on (`N` and `O` work as before). Shoulder is a closer, lower third person
-  shifted to one side with a narrower field of view, for aiming. Isometric is the overhead view turned a diagonal, lower, with a narrow
-  field of view. Free orbit is the overhead view where holding the middle mouse button over the view and dragging turns and tilts the
-  camera around the character; the camera rotate keys snap its heading. New settings: `render3d.camera_extra`, `iso_pitch`, `iso_fov`,
-  `orbit_pitch`, `shoulder_distance`, `shoulder_fov`; new keys: `Insert` (next camera) and the orbit drag (middle mouse), both
-  rebindable. `r3d_cam tp|fp|sh|oh|iso|orbit|dynamic` for the dev channel.
-- **A follow camera for the overhead and isometric views** (`PageUp`, `render3d.follow_camera`, off by default): the camera looks where
+- **A camera key and a dynamic view.** `Insert` goes through third person, first person, overhead and the **dynamic view** (below), and
+  a short notice names the one you land on (`N` and `O` work as before). New settings: `render3d.camera_extra`; new keys: `Insert`
+  (next camera) and the turn drag (middle mouse), both rebindable. `r3d_cam tp|fp|oh|dynamic` for the dev channel.
+- **A follow camera** (`PageUp`, `render3d.follow_camera`, off by default; the overhead camera, and the dynamic view once it is high): the camera looks where
   your character is looking. Its focus moves ahead of the character in the direction it faces (it turns to face the cursor, so this follows
   where you aim) by `render3d.follow_lead` tiles (2.5), stops short of a wall that way, and settles smoothly.
 - **A dynamic view.** The mouse wheel moves one camera all the way from first person, through third person, a high third person, isometric
