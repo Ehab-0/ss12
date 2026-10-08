@@ -45,6 +45,9 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
 ## What you get
 
 - **Third person and first person.** Switch any time with the `N` key.
+- **An overhead view.** The `O` key lifts the camera high above your character, like the classic top-down game: no ceiling, walls
+  shown as dark caps, and a free mouse cursor you click the world with as in 2D. `W A S D` walks along the screen and the camera
+  rotate keys turn the view by quarter turns.
 - **Mouse look.** Move the mouse to look around, `W A S D` to walk where you are looking.
 - **Everything still works.** Pick things up, throw, shoot, open doors and lockers, drag things around, cuff people,
   talk. Aim with the cross in the middle of the screen.
@@ -100,6 +103,7 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Look around | Move the mouse |
 | Walk | `W` `A` `S` `D` |
 | Switch between first and third person | `N` |
+| Switch the overhead view on and off (the mouse is always free in it) | `O` |
 | **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
 | Minimap on and off; small or large | `M`; `-` |
 | List of what you point at, on and off | `L` |

@@ -39,14 +39,16 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Move | WASD, relative to where the camera looks |
 | Use / attack / shoot / throw | left click at the crosshair (the same bindings as 2D) |
 | Toggle 3D / 2D (when allowed) | `F12` |
-| Toggle first / third person | `N` |
+| Toggle first / third person (from the overhead view: back to walking) | `N` |
+| Toggle the overhead view | `O` |
+| Turn the overhead view a quarter turn left or right, or back to north up | the existing Camera rotate left / right / reset keys (while the overhead view is on) |
 | **Free the mouse to click menus, buttons and the inventory (hold)** | **`Alt`** (Alt-click keeps its normal meaning) |
 | 3D settings window (general, keys, view, graphics, shape of things) | `F11`, or the console command `render3d_settings` |
 | Minimap on and off | `M`, or the console command `render3d_minimap` |
 | Minimap small or large | `-` |
 | List of what the crosshair points at, on and off | `L`, or the console command `render3d_pointlist` |
 | Choose from that list: select, then act | `Up`, `Down`, `Space` (select), `Space` again (act); or hold `Alt` and click a row |
-| Third-person distance | the existing Zoom in / out keys (0.8 - 3.0) |
+| Third-person distance | the existing Zoom in / out keys (0.8 - 3.0); in the overhead view they move the camera in and out (4 - 16) |
 
 Everything that opens a window, menu or popup, and a focused chat box, frees the cursor automatically and gives it back
 when you are done. With the cursor free, clicking the world casts the ray through the cursor instead of the crosshair.
@@ -58,6 +60,27 @@ The crosshair turns green and its name label stays white when the thing under it
 Options > 3D: field of view, mouse sensitivity, render scale, invert Y, crosshair names, start in first person, and the
 on/off switch for the 3D view.
 
+### The overhead view
+
+A third camera, like the classic top-down game seen in 3D: high above the character (about 9 tiles along the line of sight),
+pitched down 55 degrees, with a narrower field of view (45), **no ceiling** and **lower walls** (1.1 tiles), so a wall shows as a
+dark cap with a lighter line where it borders open floor. Doors and window frames get caps too, so a wall with a door in it has
+no hole.
+
+- **The mouse is always free.** There is no mouse look and no crosshair: the cursor points at the world, and every click, aim,
+  throw, drag, context menu and examine goes through the pixel under it, as in 2D. The name of what the cursor is over shows
+  beside it (`render3d.crosshair_names`), and it gets the same highlight as under the crosshair. The pointing list (`L`) is off in
+  this view; a pile of items is picked from the context menu.
+- **WASD walks along the screen**, like 2D. The view is north-up (the north of the grid you stand on, so a rotating shuttle turns it) and
+  the Camera rotate left / right keys turn it by quarter turns, smoothly; the reset key goes back to north up. The movement keys
+  follow the new heading at once. The yaw goes to the server through the same message as in the other views.
+- The zoom keys move the camera in and out. Characters and machines lean back by most of the pitch, so they keep their proportions.
+- Switch it with `O`, with the checkbox in the settings window (`render3d.overhead`, kept between rounds) or `r3d_cam oh`. `N` goes back to walking.
+  Pitch, distance, field of view and wall height have sliders (`render3d.overhead_*`).
+
+The overhead view shows what the classic view shows: the field of view and the lights are the 2D ones, and entities and walls are hidden the
+same way, so it gives no extra sight.
+
 ## Status: what has been verified
 
 Verification is by scripted play through the real viewport input path on the Dev map (see [Developer aids](#developer-aids)),
@@ -68,6 +91,7 @@ real human play.**
 |------|-------|
 | Rendering: walls, floors, ceilings, space, fog, lights, FOV hiding, doors, windows, tables, wall decals, glowing layers | working |
 | Camera: third-person spring arm, first person, yaw sync to the server, camera-relative movement | working, covered by unit + integration tests |
+| Overhead camera (high, no ceiling, free cursor) | unit tests (camera geometry, wall-top ray casts, quad order, mouse capture); drawn and turned by the quarter-turn key in a local round. **Needs a human:** clicking, aiming and dragging with a real cursor, a rotating shuttle, doors and windows seen from above |
 | Interaction: pick up, drop, throw, open lockers, doors, pull, cuff, melee, flash, gun firing at the crosshair, context menu, examine | each exercised live |
 | HUD in 3D: health bars, status/sec HUD icons, speech bubbles, popups, map text | working |
 | Enforcement (`render3d.enforced`), options tab, key rebinding | working |
@@ -112,6 +136,8 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
+| `render3d.overhead` (false) | Use the overhead camera (see [The overhead view](#the-overhead-view)); it takes the place of first and third person while on. |
+| `render3d.overhead_pitch` (55, degrees), `overhead_distance` (9, tiles; 4 to 16), `overhead_fov` (45, degrees), `overhead_wall_height` (1.1, tiles) | The overhead camera: how far it looks down, how far it hangs from the character along the line of sight, its field of view, and the height walls have in this view. |
 | `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight, Space (or a click with `Alt` held) selects the row as the target and Space again acts on it like a left click (the target is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |
 | `render3d.minimap_mode` (1), `minimap_size` (200), `minimap_range` (20), `minimap_rotate` (true) | The minimap: 0 hidden, 1 small, 2 large (names of areas); side in pixels in a 720 pixel tall window (it scales with the window); tiles to the edge; whether it turns with the camera. Key `M` switches it on and off, `-` makes it small or large; `render3d_minimap [off\|small\|large]`. |
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
@@ -268,7 +294,7 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 |---------|---------|
 | `r3d_shot <name>` | PNG of the 3D view into `Screenshots/` |
 | `r3d_look <yaw> <pitch>` / `r3d_look off`, `r3d_aim <x> <y>` | point the camera (degrees) or at a floor point |
-| `r3d_cam fp\|tp` | camera mode |
+| `r3d_cam fp\|tp\|oh` | camera mode (first person, third person, overhead) |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
 | `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |

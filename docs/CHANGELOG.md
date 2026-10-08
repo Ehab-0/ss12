@@ -2,6 +2,16 @@
 
 *[Русская версия](ru/CHANGELOG.md)*
 
+## Unreleased
+- **An overhead view.** A third camera, switched with `O` (or `render3d.overhead`, or the checkbox in `F11`): high above the character,
+  pitched down 55 degrees, with no ceiling and lower walls (1.1 tiles) that show as dark caps with a lighter line along the edges that
+  border open floor. Doors and window frames get caps too. The mouse is always free: the cursor points at the world, so clicking,
+  aiming, throwing, dragging, the context menu and examine all go through the pixel under it, and the name of what it is over shows
+  beside it. `W A S D` walks along the screen; the view is north-up (the grid's north) and the Camera rotate keys turn it by
+  quarter turns. The zoom keys move the camera in and out. Standing things lean back by most of the camera pitch so they keep their
+  proportions. Pitch, distance, field of view and wall height have settings (`render3d.overhead_*`). `N` goes back to walking.
+  The other cameras are unchanged.
+
 ## 1.4.0
 - **Documentation cleanup.** The default git branch of the install is `ss12` (several pages said `3d`), the installer's own paths in
   the pages that ship into a server (`Tools/ss12/...`) now describe the real installer (`ss12 install ...`), links to files that were
