@@ -99,11 +99,15 @@ public sealed partial class CCVars
         CVarDef.Create("render3d.camera_extra", 0, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>
-    ///     Dynamic camera (overhead and isometric views): the camera moves in and tilts up a little in tight places and moves out in
-    ///     big open ones, and pulls back a little when running, all smoothly.
+    ///     Follow camera (overhead and isometric views): the camera looks where the character is looking. Its focus moves ahead of the
+    ///     character in the direction it faces (but not through a wall), smoothly.
     /// </summary>
-    public static readonly CVarDef<bool> Render3DDynamicCamera =
-        CVarDef.Create("render3d.dynamic_camera", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+    public static readonly CVarDef<bool> Render3DFollowCamera =
+        CVarDef.Create("render3d.follow_camera", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Follow camera: how many tiles ahead of the character the camera looks.</summary>
+    public static readonly CVarDef<float> Render3DFollowLead =
+        CVarDef.Create("render3d.follow_lead", 2.5f, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>Isometric camera: how many degrees the view is pitched down (the classic isometric look is about 35).</summary>
     public static readonly CVarDef<float> Render3DIsoPitch =
@@ -116,6 +120,22 @@ public sealed partial class CCVars
     /// <summary>Free orbit camera: how many degrees it looks down (changed by dragging; kept for the next time).</summary>
     public static readonly CVarDef<float> Render3DOrbitPitch =
         CVarDef.Create("render3d.orbit_pitch", 50f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Dynamic view: where the wheel left it, 0 (first person) to 1 (the classic 2D view).</summary>
+    public static readonly CVarDef<float> Render3DDynamicViewU =
+        CVarDef.Create("render3d.dynamic_view_u", 0.2f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Dynamic view: how much of the whole way one notch of the wheel moves the camera.</summary>
+    public static readonly CVarDef<float> Render3DDynamicViewSpeed =
+        CVarDef.Create("render3d.dynamic_view_speed", 0.06f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Dynamic view: roll the wheel towards you to bring the camera closer, instead of pushing it away.</summary>
+    public static readonly CVarDef<bool> Render3DDynamicViewInvert =
+        CVarDef.Create("render3d.dynamic_view_invert", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Dynamic view: the last step is the classic 2D view (when the server allows 2D), reached by a cross-fade.</summary>
+    public static readonly CVarDef<bool> Render3DDynamicView2D =
+        CVarDef.Create("render3d.dynamic_view_2d", true, CVar.CLIENTONLY | CVar.ARCHIVE);
 
     /// <summary>Shoulder camera: distance behind the character in tiles (closer than third person).</summary>
     public static readonly CVarDef<float> Render3DShoulderDistance =

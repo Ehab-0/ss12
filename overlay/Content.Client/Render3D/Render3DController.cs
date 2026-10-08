@@ -3,6 +3,7 @@ using Content.Client.Administration.Managers;
 using Content.Client.Gameplay;
 using Content.Client.UserInterface.Controls;
 using Content.Client.UserInterface.Systems.Gameplay;
+using Content.Client.Viewport;
 using Content.Shared.CCVar;
 using Content.Shared.Input;
 using Content.Shared.Movement.Systems;
@@ -40,6 +41,10 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
     private Render3DViewportControl? _control;
     private Render3DCompat? _compat;
     private MainViewport? _host;
+
+    // the dynamic view's end in the classic 2D view (see UpdateScrollHost)
+    private Render3DScrollCatcher? _scrollCatcher;
+    private bool _scrollWasTwoD;
     private bool _freeKeyHeld;
     private bool _relative;
 
@@ -82,6 +87,17 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _console.RegisterCommand("render3d_settings", "Open the 3D view settings window, on a tab if one is named (general, camera, interface, controls, graphics)",
             "render3d_settings [tab]",
             (_, _, args) => ToggleSettingsWindow(args.Length > 0 ? args[0] : null));
+        _console.RegisterCommand("render3d_dynamic_view", "Put the dynamic view at a position: 0 is first person, 1 the classic 2D view", "render3d_dynamic_view <0 to 1>",
+            (shell, _, args) =>
+            {
+                if (args.Length != 1 || !float.TryParse(args[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var u))
+                {
+                    shell.WriteError("usage: render3d_dynamic_view <0 to 1>");
+                    return;
+                }
+
+                _control?.ScrollTo(u);
+            });
         _console.RegisterCommand("render3d_tune", "Open the developer tuning window: a slider for every client-side render3d.* setting", "render3d_tune",
             (_, _, _) => ToggleTuneWindow());
 
@@ -96,7 +112,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
             .Bind(Render3DKeys.ToggleOverhead, new Render3DInputHandler(down => { if (down) ToggleOverhead(); }, consume: true))
             .Bind(Render3DKeys.CycleCamera, new Render3DInputHandler(down => { if (down) CycleCamera(); }, consume: true))
-            .Bind(Render3DKeys.ToggleDynamic, new Render3DInputHandler(down => { if (down) ToggleDynamicCamera(); }, consume: true))
+            .Bind(Render3DKeys.ToggleFollow, new Render3DInputHandler(down => { if (down) ToggleFollowCamera(); }, consume: true))
             // the quarter-turn keys turn the high views; they go before the mover's own handlers, which would turn the mover alone
             .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
             .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
@@ -116,8 +132,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(ContentKeyFunctions.TryPullObject, new Render3DInputHandler(down => { NoteInteraction(); if (!down) ReleasePointTarget(); }, consume: false))
             .Bind(Render3DKeys.PointListSelect, new Render3DInputHandler(down => { if (down) SelectInPointList(); }, () => PointListVisible))
             .Bind(Render3DKeys.FreeCursor, new Render3DInputHandler(down => _freeKeyHeld = down, consume: false))
-            .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => Active))
-            .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => Active))
+            .Bind(ContentKeyFunctions.ZoomIn, new Render3DInputHandler(down => { if (down) AdjustDistance(-0.2f); }, () => UsableNow))
+            .Bind(ContentKeyFunctions.ZoomOut, new Render3DInputHandler(down => { if (down) AdjustDistance(0.2f); }, () => UsableNow))
             .Register<Render3DController>();
 
         MaybeOpenSettingsOnJoin();
@@ -194,6 +210,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         // through the lobby): take away any view this host still has before adding the new one.
         foreach (var stale in host.Children.OfType<Render3DViewportControl>().ToList())
             host.RemoveChild(stale);
+        foreach (var stale in host.Viewport.Children.OfType<Render3DScrollCatcher>().ToList())
+            host.Viewport.RemoveChild(stale);
 
         _host = host;
         _control = new Render3DViewportControl
@@ -206,6 +224,17 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         host.AddChild(_control);
         AddMinimap(_control);
         AddPointList(_control);
+
+        _scrollCatcher = new Render3DScrollCatcher
+        {
+            HorizontalExpand = true,
+            VerticalExpand = true,
+            Target = host.Viewport,
+            Wheel = notches => _control?.ScrollBy(notches),
+        };
+        // a child of the 2D viewport, not of the host (a box container, which would give it a share of the width)
+        host.Viewport.AddChild(_scrollCatcher);
+        _scrollWasTwoD = false;
         Active = false;
     }
 
@@ -224,6 +253,8 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         }
 
         _minimap = null;
+        _scrollCatcher = null;
+        _scrollWasTwoD = false;
         _host = null;
         Active = false;
         Render3DPointer.Shown = false;
@@ -292,9 +323,12 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
     private CameraMode CurrentCameraMode => _control?.Camera.Mode ?? CameraMode.ThirdPerson;
 
+    /// <summary>The 3D view is shown, or the dynamic view is at its 2D end (the camera keys still work there, so the camera can be changed or scrolled back).</summary>
+    private bool UsableNow => Active || _control is { ScrollTwoD: true };
+
     private void SwitchCamera(CameraMode mode)
     {
-        if (_control == null || !Active)
+        if (_control == null || !UsableNow)
             return;
 
         SetCameraMode(mode);
@@ -314,14 +348,14 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
     /// <summary>The camera key: the next camera in <see cref="CameraModes.Cycle"/>.</summary>
     private void CycleCamera() => SwitchCamera(CameraModes.Next(CurrentCameraMode));
 
-    private void ToggleDynamicCamera()
+    private void ToggleFollowCamera()
     {
-        if (_control == null || !Active)
+        if (_control == null || !UsableNow)
             return;
 
-        var on = !_cfg.GetCVar(CCVars.Render3DDynamicCamera);
-        _cfg.SetCVar(CCVars.Render3DDynamicCamera, on);
-        _control.ShowNotice(Robust.Shared.Localization.Loc.GetString(on ? "render3d-notice-dynamic-on" : "render3d-notice-dynamic-off"), 2.5f);
+        var on = !_cfg.GetCVar(CCVars.Render3DFollowCamera);
+        _cfg.SetCVar(CCVars.Render3DFollowCamera, on);
+        _control.ShowNotice(Robust.Shared.Localization.Loc.GetString(on ? "render3d-notice-follow-on" : "render3d-notice-follow-off"), 2.5f);
     }
 
     /// <summary>Turns the high views by a quarter turn (1 = to the left, -1 = to the right), or back to the grid's north (0).</summary>
@@ -329,8 +363,15 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
     private void AdjustDistance(float delta)
     {
-        if (!Active)
+        if (!UsableNow)
             return;
+
+        if (CurrentCameraMode == CameraMode.DynamicView)
+        {
+            // the zoom keys do what the wheel does (a notch per press): zoom in, closer to the character
+            _control?.ScrollBy(-delta * 5f);
+            return;
+        }
 
         if (ElevatedOn)
         {
@@ -351,6 +392,40 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _cfg.SetCVar(CCVars.Render3DThirdPersonDistance, d);
     }
 
+    // ---- the dynamic view's end in the classic 2D view ----
+
+    /// <summary>How many tiles tall the classic 2D view is, so the straight-down 3D view can match its scale (15 when that is not known).</summary>
+    private float TwoDTilesNow()
+    {
+        if (_host == null)
+            return 15f;
+
+        var height = _host.Viewport.ViewportSize.Y;
+        var zoom = _eyeManager.CurrentEye.Zoom.Y;
+        return height > 0 && zoom > 0f ? height / (GroundLayer.PixelsPerTile * zoom) : 15f;
+    }
+
+    /// <summary>
+    ///     Near the end of the scroll the 3D view blends the classic 2D picture over itself (it draws that with a viewport of its own, which needs
+    ///     the shape of the real 2D viewport: its size and how it is fitted into the window, handed over here). At the very end the 3D view is
+    ///     switched off and the real 2D viewport is the main one (see <see cref="FrameUpdate"/>), with a transparent control over it that takes
+    ///     the mouse wheel (the 2D viewport itself ignores it) and hands the rest on.
+    /// </summary>
+    private void UpdateScrollHost(bool scrollMode)
+    {
+        if (_host == null || _control == null)
+            return;
+
+        var viewport = _host.Viewport;
+        _control.TwoDViewportSize = viewport.ViewportSize;
+        _control.TwoDFixedStretch = viewport.FixedStretchSize;
+        _control.TwoDIgnoreDimension = (int) viewport.IgnoreDimension;
+        _control.TwoDBilinear = viewport.StretchMode == ScalingViewportStretchMode.Bilinear;
+
+        if (_scrollCatcher != null)
+            _scrollCatcher.Visible = scrollMode && !Active && _control.ScrollTwoD;
+    }
+
     // ---- per frame ----
 
     public override void FrameUpdate(FrameEventArgs args)
@@ -360,7 +435,22 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         if (_control == null || _host == null)
             return;
 
-        var want = ShouldBeActive();
+        // The dynamic view moves with the wheel: it glides, and at the end of the scroll the classic 2D view takes over (also while that
+        // is what is shown, so the wheel can bring the camera back). A server that makes 3D mandatory stops the scroll before it.
+        var scrollMode = _control.Camera.Mode == CameraMode.DynamicView;
+        _control.TwoDTiles = TwoDTilesNow();
+        _control.TickScroll(args.DeltaSeconds, scrollMode && _cfg.GetCVar(CCVars.Render3DDynamicView2D) && CanUse2D());
+        var scrollTwoD = scrollMode && _control.ScrollTwoD;
+        if (scrollTwoD != _scrollWasTwoD)
+        {
+            _scrollWasTwoD = scrollTwoD;
+            if (scrollTwoD)
+                _control.ReleaseYaw();
+            else
+                _control.SyncStepsFromMover();
+        }
+
+        var want = ShouldBeActive() && !scrollTwoD;
         if (want != Active)
             SetActive(want);
 
@@ -375,6 +465,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             _control.InvertY = _cfg.GetCVar(CCVars.Render3DInvertY);
         }
 
+        UpdateScrollHost(scrollMode);
         UpdateMouseMode();
         UpdateWindowPlacement();
         UpdateAutoQuality(args.DeltaSeconds);

@@ -35,7 +35,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     private readonly List<(string Key, Button Button, Control Page)> _tabList = new();
 
     /// <summary>The names of the tabs, as the <c>render3d_settings</c> command takes them.</summary>
-    public static readonly string[] TabNames = { "general", "camera", "interface", "controls", "graphics" };
+    public static readonly string[] TabNames = { "general", "interface", "controls", "graphics" };
 
     /// <summary>The page (or section of a page) the Add... helpers put their controls into.</summary>
     private BoxContainer _body;
@@ -46,7 +46,8 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     private OptionButton? _qualityButton;
     private OptionButton? _cameraButton;
     private readonly Dictionary<CameraMode, BoxContainer> _cameraSections = new();
-    private Control? _dynamicBox;
+    private Control? _followBox;
+    private Control? _followLeadRow;
     private bool _refreshing;
 
     public Render3DSettingsWindow()
@@ -65,7 +66,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _body = null!;
 
         BuildGeneral();
-        BuildCamera();
         BuildInterface();
         BuildControls();
         BuildGraphics();
@@ -112,6 +112,10 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     /// <summary>Shows a tab by name (see <see cref="TabNames"/>); an unknown name leaves the tab as it is. Returns whether it was found.</summary>
     public bool ShowTab(string name)
     {
+        // the camera settings used to be a tab of their own; they are part of General now
+        if (string.Equals(name, "camera", StringComparison.OrdinalIgnoreCase))
+            name = "general";
+
         for (var i = 0; i < _tabList.Count; i++)
         {
             if (!string.Equals(_tabList[i].Key, name, StringComparison.OrdinalIgnoreCase))
@@ -124,21 +128,23 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         return false;
     }
 
+    /// <summary>The General tab: on / off, the camera and the settings of the camera picked, and the performance settings.</summary>
     private void BuildGeneral()
     {
-        NewPage("render3d-tab-general");
+        var page = NewPage("render3d-tab-general");
         AddCheck(CCVars.Render3DEnabled, "render3d-settings-use-3d");
+        AddHeader("render3d-settings-camera-header");
+        BuildCamera(page);
+        _body = page;
         AddHeader("render3d-settings-performance");
         AddQualityRow();
         AddCheck(CCVars.Render3DAutoQuality, "render3d-settings-auto-quality");
         AddSlider(CCVars.Render3DRenderScale, "render3d-settings-render-scale", 0.25f, 1f, "0.00");
     }
 
-    private void BuildCamera()
+    /// <summary>The camera dropdown and, under it, only the settings of the camera picked (the others are hidden).</summary>
+    private void BuildCamera(BoxContainer page)
     {
-        var page = NewPage("render3d-tab-camera");
-
-        // the camera, and the settings only some of the cameras have
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
         row.AddChild(new Label { Text = Loc.GetString("render3d-settings-camera"), MinWidth = 170 });
         _cameraButton = new OptionButton { HorizontalExpand = true };
@@ -156,7 +162,8 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         row.AddChild(_cameraButton);
         page.AddChild(row);
 
-        _dynamicBox = AddCheck(CCVars.Render3DDynamicCamera, "render3d-settings-dynamic");
+        _followBox = AddCheck(CCVars.Render3DFollowCamera, "render3d-settings-follow");
+        _followLeadRow = AddSlider(CCVars.Render3DFollowLead, "render3d-settings-follow-lead", FollowCamera.MinLead, FollowCamera.MaxLead, "0.0");
 
         foreach (var mode in CameraModes.Cycle)
         {
@@ -206,6 +213,13 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
                     AddSlider(CCVars.Render3DOverheadDistance, "render3d-settings-distance", 4f, 16f, "0.0");
                     AddSlider(CCVars.Render3DOverheadFov, "render3d-settings-fov", 30, 70, "0");
                     AddSlider(CCVars.Render3DOverheadWallHeight, "render3d-settings-wall-height", 0.6f, 2.3f, "0.00");
+                    AddLookSettings();
+                    break;
+                case CameraMode.DynamicView:
+                    // its stops are the other cameras' settings (third person, isometric, overhead); these are the wheel's own
+                    AddSlider(CCVars.Render3DDynamicViewSpeed, "render3d-settings-dynamic-view-speed", 0.02f, 0.2f, "0.00");
+                    AddCheck(CCVars.Render3DDynamicViewInvert, "render3d-settings-dynamic-view-invert");
+                    AddCheck(CCVars.Render3DDynamicView2D, "render3d-settings-dynamic-view-2d");
                     AddLookSettings();
                     break;
             }
@@ -286,13 +300,13 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _body.AddChild(box);
     }
 
-    private void AddSlider(CVarDef<int> cvar, string locId, float min, float max, string format)
+    private BoxContainer AddSlider(CVarDef<int> cvar, string locId, float min, float max, string format)
         => AddSliderRow(locId, min, max, format, _cfg.GetCVar(cvar), v => _cfg.SetCVar(cvar, (int) MathF.Round(v)));
 
-    private void AddSlider(CVarDef<float> cvar, string locId, float min, float max, string format)
+    private BoxContainer AddSlider(CVarDef<float> cvar, string locId, float min, float max, string format)
         => AddSliderRow(locId, min, max, format, _cfg.GetCVar(cvar), v => _cfg.SetCVar(cvar, MathF.Round(v * 100f) / 100f));
 
-    private void AddSliderRow(string locId, float min, float max, string format, float value, Action<float> set)
+    private BoxContainer AddSliderRow(string locId, float min, float max, string format, float value, Action<float> set)
     {
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
         row.AddChild(new Label { Text = Loc.GetString(locId), MinWidth = 170 });
@@ -306,6 +320,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         row.AddChild(slider);
         row.AddChild(label);
         _body.AddChild(row);
+        return row;
     }
 
     private void AddQualityRow()
@@ -361,7 +376,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
 
     /// <summary>
     ///     Brings the camera dropdown in line with the settings (the camera keys change it too) and shows the settings of that camera only; the
-    ///     dynamic camera box is only there for the overhead and isometric views.
+    ///     follow camera box is only there for the overhead and isometric views.
     /// </summary>
     private void RefreshCamera()
     {
@@ -375,8 +390,11 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         foreach (var (m, section) in _cameraSections)
             section.Visible = m == mode;
 
-        if (_dynamicBox != null)
-            _dynamicBox.Visible = mode is CameraMode.Overhead or CameraMode.Isometric;
+        var follows = mode is CameraMode.Overhead or CameraMode.Isometric;
+        if (_followBox != null)
+            _followBox.Visible = follows;
+        if (_followLeadRow != null)
+            _followLeadRow.Visible = follows;
     }
 
     protected override void FrameUpdate(FrameEventArgs args)

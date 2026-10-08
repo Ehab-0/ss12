@@ -61,7 +61,8 @@ public sealed class EntityPass : IDisposable
     private Vector2 _fwd = Vector2.UnitY;
     private Vector3 _camPos3;
     private float _pixelAtOneTile; // size in tiles of one screen pixel one tile from the camera
-    private bool _overhead;        // the overhead camera: high above, pitched down (see Camera3D)
+    private bool _overhead;        // a high camera: high above, pitched down (see Camera3D.Elevated)
+    private bool _scrollCamera;    // the dynamic view, which goes through every angle: its standing cards lean by the high cameras' rule all the way
     private double _camYaw;
 
     /// <summary>Most extra quads (thickness layers) added per frame, so a crowded room cannot overload the draw.</summary>
@@ -149,7 +150,7 @@ public sealed class EntityPass : IDisposable
     ///     Gathers and classifies entities around the camera and builds their quads. Must be followed by
     ///     <see cref="DrawAtlas"/> and <see cref="DrawQuads"/> in the same frame.
     /// </summary>
-    public void Prepare(Camera3D cam, MapId mapId, float radius, EntityUid? hide)
+    public void Prepare(Camera3D cam, MapId mapId, float radius, EntityUid? hide, float? wallHeightOverride = null)
     {
         _atlas.EnsureSize(_cfg.GetCVar(CCVars.Render3DAtlasSize));
         _atlas.BeginFrame();
@@ -178,6 +179,7 @@ public sealed class EntityPass : IDisposable
         _pixelAtOneTile = 2f * cam.TanHalfFov / MathF.Max(cam.Size.Y, 1f);
         _fwd = cam.ForwardGround;
         _overhead = cam.Elevated;
+        _scrollCamera = cam.Mode == CameraMode.DynamicView;
         _camYaw = cam.Yaw;
         _quads.Clear();
         _pick.Clear();
@@ -195,7 +197,7 @@ public sealed class EntityPass : IDisposable
         _query.Clear();
         _spriteTree.QueryAabb(_query, mapId, aabb);
 
-        var wallHeight = _cfg.GetCVar(_overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
+        var wallHeight = wallHeightOverride ?? _cfg.GetCVar(_overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
         var tableHeight = _cfg.GetCVar(CCVars.Render3DTableHeight);
         var effectHeight = _cfg.GetCVar(CCVars.Render3DEffectHeight);
         var r2 = radius * radius;
@@ -586,7 +588,7 @@ public sealed class EntityPass : IDisposable
                 var r = pos + right * b.Right;
                 var zb = e.Z;
                 var zt = e.Z + b.Height;
-                var lean = LeanOn(ref e) ? (_overhead ? EntityShape.OverheadStandLean(_downPitch) : EntityShape.StandLean(_downPitch)) : 0f;
+                var lean = LeanOn(ref e) ? (_overhead || _scrollCamera ? EntityShape.OverheadStandLean(_downPitch) : EntityShape.StandLean(_downPitch)) : 0f;
                 var layers = LayerCountFor(ref e);
                 if (lean > 0.005f)
                 {

@@ -134,6 +134,7 @@ public sealed partial class Render3DDevChannel : UIController
             "iso" => CameraMode.Isometric,
             "orbit" => CameraMode.Orbit,
             "sh" => CameraMode.Shoulder,
+            "dynamic" => CameraMode.DynamicView,
             _ => CameraMode.ThirdPerson,
         };
         UIManager.GetUIController<Render3DController>().SetCameraMode(mode);

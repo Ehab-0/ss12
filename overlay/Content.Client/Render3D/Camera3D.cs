@@ -18,6 +18,9 @@ public enum CameraMode : byte
 
     /// <summary>Close behind the character's shoulder, with a crosshair: third person tightened for aiming.</summary>
     Shoulder,
+
+    /// <summary>The mouse wheel moves one camera all the way from first person, through third person and isometric, to the classic 2D view.</summary>
+    DynamicView,
 }
 
 /// <summary>
@@ -37,7 +40,13 @@ public sealed class Camera3D
     ///     A camera high above the character that looks down at the walls from above (overhead, isometric, orbit): no ceiling, low walls
     ///     with tops, and a free mouse cursor.
     /// </summary>
-    public bool Elevated => Mode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit;
+    public bool Elevated => Mode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit || Mode == CameraMode.DynamicView && ScrollElevated;
+
+    /// <summary>
+    ///     The dynamic view is high enough to count as a high camera (set by the view as the wheel moves it): from there up the mouse is a free
+    ///     cursor, the walls have tops and there is no ceiling.
+    /// </summary>
+    public bool ScrollElevated;
 
     /// <summary>Position the camera looks out of, after the spring arm.</summary>
     public Vector3 Position;

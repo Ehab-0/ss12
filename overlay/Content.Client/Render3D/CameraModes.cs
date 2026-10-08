@@ -15,6 +15,7 @@ public static class CameraModes
         CameraMode.Overhead,
         CameraMode.Isometric,
         CameraMode.Orbit,
+        CameraMode.DynamicView,
     };
 
     /// <summary>The next camera after <paramref name="mode"/> in <see cref="Cycle"/>.</summary>
@@ -24,7 +25,7 @@ public static class CameraModes
         return Cycle[(index + 1) % Cycle.Length];
     }
 
-    /// <summary>The camera the three settings ask for: the "extra" one if set, else overhead, else first person, else third person.</summary>
+    /// <summary>The camera the three settings ask for: the "extra" one if set (1 isometric, 2 orbit, 3 shoulder, 4 dynamic view), else overhead, else first person, else third person.</summary>
     public static CameraMode FromSettings(bool firstPerson, bool overhead, int extra)
     {
         return extra switch
@@ -32,6 +33,7 @@ public static class CameraModes
             1 => CameraMode.Isometric,
             2 => CameraMode.Orbit,
             3 => CameraMode.Shoulder,
+            4 => CameraMode.DynamicView,
             _ => overhead ? CameraMode.Overhead : firstPerson ? CameraMode.FirstPerson : CameraMode.ThirdPerson,
         };
     }
@@ -50,6 +52,7 @@ public static class CameraModes
             CameraMode.Isometric => (currentFirstPerson, false, 1),
             CameraMode.Orbit => (currentFirstPerson, false, 2),
             CameraMode.Shoulder => (currentFirstPerson, false, 3),
+            CameraMode.DynamicView => (currentFirstPerson, false, 4),
             _ => (currentFirstPerson, false, 0),
         };
     }
@@ -73,6 +76,7 @@ public static class CameraModes
         CameraMode.Overhead => "render3d-camera-overhead",
         CameraMode.Isometric => "render3d-camera-isometric",
         CameraMode.Orbit => "render3d-camera-orbit",
+        CameraMode.DynamicView => "render3d-camera-dynamic-view",
         _ => "render3d-camera-third-person",
     };
 }

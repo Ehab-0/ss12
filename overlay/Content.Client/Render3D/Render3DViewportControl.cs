@@ -139,10 +139,157 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private bool _orbitDragging;
     private CameraMode _lastMode = CameraMode.ThirdPerson;
 
-    // dynamic camera: the smoothed scale of the camera distance and offset of the look-down angle (degrees), and the probe rays
-    private float _dynScale = 1f;
-    private float _dynPitch;
-    private readonly float[] _probe = new float[8];
+    // follow camera: how far ahead of the character (a world offset) the camera looks, smoothed
+    private Vector2 _followLead;
+
+    // dynamic view: where the wheel wants the camera (0 first person to 1 the classic 2D view) and where it has glided to
+    private float _scrollTarget = DynamicView.ThirdStop;
+    private bool _scrollInit;
+    private bool _scrollFree;
+    private bool _scrollNoCeiling;
+    private bool _scrollAllow2D;
+    private float _scrollBias = float.NaN;
+    private DynamicViewState _scrollView;
+
+    /// <summary>The dynamic view's position on its way from first person (0) to the classic 2D view (1), as it is drawn now.</summary>
+    public float ScrollU { get; private set; } = DynamicView.ThirdStop;
+
+    /// <summary>The dynamic view has reached the classic 2D view: the controller shows the 2D viewport instead of this one.</summary>
+    public bool ScrollTwoD { get; private set; }
+
+    /// <summary>How much of the classic 2D view is blended over this one (0 to 1), near the end of the scroll.</summary>
+    public float ScrollFade { get; private set; }
+
+    /// <summary>Set by the controller: how many tiles tall the classic 2D view is, so the straight-down view can match it.</summary>
+    public float TwoDTiles = 15f;
+
+    // Set by the controller: the shape of the real 2D viewport (its size, how it is fitted into the window), so the cross-fade can draw the
+    // classic picture exactly where the real one will appear.
+    public Vector2i TwoDViewportSize;
+    public Vector2i? TwoDFixedStretch;
+    public int TwoDIgnoreDimension; // 0 none, 1 horizontal, 2 vertical (ScalingViewportIgnoreDimension)
+    public bool TwoDBilinear = true;
+    private IClydeViewport? _twoDViewport;
+
+    /// <summary>The dynamic view is shown from its walking end (first / third person): the mouse looks around with the crosshair.</summary>
+    public bool ScrollWalking => Camera.Mode == CameraMode.DynamicView && !_scrollFree;
+
+    /// <summary>
+    ///     Moves the dynamic view with the mouse wheel (<paramref name="notches"/> positive = the wheel rolled away from you: closer to the
+    ///     character, towards first person). Remembers where it is.
+    /// </summary>
+    public void ScrollBy(float notches)
+    {
+        if (Camera.Mode != CameraMode.DynamicView)
+            return;
+
+        _scrollTarget = DynamicView.Step(_scrollTarget, notches, _cfg.GetCVar(CCVars.Render3DDynamicViewSpeed),
+            _cfg.GetCVar(CCVars.Render3DDynamicViewInvert), DynamicView.MaxU(_scrollAllow2D));
+        _cfg.SetCVar(CCVars.Render3DDynamicViewU, _scrollTarget);
+    }
+
+    /// <summary>Puts the dynamic view at a position (0 to 1) and remembers it.</summary>
+    public void ScrollTo(float u)
+    {
+        _scrollTarget = Math.Clamp(u, 0f, DynamicView.MaxU(_scrollAllow2D));
+        _cfg.SetCVar(CCVars.Render3DDynamicViewU, _scrollTarget);
+    }
+
+    private DynamicViewSettings DynamicViewSettingsNow()
+    {
+        // the straight-down stop matches the classic view: its distance makes the picture as many tiles tall as that view is
+        var topDistance = TwoDTiles / (2f * MathF.Tan(MathHelper.DegreesToRadians(DynamicView.TopFov) * 0.5f));
+        return new DynamicViewSettings(
+            _cfg.GetCVar(CCVars.Render3DFov),
+            Math.Clamp(_cfg.GetCVar(CCVars.Render3DThirdPersonDistance), 0.8f, 3f),
+            _cfg.GetCVar(CCVars.Render3DIsoPitch),
+            _cfg.GetCVar(CCVars.Render3DIsoFov),
+            _cfg.GetCVar(CCVars.Render3DOverheadPitch),
+            Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance), OverheadCamera.MinDistance, OverheadCamera.MaxDistance),
+            _cfg.GetCVar(CCVars.Render3DOverheadFov),
+            Math.Clamp(topDistance, OverheadCamera.MinDistance, 40f),
+            _cfg.GetCVar(CCVars.Render3DWallHeight),
+            _cfg.GetCVar(CCVars.Render3DOverheadWallHeight));
+    }
+
+    /// <summary>
+    ///     Advances the dynamic view: it glides to where the wheel put it and the switches that depend on its position (free cursor, no
+    ///     ceiling, the classic view) are decided. Called every frame by the controller, also while the classic view is shown.
+    /// </summary>
+    public void TickScroll(float dt, bool allow2D)
+    {
+        if (Camera.Mode != CameraMode.DynamicView)
+        {
+            if (_scrollInit)
+                ResetScroll();
+            return;
+        }
+
+        _scrollAllow2D = allow2D;
+        var max = DynamicView.MaxU(allow2D);
+        if (!_scrollInit)
+        {
+            _scrollInit = true;
+            _scrollTarget = ScrollU = Math.Clamp(_cfg.GetCVar(CCVars.Render3DDynamicViewU), 0f, max);
+        }
+
+        _scrollTarget = Math.Min(_scrollTarget, max);
+        ScrollU = Math.Clamp(FollowCamera.Smooth(ScrollU, _scrollTarget, dt, DynamicView.GlideRate), 0f, max);
+        _scrollFree = DynamicView.Latch(_scrollFree, ScrollU, DynamicView.FreeOn, DynamicView.FreeOff);
+        _scrollNoCeiling = DynamicView.Latch(_scrollNoCeiling, ScrollU, DynamicView.NoCeilingOn, DynamicView.NoCeilingOff);
+        ScrollTwoD = allow2D && DynamicView.Latch(ScrollTwoD, ScrollU, DynamicView.TwoDOn, DynamicView.TwoDOff);
+        ScrollFade = allow2D ? DynamicView.Fade(ScrollU) : 0f;
+        Camera.ScrollElevated = _scrollFree;
+        _scrollView = DynamicView.Evaluate(ScrollU, DynamicViewSettingsNow());
+    }
+
+    private void ResetScroll()
+    {
+        _scrollInit = false;
+        _scrollFree = false;
+        _scrollNoCeiling = false;
+        _scrollBias = float.NaN;
+        ScrollTwoD = false;
+        ScrollFade = 0f;
+        Camera.ScrollElevated = false;
+    }
+
+    /// <summary>
+    ///     The classic view takes over the camera heading (the controller shows the 2D viewport): stop sending the 3D view's yaw, so the
+    ///     game's own camera keys work there.
+    /// </summary>
+    public void ReleaseYaw()
+    {
+        if (_yawSystem != null)
+            _yawSystem.DesiredYaw = null;
+    }
+
+    /// <summary>
+    ///     Back from the classic view: read the quarter turns the camera has there (the game's camera keys may have turned it) so the 3D view
+    ///     picks up from the same heading.
+    /// </summary>
+    public void SyncStepsFromMover()
+    {
+        if (_yawSystem?.CurrentYaw() is not { } yaw || _player.LocalEntity is not { } player || _xformSys == null)
+            return;
+
+        var grid = Angle.Zero;
+        if (_entMan.TryGetComponent(player, out TransformComponent? xform) && xform.GridUid is { } g)
+            grid = _xformSys.GetWorldRotation(g);
+
+        var quarters = (yaw - grid).Reduced().Theta / (Math.PI / 2);
+        OverheadSteps = OverheadCamera.Turn(0, (int) Math.Round(quarters));
+    }
+
+    protected override void MouseWheel(GUIMouseWheelEventArgs args)
+    {
+        base.MouseWheel(args);
+        if (args.Handled || Camera.Mode != CameraMode.DynamicView)
+            return;
+
+        ScrollBy(args.Delta.Y);
+        args.Handle();
+    }
 
     /// <summary>
     ///     Turns the orbit camera by quarter turns (the camera rotate keys), or back to the grid's north (<paramref name="quarterTurns"/> 0);
@@ -160,13 +307,17 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     }
 
     /// <summary>Height of walls (and of the ceiling, if there is one): the high cameras have their own, lower value.</summary>
-    public float WallHeight => _cfg.GetCVar(Elevated ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
+    public float WallHeight => Camera.Mode == CameraMode.DynamicView && _scrollInit
+        ? _scrollView.WallHeight
+        : _cfg.GetCVar(Elevated ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
 
     /// <summary>
     ///     High cameras: how far in front of the camera the character is (view depth), 0 for the other cameras. Distance
     ///     limits, fog and haze are counted from the character, because the camera itself hangs high above and behind it.
     /// </summary>
-    public float ViewDepthShift => Elevated ? MathF.Max(Vector3.Dot(Camera.Head - Camera.Position, Camera.Forward), 0f) : 0f;
+    public float ViewDepthShift => Elevated || Camera.Mode == CameraMode.DynamicView
+        ? MathF.Max(Vector3.Dot(Camera.Head - Camera.Position, Camera.Forward), 0f)
+        : 0f;
 
     /// <summary>True while the cursor can point at things: the crosshair, or in the high views the free cursor over this view.</summary>
     public bool PointerLive => RelativeMouse || Elevated && UserInterfaceManager.CurrentlyHovered == this;
@@ -239,6 +390,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
     private void DisposeTargets()
     {
+        _twoDViewport?.Dispose();
+        _twoDViewport = null;
         _scene?.Dispose();
         _scene = null;
         _composite?.Dispose();
@@ -454,7 +607,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var hide = Camera.Mode == CameraMode.FirstPerson || _cameraToHead < 0.75f ? _player.LocalEntity : null;
         UpdateHighlight(entityPass);
         _sw.Restart();
-        entityPass.Prepare(Camera, eye.Position.MapId, radius, hide);
+        entityPass.Prepare(Camera, eye.Position.MapId, radius, hide, WallHeight);
         Lap(ref _msPrepare);
         entityPass.DrawAtlas(screen);
         entityPass.RunAuditIfRequested(screen, _sawmill ??= Logger.GetSawmill("render3d"));
@@ -532,6 +685,15 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         Lap(ref _msScene);
 
+        // the end of the scroll: the classic 2D picture is blended over this one
+        if (Camera.Mode == CameraMode.DynamicView && ScrollFade > 0.002f)
+            DrawTwoDFade(screen, pixelSize, eye, ScrollFade);
+        else if (_twoDViewport != null)
+        {
+            _twoDViewport.Dispose();
+            _twoDViewport = null;
+        }
+
         if (DebugView is 41 or 42
             && (DebugView == 41 ? entityPass.AtlasTexture : entityPass.GlowAtlasTexture) is { } atlasTex)
         {
@@ -565,6 +727,51 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             var pointer = PointerPixel;
             DrawHoverLabel(screen, GetReach(pointer), pointer, pointer + new Vector2(18f, 22f), false);
         }
+    }
+
+    /// <summary>
+    ///     Draws the classic 2D picture over the 3D one with <paramref name="fade"/> as its opacity, from a viewport of its own that looks through
+    ///     the same eye, with the size and the fit of the real 2D viewport (see <see cref="TwoDViewportSize"/>), so that when the real one takes over
+    ///     nothing moves.
+    /// </summary>
+    private void DrawTwoDFade(DrawingHandleScreen screen, Vector2i pixelSize, IEye eye, float fade)
+    {
+        var size = TwoDViewportSize;
+        if (size.X <= 0 || size.Y <= 0)
+            return;
+
+        if (_twoDViewport == null || _twoDViewport.Size != size)
+        {
+            _twoDViewport?.Dispose();
+            _twoDViewport = _clyde.CreateViewport(size, new TextureSampleParameters { Filter = TwoDBilinear });
+        }
+
+        _twoDViewport.Eye = eye;
+        _twoDViewport.Render();
+
+        // the same fit ScalingViewport has: fitted by the smaller (or the chosen) ratio and centred, or a fixed size centred
+        var ours = new Vector2(pixelSize.X, pixelSize.Y);
+        var theirs = new Vector2(size.X, size.Y);
+        Vector2 drawSize;
+        if (TwoDFixedStretch is { } fixedSize)
+        {
+            drawSize = new Vector2(fixedSize.X, fixedSize.Y);
+        }
+        else
+        {
+            var ratio = TwoDIgnoreDimension switch
+            {
+                1 => ours.Y / theirs.Y,
+                2 => ours.X / theirs.X,
+                _ => MathF.Min(ours.X / theirs.X, ours.Y / theirs.Y),
+            };
+            drawSize = theirs * ratio;
+        }
+
+        // the classic view has black around its picture when it does not fill the window: fade that in as well, so nothing pops at the end
+        screen.DrawRect(new UIBox2(Vector2.Zero, ours), new Color(0f, 0f, 0f, fade));
+        var box = UIBox2.FromDimensions((ours - drawSize) / 2f, drawSize);
+        screen.DrawTextureRect(_twoDViewport.RenderTarget.Texture, box, new Color(1f, 1f, 1f, fade));
     }
 
     private void UpdateHighlight(EntityPass pass)
@@ -786,6 +993,12 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private void UpdateCamera(MapCoordinates eyePos, Vector2i sceneSize)
     {
         var cam = Camera;
+        if (cam.Mode == CameraMode.DynamicView && _scrollInit)
+        {
+            UpdateScrollCamera(eyePos, sceneSize);
+            return;
+        }
+
         var mode = cam.Mode;
         var elevated = cam.Elevated;
         cam.Size = new Vector2(sceneSize.X, sceneSize.Y);
@@ -825,7 +1038,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             }
 
             // Leaving a high camera for a walking one: look level again (the high cameras look steeply down, and that angle would carry over).
-            if (_lastMode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit && !elevated)
+            if (_lastMode is CameraMode.Overhead or CameraMode.Isometric or CameraMode.Orbit or CameraMode.DynamicView && !elevated)
                 cam.Pitch = mode == CameraMode.FirstPerson ? 0f : -0.15f;
 
             _orbitDragging = false;
@@ -861,8 +1074,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
             _overheadSnap = false;
 
-            // the dynamic camera (overhead and isometric): closer and steeper in tight places, further and shallower in open ones
-            UpdateDynamic(eyePos, mode != CameraMode.Orbit && _cfg.GetCVar(CCVars.Render3DDynamicCamera), turnDt);
+            // the follow camera (overhead and isometric): the camera looks where the character is looking
+            UpdateFollow(eyePos, player, mode != CameraMode.Orbit && _cfg.GetCVar(CCVars.Render3DFollowCamera), turnDt);
 
             var pitchDegrees = mode switch
             {
@@ -870,7 +1083,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
                 CameraMode.Orbit => _orbitPitch * 180f / MathF.PI,
                 _ => _cfg.GetCVar(CCVars.Render3DOverheadPitch),
             };
-            pitchDegrees = Math.Clamp(pitchDegrees + _dynPitch, OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
+            pitchDegrees = Math.Clamp(pitchDegrees, OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
             cam.Pitch = -MathHelper.DegreesToRadians(pitchDegrees);
         }
 
@@ -886,8 +1099,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         if (elevated)
         {
             // High above and behind the character, looking down at it. No ceiling and no spring arm: nothing is above the walls.
-            var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance) * _dynScale, OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
-            cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y), cam.Forward, armLength);
+            var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance), OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
+            cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y) + _followLead, cam.Forward, armLength);
             _cameraToHead = armLength;
             _armFraction = 1f;
             cam.UpdateBasis();
@@ -958,33 +1171,128 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     }
 
     /// <summary>
-    ///     Settles the dynamic camera's distance scale and look-down offset on what the place around the character asks for (see
-    ///     <see cref="DynamicCamera"/>): eight rays along the floor measure how open it is. With the dynamic camera off they settle back to nothing.
+    ///     Settles the follow camera's focus on a point ahead of the character, in the direction it faces (see <see cref="FollowCamera"/>), but
+    ///     short of any wall that way. With the follow camera off the focus settles back on the character.
     /// </summary>
-    private void UpdateDynamic(MapCoordinates eyePos, bool active, float dt)
+    private void UpdateFollow(MapCoordinates eyePos, EntityUid? player, bool active, float dt)
     {
-        var targetScale = 1f;
-        var targetPitch = 0f;
-        if (active && _tileWorld != null)
+        var target = Vector2.Zero;
+        if (active && player is { } p && _xformSys != null && _entMan.TryGetComponent(p, out TransformComponent? xform))
         {
-            var origin = new Vector3(eyePos.X, eyePos.Y, OverheadCamera.TargetHeight);
-            var wallHeight = WallHeight;
-            for (var i = 0; i < _probe.Length; i++)
+            var lead = Math.Clamp(_cfg.GetCVar(CCVars.Render3DFollowLead), FollowCamera.MinLead, FollowCamera.MaxLead);
+            var facing = _xformSys.GetWorldRotation(xform).ToWorldVec();
+            var wall = float.PositiveInfinity;
+            if (_tileWorld != null)
             {
-                var angle = i * MathF.Tau / _probe.Length;
-                var dir = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
-                _probe[i] = _tileWorld.RayCastWalls(eyePos.MapId, origin, dir, DynamicCamera.ProbeRange, wallHeight,
-                    out var hit, out _, out _, out _, includeClosedDoors: true)
-                    ? hit
-                    : DynamicCamera.ProbeRange;
+                var origin = new Vector3(eyePos.X, eyePos.Y, OverheadCamera.TargetHeight);
+                if (_tileWorld.RayCastWalls(eyePos.MapId, origin, new Vector3(facing, 0f), lead + FollowCamera.WallMargin, WallHeight,
+                        out var hit, out _, out _, out _, includeClosedDoors: true))
+                {
+                    wall = hit;
+                }
             }
 
-            var speed = Math.Clamp(_bobSpeed / 6f, 0f, 1f);
-            (targetScale, targetPitch) = DynamicCamera.Target(DynamicCamera.Openness(_probe, DynamicCamera.ProbeRange), speed);
+            target = FollowCamera.LookAhead(facing, lead, wall);
         }
 
-        _dynScale = DynamicCamera.Smooth(_dynScale, targetScale, dt);
-        _dynPitch = DynamicCamera.Smooth(_dynPitch, targetPitch, dt);
+        _followLead = FollowCamera.Smooth(_followLead, target, dt);
+    }
+
+    /// <summary>
+    ///     The dynamic view: one camera that the wheel moves from first person through third person and isometric to the straight-down view
+    ///     (<see cref="DynamicView"/>). It looks at the character from a distance and angle read off the table of stops. Walking, the mouse
+    ///     looks around (its pitch adds to the stage's); high up the view turns to the grid's heading and the mouse is a free cursor.
+    /// </summary>
+    private void UpdateScrollCamera(MapCoordinates eyePos, Vector2i sceneSize)
+    {
+        var cam = Camera;
+        var view = _scrollView;
+        cam.Size = new Vector2(sceneSize.X, sceneSize.Y);
+        cam.FovY = MathHelper.DegreesToRadians(view.FovDegrees);
+        var free = _scrollFree;
+        var dt = (float) _timing.FrameTime.TotalSeconds;
+        _lastMode = CameraMode.DynamicView;
+
+        var player = _player.LocalEntity;
+        if (player != _controlled)
+        {
+            // New body (spawn, ghosting, possession): face the way it faces.
+            _controlled = player;
+            _overheadSnap = true;
+            _scrollBias = float.NaN;
+            if (player is { } p && _entMan.TryGetComponent(p, out TransformComponent? pxform))
+                cam.Yaw = _xformSys!.GetWorldRotation(pxform).Theta - Math.PI;
+        }
+
+        // The look-down angle the stage asks for, and what the mouse look has added to it since the last frame (cam.Pitch is where the mouse
+        // moved it to). Walking, that stays; high up it fades away, so the picture settles on the stage's angle.
+        var bias = -MathHelper.DegreesToRadians(view.PitchDown);
+        if (float.IsNaN(_scrollBias))
+            _scrollBias = cam.Pitch;
+
+        var user = cam.Pitch - _scrollBias;
+        if (free)
+            user *= dt > 0f && dt < 0.25f ? MathF.Exp(-dt * 8f) : 0f;
+
+        cam.Pitch = Math.Clamp(bias + user, -MathHelper.DegreesToRadians(DynamicView.TopPitch), Camera3D.MaxPitch);
+        _scrollBias = bias;
+
+        double targetYaw = 0;
+        if (free)
+        {
+            // Turned to the grid's heading (and the isometric diagonal on the way), and fixed there; the picture glides to it, while the
+            // movement keys switch to it at once.
+            targetYaw = OverheadTargetYaw(player, false) + view.IsoWeight * OverheadCamera.IsometricTurn;
+            if (_overheadSnap || dt <= 0f || dt > 0.25f || double.IsNaN(cam.Yaw))
+                cam.Yaw = targetYaw;
+            else
+                cam.AddLook((float) Angle.ShortestDistance(new Angle(cam.Yaw), new Angle(targetYaw)).Theta * (1f - MathF.Exp(-dt * 12f)), 0f);
+        }
+
+        _overheadSnap = false;
+        cam.UpdateBasis();
+
+        if (_yawSystem != null)
+            _yawSystem.DesiredYaw = player != null ? new Angle(free ? targetYaw : cam.Yaw) : null;
+
+        var eyeHeight = _cfg.GetCVar(CCVars.Render3DEyeHeight) + HeadBob(eyePos.Position, ScrollU < 0.03f);
+        var head = new Vector3(eyePos.X, eyePos.Y, eyeHeight);
+        cam.Head = head;
+
+        if (view.Distance < 0.02f)
+        {
+            // first person
+            cam.Position = head;
+            _cameraToHead = 0f;
+            _armFraction = 1f;
+            return;
+        }
+
+        var right = new Vector2(cam.Right.X, cam.Right.Y);
+        var target = new Vector3(head.X, head.Y, view.TargetHeight);
+        var desired = target - cam.Forward * view.Distance + new Vector3(right * view.Side, 0f);
+
+        // Spring arm while the camera is down among the walls (the same one the third person camera has); above them nothing is in the way.
+        var wallHeight = view.WallHeight;
+        var fraction = 1f;
+        if (_tileWorld != null && desired.Z < wallHeight + 0.6f)
+        {
+            var map = eyePos.MapId;
+            var tw = _tileWorld;
+            fraction = Camera3D.SpringArmFraction(head, desired, 0.2f, 0.3f,
+                (Vector3 o, Vector3 dir, float maxT, out float t) =>
+                    tw.RayCastWalls(map, o, dir, maxT, wallHeight, out t, out _, out _, out _, includeClosedDoors: true));
+        }
+
+        if (fraction < _armFraction || dt <= 0f || dt > 0.25f || float.IsNaN(_armFraction))
+            _armFraction = fraction;
+        else
+            _armFraction += (fraction - _armFraction) * (1f - MathF.Exp(-dt * 6f));
+
+        desired = head + (desired - head) * _armFraction;
+        cam.Position = desired;
+        _cameraToHead = (desired - head).Length();
+        cam.UpdateBasis();
     }
 
     private void SetRaymarchParams(GroundLayer ground, TileWorldSystem tileWorld, Vector2i sceneSize, int radius)
@@ -993,7 +1301,8 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var cam = Camera;
 
         var wallHeight = WallHeight;
-        var overhead = cam.Elevated;
+        // (no ceiling for the high cameras, and for the dynamic view once it has risen to where the ceiling would be in its way)
+        var overhead = cam.Elevated || cam.Mode == CameraMode.DynamicView && _scrollNoCeiling;
 
         // The far cutoff and the fog count from the character; the high cameras hang far above and behind it.
         var shift = ViewDepthShift;
