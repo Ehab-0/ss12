@@ -3,11 +3,13 @@
 # official-server-only parts (IPIntel contact, panic bunker, WD privacy policy / feedback origin).
 
 [game]
-hostname = "[3D] Join for a 🇸 🇺 🇷 🇵 🇷 🇮 🇸 🇪 - ss12.org"
+# keep the simulation (and so the round) running with nobody connected, so the round is loaded when the first player arrives
+auto_pause_empty = false
+hostname = "[3D] ss12.org - Test server"
 desc = "SS12: Space Station 13 in 3D, running on Space Station 14. Vanilla ruleset. Test server."
 lobbyenabled = true
 soft_max_players = 80
-lobbyduration = 60
+lobbyduration = 5
 panic_bunker.enabled = false
 panic_bunker.disable_with_admins = false
 panic_bunker.enable_without_admins = false
@@ -41,8 +43,10 @@ time = 0
 mob_pushing = false
 
 [net]
+receivebuffersize = 1048576
+sendbuffersize = 1048576
 port = 1212
-tickrate = 30
+tickrate = 15
 max_connections = 1024
 
 [vote]
@@ -96,6 +100,7 @@ settings_on_join = 1
 relative_movement = true
 
 [shuttle]
+arrivals = false
 # Must stay false while render3d.enforced = false: with the lock on, the server refuses the 3D camera yaw
 # (SharedCameraYawSystem.OnRequestYaw), so WASD stops being camera-relative and prediction fights the server.
 camera_rotation_locked = false
@@ -107,3 +112,9 @@ emergency_early_launch_allowed = true
 # Creature AI (mice, carp and so on) took about a tenth of the main loop on a small test server. With it off the creatures
 # stay where they are.
 enabled = false
+
+[events]
+enabled = false
+
+[chat]
+motd = "ss12.org is a test server running on a small, cheap machine, so you may notice lag or short freezes, especially when many people are online. We are sorry about that and we are working on it. Thanks for trying SS12!"
