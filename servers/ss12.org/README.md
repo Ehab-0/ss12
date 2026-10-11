@@ -30,13 +30,20 @@ install SS12 never get these files; it is here so the test server can be rebuilt
   characters along the bottom. The scene is kept inside the left 72% of the image, because the lobby draws its chat panel over
   the right side, crops a little from the top and bottom and puts its own buttons in the top left and its credits in the
   bottom left corner. When a key changes, change the table in the script and draw it again.
-- **A round that is already loaded.** After a restart the server used to sit in the lobby, with its clock stopped, until the first player
-  connected, and that player then waited for the station to load. Two things change that. The engine pauses the whole simulation while nobody
-  is connected (`game.auto_pause_empty`), so `deploy/server_config.toml` turns that off, and the patch makes the lobby countdown start at
-  once even with nobody connected (`ServerGameTicker.RoundFlow.cs`). The round starts about half a minute after a restart and keeps
-  running with nobody on it, which costs a little processor time, and an unattended station slowly loses power, so the restart script
-  gives an empty server a fresh round every hour. The Rules and Info page also tells new players that the server is a small test machine
-  and may lag.
+- **A round that is already loaded, and always fresh.** After a restart the server used to sit in the lobby, with its clock stopped,
+  until the first player connected, and that player then waited for the station to load. The engine pauses the whole simulation while
+  nobody is connected (`game.auto_pause_empty`), which also holds the lobby countdown. The patch (`ServerGameTicker.RoundFlow.cs`) lifts
+  that pause for the few seconds a round needs to load with nobody connected, then lets the engine pause again, so the round waits
+  frozen, at full power, until a player arrives and connecting unpauses it. When the last player leaves a round that has run for a
+  minute (`ServerGameTicker.Player.cs`, `ss12.fresh_round_when_empty`), a new round is loaded and frozen at once, so the next player never
+  gets a griefed or dark station. `ss12.warm_start_freeze = false` keeps an empty round running instead. The Rules and Info page also tells
+  new players that the server is a small test machine and may lag.
+- **A dark station restarts the round.** `Content.Server/SS12/StationHealthRestartSystem.cs` (new file, in `files/`) counts the station's
+  lights with power ten seconds into a round. Once the round is five minutes old and somebody is connected, it counts every 30 seconds; if
+  fewer than `ss12.station_health_min_lit` (20%) of the starting number have power for `ss12.station_health_bad_seconds` (3 minutes), it
+  announces a restart, looks again after `ss12.station_health_warn_seconds` (1 minute), and ends the round. It is off unless
+  `ss12.station_health_restart` is set. On Packed a fresh station has 287 of 355 lights with power; the switch-off is judged against that
+  starting number, so a map that begins with many dark rooms is not mistaken for a dead one.
 - **The name.** `deploy/server_config.toml` names the server "[3D] Join for a ..." and spells SURPRISE with letter emoji, one
   space between the letters (two letter emoji side by side fuse into a country flag).
 
@@ -59,7 +66,7 @@ connected (the server's reported player count includes admins, so `admin.admins_
 When the server is empty it installs a new build if one is staged in `/opt/ss14/pending/server.zip` (the old build is
 kept in `/opt/ss14/server_prev`) and a new configuration if one is staged in `/opt/ss14/pending/server_config.toml` (checked
 to be valid TOML first; the old one is kept as `server_config.toml.prev`). With nothing staged it restarts for a fresh
-round once the server has been up for one hour (the round runs while the server is empty, see "A round that is already loaded" above, and an empty station slowly runs out of power). Staging a file never disturbs the running server. If the server's status endpoint stops answering (it can wedge when many
+round once the server has been up for one hour (see "A round that is already loaded" above for what the server does about the round itself). Staging a file never disturbs the running server. If the server's status endpoint stops answering (it can wedge when many
 client downloads are abandoned half way), the script counts the players from the server log instead and restarts the
 wedged server as soon as that count is zero. A server that started less than three minutes ago is left alone, since it has not opened the endpoint yet.
 

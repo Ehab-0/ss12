@@ -58,11 +58,32 @@ index 8a44dffa..22740fbb 100644
          SetGuide(link);
      }
  
+diff --git a/Content.Server/GameTicking/ServerGameTicker.Player.cs b/Content.Server/GameTicking/ServerGameTicker.Player.cs
+index 5f99a02c..07c418ec 100644
+--- a/Content.Server/GameTicking/ServerGameTicker.Player.cs
++++ b/Content.Server/GameTicking/ServerGameTicker.Player.cs
+@@ -135,6 +135,16 @@ private async void PlayerStatusChanged(object? sender, SessionStatusEventArgs ar
+                     _userDb.ClientDisconnected(session);
+ 
+                     Admin.Add(LogType.Connection, LogImpact.Low, $"User {args.Session:Player} attached to {(args.Session.AttachedEntity != null ? ToPrettyString(args.Session.AttachedEntity) : "nothing"):entity} disconnected from the game.");
++
++                    // ss12.org: the last player has left. The next one gets a fresh station, not what is left of this round.
++                    if (RunLevel == GameRunLevel.InRound &&
++                        NobodyConnected() &&
++                        Timing.CurTime - RoundStartTimeSpan > FreshRoundMinAge &&
++                        Cfg.GetCVar(Content.Server.SS12.SS12ServerCVars.FreshRoundWhenEmpty))
++                    {
++                        RestartRound();
++                    }
++
+                     break;
+                 }
+             }
 diff --git a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
-index 981ea1ab..4176ee00 100644
+index 981ea1ab..2382d260 100644
 --- a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
 +++ b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
-@@ -640,10 +640,9 @@ public override void RestartRound()
+@@ -640,10 +640,19 @@ public override void RestartRound()
          }
          else
          {
@@ -73,9 +94,50 @@ index 981ea1ab..4176ee00 100644
 +            // ss12.org: the countdown starts even with nobody connected, so the station is already loaded when the
 +            // first player arrives (upstream waits for the first connection and that player waits for the load).
 +            _roundStartTime = Timing.CurTime + LobbyDuration;
++
++            if (NobodyConnected())
++            {
++                // The engine pauses the whole simulation while nobody is connected, which would hold this countdown
++                // still. Let it run just long enough to load a fresh round; UpdateRoundFlow switches the pause back on
++                // once the round is a few seconds old, and it then holds, with the station at full power, until a
++                // player connects.
++                _warmingUp = true;
++                Cfg.SetCVar(Robust.Shared.CVars.GameAutoPauseEmpty, false);
++            }
  
              SendStatusToAll();
              UpdateInfoText();
+@@ -725,11 +734,30 @@ public bool DelayStart(TimeSpan time)
+         return true;
+     }
+ 
++    // ss12.org: a round was started with nobody connected and the pause for an empty server is held off until it is loaded.
++    private bool _warmingUp;
++
++    private static readonly TimeSpan WarmUpAfterStart = TimeSpan.FromSeconds(20);
++
++    /// <summary>A round younger than this is left alone when its last player leaves.</summary>
++    private static readonly TimeSpan FreshRoundMinAge = TimeSpan.FromSeconds(60);
++
++    /// <summary>The same test the engine uses to pause an empty server.</summary>
++    private bool NobodyConnected() => _playerManager.Sessions.All(s => s.Status == Robust.Shared.Enums.SessionStatus.Disconnected);
++
+     private void UpdateRoundFlow(float frameTime)
+     {
+         if (RunLevel == GameRunLevel.InRound)
+         {
+             RoundLengthMetric.Inc(frameTime);
++
++            if (_warmingUp && Timing.CurTime > RoundStartTimeSpan + WarmUpAfterStart)
++            {
++                // Pauses the simulation at once if nobody is connected, and unpauses by itself when somebody connects.
++                _warmingUp = false;
++                if (Cfg.GetCVar(Content.Server.SS12.SS12ServerCVars.WarmStartFreeze))
++                    Cfg.SetCVar(Robust.Shared.CVars.GameAutoPauseEmpty, true);
++            }
+         }
+ 
+         if (_roundStartTime == TimeSpan.Zero ||
 diff --git a/Resources/Locale/en-US/game-ticking/game-ticker.ftl b/Resources/Locale/en-US/game-ticking/game-ticker.ftl
 index c03e8671..965fdc2f 100644
 --- a/Resources/Locale/en-US/game-ticking/game-ticker.ftl

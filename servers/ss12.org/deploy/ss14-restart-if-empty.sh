@@ -4,9 +4,7 @@
 #  - A new configuration staged in /opt/ss14/pending/server_config.toml is installed (the old one is kept as
 #    server_config.toml.prev) after it has been checked to be valid TOML.
 #  - Either of those restarts the server. With nothing staged, the server is restarted for a fresh round once it has been
-#    up for at least one hour. The round keeps running while the server is empty (game.auto_pause_empty is off, so the
-#    next player joins a round that is already loaded), and an empty station slowly runs out of power, so an empty
-#    server gets a fresh round every hour.
+#    up for at least one hour (a fresh process; the round itself is renewed by the server whenever its last player leaves).
 #  - If the server's status endpoint does not answer at all (it can wedge when many client downloads are abandoned half way),
 #    the players are counted from the server log instead, and a wedged server is restarted as soon as that count is zero.
 #    A server that started less than three minutes ago is left alone, because it has not opened the endpoint yet.
