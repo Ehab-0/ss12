@@ -34,9 +34,10 @@ install SS12 never get these files; it is here so the test server can be rebuilt
   until the first player connected, and that player then waited for the station to load. The engine pauses the whole simulation while
   nobody is connected (`game.auto_pause_empty`), which also holds the lobby countdown. The patch (`ServerGameTicker.RoundFlow.cs`) lifts
   that pause for the few seconds a round needs to load with nobody connected, then lets the engine pause again, so the round waits
-  frozen, at full power, until a player arrives and connecting unpauses it. When the last player leaves a round that has run for a
-  minute (`ServerGameTicker.Player.cs`, `ss12.fresh_round_when_empty`), a new round is loaded and frozen at once, so the next player never
-  gets a griefed or dark station. `ss12.warm_start_freeze = false` keeps an empty round running instead. The Rules and Info page also tells
+  frozen, at full power, until a player arrives and connecting unpauses it. When the last player leaves a round that has been played for
+  at least 20 minutes (`ServerGameTicker.Player.cs`, `ss12.fresh_round_when_empty` and `ss12.fresh_round_min_seconds`; time with the server
+  paused does not count), a new round is loaded and frozen at once, so the next player never gets a griefed or dark station. A shorter
+  round is left as it is, so a quick visit or a dropped connection does not throw the game away. `ss12.warm_start_freeze = false` keeps an empty round running instead. The Rules and Info page also tells
   new players that the server is a small test machine and may lag.
 - **A dark station restarts the round.** `Content.Server/SS12/StationHealthRestartSystem.cs` (new file, in `files/`) counts the station's
   lights with power ten seconds into a round. Once the round is five minutes old and somebody is connected, it counts every 30 seconds; if

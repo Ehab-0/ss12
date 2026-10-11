@@ -122,3 +122,5 @@ motd = "ss12.org is a test server running on a small, cheap machine, so you may 
 station_health_restart = true
 # when the last player leaves, the next one gets a fresh station, not what is left of the old round
 fresh_round_when_empty = true
+# ...but only if the round was played for at least this long (seconds); a shorter one is left as it is
+fresh_round_min_seconds = 1200

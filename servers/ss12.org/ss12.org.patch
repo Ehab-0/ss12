@@ -59,7 +59,7 @@ index 8a44dffa..22740fbb 100644
      }
  
 diff --git a/Content.Server/GameTicking/ServerGameTicker.Player.cs b/Content.Server/GameTicking/ServerGameTicker.Player.cs
-index 5f99a02c..07c418ec 100644
+index 5f99a02c..091ab930 100644
 --- a/Content.Server/GameTicking/ServerGameTicker.Player.cs
 +++ b/Content.Server/GameTicking/ServerGameTicker.Player.cs
 @@ -135,6 +135,16 @@ private async void PlayerStatusChanged(object? sender, SessionStatusEventArgs ar
@@ -70,8 +70,8 @@ index 5f99a02c..07c418ec 100644
 +                    // ss12.org: the last player has left. The next one gets a fresh station, not what is left of this round.
 +                    if (RunLevel == GameRunLevel.InRound &&
 +                        NobodyConnected() &&
-+                        Timing.CurTime - RoundStartTimeSpan > FreshRoundMinAge &&
-+                        Cfg.GetCVar(Content.Server.SS12.SS12ServerCVars.FreshRoundWhenEmpty))
++                        Cfg.GetCVar(Content.Server.SS12.SS12ServerCVars.FreshRoundWhenEmpty) &&
++                        Timing.CurTime - RoundStartTimeSpan > TimeSpan.FromSeconds(Cfg.GetCVar(Content.Server.SS12.SS12ServerCVars.FreshRoundMinSeconds)))
 +                    {
 +                        RestartRound();
 +                    }
@@ -80,7 +80,7 @@ index 5f99a02c..07c418ec 100644
                  }
              }
 diff --git a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
-index 981ea1ab..2382d260 100644
+index 981ea1ab..dfa70db5 100644
 --- a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
 +++ b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
 @@ -640,10 +640,19 @@ public override void RestartRound()
@@ -107,7 +107,7 @@ index 981ea1ab..2382d260 100644
  
              SendStatusToAll();
              UpdateInfoText();
-@@ -725,11 +734,30 @@ public bool DelayStart(TimeSpan time)
+@@ -725,11 +734,27 @@ public bool DelayStart(TimeSpan time)
          return true;
      }
  
@@ -115,9 +115,6 @@ index 981ea1ab..2382d260 100644
 +    private bool _warmingUp;
 +
 +    private static readonly TimeSpan WarmUpAfterStart = TimeSpan.FromSeconds(20);
-+
-+    /// <summary>A round younger than this is left alone when its last player leaves.</summary>
-+    private static readonly TimeSpan FreshRoundMinAge = TimeSpan.FromSeconds(60);
 +
 +    /// <summary>The same test the engine uses to pause an empty server.</summary>
 +    private bool NobodyConnected() => _playerManager.Sessions.All(s => s.Status == Robust.Shared.Enums.SessionStatus.Disconnected);

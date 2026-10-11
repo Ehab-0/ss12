@@ -17,11 +17,18 @@ public sealed class SS12ServerCVars : CVars
         CVarDef.Create("ss12.warm_start_freeze", true, CVar.SERVERONLY);
 
     /// <summary>
-    ///     When the last player leaves a round that has been going for a minute, start a new round straight away (it loads and is then held
-    ///     still), so the next player gets a fresh station and not whatever was done to the old one.
+    ///     When the last player leaves a round that has been going for <see cref="FreshRoundMinSeconds"/>, start a new round straight away
+    ///     (it loads and is then held still), so the next player gets a fresh station and not whatever was done to the old one.
     /// </summary>
     public static readonly CVarDef<bool> FreshRoundWhenEmpty =
         CVarDef.Create("ss12.fresh_round_when_empty", false, CVar.SERVERONLY);
+
+    /// <summary>
+    ///     How long a round must have been played (the empty server is paused, so this is time with players) before its last player
+    ///     leaving starts a new round. A shorter round is left as it is for the next player.
+    /// </summary>
+    public static readonly CVarDef<int> FreshRoundMinSeconds =
+        CVarDef.Create("ss12.fresh_round_min_seconds", 1200, CVar.SERVERONLY);
 
     /// <summary>Restart the round when the station has lost its lights for good (see <see cref="StationHealthRestartSystem"/>).</summary>
     public static readonly CVarDef<bool> StationHealthRestart =
