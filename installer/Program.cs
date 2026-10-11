@@ -26,6 +26,7 @@ namespace Ss12
               --force          install despite a dirty tree, a far-away engine version or changed files
               --report         doctor: also write ss12-report.txt (attach it when asking for help)
               --source <path>  checkout of the SS12 repository to take the files from (default: the one this tool is in)
+              --engine <ver>   the engine (RobustToolbox) version to assume, when it cannot be read from the codebase
               -c <config>      build configuration for the check build (default DebugOpt)
             """;
 
@@ -56,6 +57,7 @@ namespace Ss12
                     case "--report": options.Report = true; break;
                     case "--branch" when i + 1 < args.Length: options.Branch = args[++i]; break;
                     case "--source" when i + 1 < args.Length: options.Source = args[++i]; break;
+                    case "--engine" when i + 1 < args.Length: options.Engine = args[++i]; break;
                     case "-c" when i + 1 < args.Length: options.Configuration = args[++i]; break;
                     case "--":
                         extra.AddRange(args.Skip(i + 1));

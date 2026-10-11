@@ -16,6 +16,9 @@ public sealed class Options
     public string Branch { get; set; } = "ss12";
     public bool Report { get; set; }
     public string Configuration { get; set; } = "DebugOpt";
+
+    /// <summary>The engine version to assume instead of the one in RobustToolbox/MSBuild/Robust.Engine.Version.props.</summary>
+    public string? Engine { get; set; }
 }
 
 public sealed record FileRecord(string Path, string Sha256);
@@ -30,7 +33,8 @@ public sealed record InstallManifest(
     List<FileRecord> Overlay,
     List<ModifiedRecord> Modified,
     List<FileRecord> Generated,
-    string? BaseCommit = null);
+    string? BaseCommit = null,
+    Dictionary<string, string>? EngineVariants = null);
 
 /// <summary>The install, update, uninstall and doctor operations.</summary>
 public sealed class Installer
@@ -167,15 +171,36 @@ public sealed class Installer
     public static string SubmoduleAdvice(IEnumerable<string> missing) =>
         $"Parts of the game engine were not downloaded ({string.Join(", ", missing)}), so the code cannot be built. Run this once in your server's folder: git submodule update --init --recursive";
 
+    /// <summary>The engine version as written (forks add suffixes such as "264.0.2-fix-physics"), or the --engine override.</summary>
     public string? EngineVersion()
     {
+        if (_opt.Engine != null)
+            return _opt.Engine;
+
         var props = Path.Combine(_root, "RobustToolbox", "MSBuild", "Robust.Engine.Version.props");
         if (!File.Exists(props))
             return null;
 
-        var match = Regex.Match(File.ReadAllText(props), @"<Version>\s*([\d.]+)\s*</Version>");
-        return match.Success ? match.Groups[1].Value : null;
+        var match = Regex.Match(File.ReadAllText(props), @"<Version>\s*([^<\s]+)\s*</Version>");
+        return match.Success && ParseEngine(match.Groups[1].Value) != null ? match.Groups[1].Value : null;
     }
+
+    /// <summary>The numeric part of an engine version: "264.0.2-fix-physics" is 264.0.2, "270" is 270.0. Null if there is none.</summary>
+    public static Version? ParseEngine(string? text)
+    {
+        if (text == null)
+            return null;
+
+        var numeric = Regex.Match(text.Trim(), @"^v?(\d+(?:\.\d+){0,3})");
+        if (!numeric.Success)
+            return null;
+
+        var value = numeric.Groups[1].Value;
+        return Version.TryParse(value.Contains('.') ? value : value + ".0", out var version) ? version : null;
+    }
+
+    /// <summary>The parsed engine version, or null when it cannot be read.</summary>
+    public Version? Engine() => ParseEngine(EngineVersion());
 
     /// <summary>Compares the codebase's engine version with the versions this overlay was tested on.</summary>
     public bool CheckEngine(SourceInfo source)
@@ -183,17 +208,17 @@ public sealed class Installer
         var version = EngineVersion();
         if (version == null)
         {
-            _report.Warn("Could not read the engine version (RobustToolbox/MSBuild/Robust.Engine.Version.props); continuing.");
+            _report.Warn("Could not read the engine version (RobustToolbox/MSBuild/Robust.Engine.Version.props); continuing with the files for the newest engines. If the build then fails, pass the version with --engine <version>.");
             return true;
         }
 
         var compat = source.Compat;
-        var major = int.TryParse(version.Split('.')[0], out var m) ? m : -1;
+        var major = ParseEngine(version)!.Major;
 
-        var minMajor = int.TryParse(compat.MinEngineVersion.Split('.')[0], out var mm) ? mm : 0;
-        if (major >= 0 && major < minMajor)
+        var minMajor = ParseEngine(compat.MinEngineVersion)?.Major ?? 0;
+        if (major < minMajor)
         {
-            var tooOld = $"Engine {version} is older than {compat.MinEngineVersion}, the first version with relative mouse mode for windows (needed for mouse-look) and the viewport FOV render target. The 3D view cannot compile against it. Update your codebase's RobustToolbox (and the content that goes with it) first.";
+            var tooOld = $"Engine {version} is older than {compat.MinEngineVersion}, the oldest engine the 3D view supports. The 3D view cannot compile against it. Update your codebase's RobustToolbox (and the content that goes with it) first.";
             if (!_opt.Force)
             {
                 _report.Error(tooOld);
@@ -204,7 +229,7 @@ public sealed class Installer
             return true;
         }
 
-        var testedMajors = compat.TestedEngineVersions.Select(v => int.Parse(v.Split('.')[0])).ToList();
+        var testedMajors = compat.TestedEngineVersions.Select(v => ParseEngine(v)!.Major).ToList();
 
         if (testedMajors.Contains(major))
         {
@@ -272,9 +297,13 @@ public sealed class Installer
         var overlayPlan = new List<(string Rel, string SourcePath, string Why)>();
         var previous = existing?.Overlay.ToDictionary(f => f.Path, f => f.Sha256, StringComparer.Ordinal)
                        ?? new Dictionary<string, string>();
+        var engine = Engine();
+        var variants = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var rel in overlayFiles)
         {
-            var src = Path.Combine(source.Root, rel);
+            var (src, variant) = source.SourceFor(rel, engine);
+            if (variant != null)
+                variants[rel] = variant;
             var dst = Path.Combine(_root, rel);
             if (!File.Exists(dst))
             {
@@ -378,6 +407,8 @@ public sealed class Installer
 
         _report.Section("Summary");
         _report.Info($"{overlayPlan.Count} file(s) to add or update, {results.Sum(r => r.Files.Count)} existing file(s) to edit, engine {EngineVersion() ?? "?"}.");
+        foreach (var (rel, variant) in variants.OrderBy(v => v.Key, StringComparer.Ordinal))
+            _report.Info($"[engine]  {rel}: the version for {SourceInfo.Describe(variant)}");
         if (_opt.DryRun)
         {
             _report.Info("Dry run: nothing was written.");
@@ -452,7 +483,8 @@ public sealed class Installer
             overlayRecords.Values.OrderBy(f => f.Path, StringComparer.Ordinal).ToList(),
             modifiedRecords.Values.OrderBy(f => f.Path, StringComparer.Ordinal).ToList(),
             generated,
-            baseCommit);
+            baseCommit,
+            variants.Count > 0 ? variants : null);
         File.WriteAllText(ManifestFile, JsonSerializer.Serialize(newManifest, Json));
 
         // ---- build
@@ -644,6 +676,9 @@ public sealed class Installer
 
         _report.Info($"{manifest.Overlay.Count - missing.Count} of {manifest.Overlay.Count} added files present, {changed.Count} modified.");
 
+        if (source != null)
+            CheckEngineVariants(manifest, source);
+
         _report.Section("Edits");
         var cache = new Dictionary<string, TextFile.Loaded>();
         string? Read(string rel)
@@ -711,6 +746,37 @@ public sealed class Installer
         return failures == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    ///     Warnings only: a file that has versions for older engines (Tools/ss12-engine in the SS12 repository) was installed
+    ///     for another engine than the one the codebase has now (the engine was updated or downgraded after the install).
+    /// </summary>
+    private void CheckEngineVariants(InstallManifest manifest, SourceInfo source)
+    {
+        var engine = Engine();
+        var installed = manifest.EngineVariants ?? new Dictionary<string, string>();
+        var wrong = 0;
+        foreach (var rel in source.VariantTargets())
+        {
+            if (!manifest.Overlay.Any(f => f.Path == rel))
+                continue;
+
+            var have = installed.GetValueOrDefault(rel);
+            var need = source.SourceFor(rel, engine).Variant;
+            if (have == need)
+            {
+                if (need != null)
+                    _report.Info($"[engine]  {rel}: the version for {SourceInfo.Describe(need)}");
+                continue;
+            }
+
+            wrong++;
+            _report.Warn($"{rel} is the version for {SourceInfo.Describe(have)}, but this engine ({EngineVersion() ?? "?"}) needs the one for {SourceInfo.Describe(need)}. Run `ss12 update`.");
+        }
+
+        if (wrong > 0)
+            _report.Detail("The engine (RobustToolbox) changed since the install. The 3D view will not build until `ss12 update` installs the matching files.");
+    }
+
     /// <summary>Warnings only: names in the 3D rules that this codebase does not have, and cursor aiming the installer did not recognise.</summary>
     private void CheckContent()
     {
@@ -761,8 +827,8 @@ public sealed class Installer
             // it runs ("dotnet run" then fails with "cannot copy ... used by another process"). Run a copy instead.
             _report.Info("Building the packaging tool (Content.Packaging)...");
             var build = Proc.Run(_root, "dotnet", "build Content.Packaging/Content.Packaging.csproj -c Release --nologo -v q -p:WarningLevel=0");
-            var built = Path.Combine(_root, "Content.Packaging", "bin", "Release", "net10.0");
-            if (build.ExitCode != 0 || !Directory.Exists(built))
+            var built = PackagingOutput(_root);
+            if (build.ExitCode != 0 || built == null)
             {
                 _report.Error("Could not build Content.Packaging.");
                 return 4;
@@ -794,6 +860,24 @@ public sealed class Installer
 
         _report.Info("Packaged. The build is under release/. Run that server build; it is packaged with HybridACZ, so players with the stock launcher download the 3D client from your server.");
         return 0;
+    }
+
+    /// <summary>
+    ///     The folder the Release build of Content.Packaging went to: bin/Release/net10.0 on current engines, net9.0 on
+    ///     engines up to 268. When several exist (an engine update), the one built last.
+    /// </summary>
+    public static string? PackagingOutput(string root)
+    {
+        var release = Path.Combine(root, "Content.Packaging", "bin", "Release");
+        if (!Directory.Exists(release))
+            return null;
+
+        return Directory.EnumerateDirectories(release)
+            .Select(dir => Path.Combine(dir, "Content.Packaging.dll"))
+            .Where(File.Exists)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .Select(Path.GetDirectoryName)
+            .FirstOrDefault();
     }
 
     private static string CurrentPlatform()
@@ -868,6 +952,10 @@ public static class Hints
     {
         if (error.Contains("Render3D", StringComparison.Ordinal) && error.Contains("CS0103", StringComparison.Ordinal))
             return error + "\n      hint: a Render3D helper is missing; run `ss12 doctor` to see which files are not installed.";
+
+        if (error.Contains("Render3DEngine", StringComparison.Ordinal)
+            || new[] { "SetRelativeMouseMode", "FovRenderTarget", "FindGridsIntersecting", "Robust.Shared.Maths.Vector" }.Any(api => error.Contains(api, StringComparison.Ordinal)))
+            return error + "\n      hint: the 3D files were installed for another engine version. Run `ss12 update` (it picks the files for the engine in RobustToolbox), or pass the version with --engine <version> if it cannot be read.";
 
         if (error.Contains("CS1061", StringComparison.Ordinal) || error.Contains("CS0117", StringComparison.Ordinal) || error.Contains("CS7036", StringComparison.Ordinal))
             return error + "\n      hint: an engine or content API differs from the version the 3D view was written against (see installer/compat.json in the SS12 repository); report it with `ss12 doctor --report`.";
@@ -979,13 +1067,83 @@ public sealed class SourceInfo
         return null;
     }
 
-    public List<string> OverlayFiles()
+    /// <summary>
+    ///     Versions of overlay files for older engines: <c>Tools/ss12-engine/before-286/Content.Client/...</c> replaces the file
+    ///     at <c>Content.Client/...</c> on engines older than 286. They are listed in overlay.manifest so the export carries
+    ///     them, but they are never copied as they are.
+    /// </summary>
+    public const string EngineVariantsDir = "Tools/ss12-engine";
+
+    private const string VariantPrefix = "before-";
+
+    public List<string> OverlayFiles() => ManifestFiles().Where(rel => !IsEngineVariant(rel)).ToList();
+
+    private List<string> ManifestFiles()
     {
         var globs = File.ReadAllLines(ManifestPath)
             .Select(l => l.Trim())
             .Where(l => l.Length > 0 && !l.StartsWith('#'))
             .ToArray();
         return FileSet.Find(Root, globs);
+    }
+
+    public static bool IsEngineVariant(string rel) => rel.StartsWith(EngineVariantsDir + "/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The engine major version a variant folder is for the engines before of ("before-286" is 286), or null.</summary>
+    public static int? VariantBelow(string variant) =>
+        variant.StartsWith(VariantPrefix, StringComparison.Ordinal) && int.TryParse(variant[VariantPrefix.Length..], out var below) ? below : null;
+
+    /// <summary>"engines before 286" for the variant before-286, "current engines" for the overlay file itself (null).</summary>
+    public static string Describe(string? variant) => variant == null ? "current engines" : "engines before " + variant[VariantPrefix.Length..];
+
+    /// <summary>The variant folders (before-X), smallest X first.</summary>
+    private List<(string Name, string Dir, int Below)> VariantDirs()
+    {
+        var root = Path.Combine(Root, EngineVariantsDir);
+        if (!Directory.Exists(root))
+            return new();
+
+        return Directory.EnumerateDirectories(root)
+            .Select(d => (Name: Path.GetFileName(d), Dir: d, Below: VariantBelow(Path.GetFileName(d))))
+            .Where(v => v.Below != null)
+            .Select(v => (v.Name, v.Dir, v.Below!.Value))
+            .OrderBy(v => v.Item3)
+            .ToList();
+    }
+
+    /// <summary>
+    ///     The file to copy to <paramref name="rel"/> for an engine: the variant in the before-X folder with the smallest X
+    ///     above the engine, otherwise the overlay file itself (also when the engine is unknown). Variant is null for that.
+    /// </summary>
+    public (string Path, string? Variant) SourceFor(string rel, Version? engine)
+    {
+        if (engine != null)
+        {
+            foreach (var (name, dir, below) in VariantDirs())
+            {
+                var candidate = Path.Combine(dir, rel);
+                if (engine.Major < below && File.Exists(candidate))
+                    return (candidate, name);
+            }
+        }
+
+        return (Path.Combine(Root, rel), null);
+    }
+
+    /// <summary>Overlay files that have at least one version for older engines.</summary>
+    public List<string> VariantTargets() => VariantFiles().Select(v => v.Target).Distinct(StringComparer.Ordinal).OrderBy(t => t, StringComparer.Ordinal).ToList();
+
+    /// <summary>Every variant file: its folder (before-X), the overlay file it replaces, and its path.</summary>
+    public List<(string Variant, string Target, string Path)> VariantFiles()
+    {
+        var result = new List<(string, string, string)>();
+        foreach (var (name, dir, _) in VariantDirs())
+        {
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+                result.Add((name, System.IO.Path.GetRelativePath(dir, file).Replace('\\', '/'), file));
+        }
+
+        return result;
     }
 
     private sealed class CompatFile

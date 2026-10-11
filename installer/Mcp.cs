@@ -38,7 +38,7 @@ public static class McpServer
         correctly in 3D without them) or optional (a feature degrades without them).
 
         Recommended workflow:
-        1. inspect_codebase(path)  - is it a valid codebase, engine version OK (needs RobustToolbox 286+), which edits apply
+        1. inspect_codebase(path)  - is it a valid codebase, engine version OK (needs RobustToolbox 264+), which edits apply
            automatically, which do not and why.
         2. If every required edit is 'applies' or 'present': install_3d(path, dry_run=true) to preview, then
            install_3d(path, dry_run=false) after the user agrees. Done; run check_install(path, build=true).
@@ -255,12 +255,13 @@ public static class McpServer
     {
         Func<JsonObject> path = () => Prop("string", "Folder of the server code (contains Content.Client, Content.Server and Content.Shared).");
         Func<JsonObject> id = () => Prop("string", "Edit id, see list_edits (for example pointer-aim, pick-merge).");
+        Func<JsonObject> engine = () => Prop("string", "Engine (RobustToolbox) version to assume when it cannot be read from the codebase, for example 270.1.0 (default: read it).");
 
         return new JsonArray(
             Tool("list_edits", "List every edit the installer makes to existing files: id, what it does, whether it is required, what is lost without it.",
                 Schema(new JsonObject()), readOnly: true),
             Tool("inspect_codebase", "Check a Space Station 14 code folder: engine version, git state, whether 3D is installed, and for every edit whether it applies automatically, is already present, or cannot be found (with why and how to do it by hand). Changes nothing.",
-                Schema(new JsonObject { ["path"] = path() }, "path"), readOnly: true),
+                Schema(new JsonObject { ["path"] = path(), ["engine"] = engine() }, "path"), readOnly: true),
             Tool("explain_edit", "Explain one edit precisely: what it must achieve, the marker text that shows it is applied, the pattern it looks for and the replacement it writes. Use it to adapt an edit to unfamiliar code.",
                 Schema(new JsonObject { ["id"] = id() }, "id"), readOnly: true),
             Tool("find_edit_location", "Search the codebase for the places where an edit most likely belongs (the identifiers it is built around), with surrounding lines. Use it when inspect_codebase reports an edit as missing.",
@@ -275,11 +276,12 @@ public static class McpServer
                     ["commit"] = Prop("boolean", "Create a git branch and commit (default true)."),
                     ["branch"] = Prop("string", "Branch name (default ss12)."),
                     ["force"] = Prop("boolean", "Install despite a dirty git tree, an unusual engine version or changed files (default false)."),
+                    ["engine"] = engine(),
                 }, "path"), readOnly: false, destructive: true),
             Tool("check_install", "Check an existing install: files present, every edit still applied, server preset present; optionally compile client and server.",
-                Schema(new JsonObject { ["path"] = path(), ["build"] = Prop("boolean", "Also compile client and server (slow, default false).") }, "path"), readOnly: true),
+                Schema(new JsonObject { ["path"] = path(), ["build"] = Prop("boolean", "Also compile client and server (slow, default false)."), ["engine"] = engine() }, "path"), readOnly: true),
             Tool("update_3d", "Re-apply after the installer was updated. Dry run by default.",
-                Schema(new JsonObject { ["path"] = path(), ["dry_run"] = Prop("boolean", "Only show what would change (default true)."), ["force"] = Prop("boolean", "Overwrite changed files (default false).") }, "path"),
+                Schema(new JsonObject { ["path"] = path(), ["dry_run"] = Prop("boolean", "Only show what would change (default true)."), ["force"] = Prop("boolean", "Overwrite changed files (default false)."), ["engine"] = engine() }, "path"),
                 readOnly: false, destructive: true),
             Tool("uninstall_3d", "Remove 3D and restore the original files exactly. Dry run by default.",
                 Schema(new JsonObject { ["path"] = path(), ["dry_run"] = Prop("boolean", "Only show what would change (default true)."), ["force"] = Prop("boolean", "Restore even files changed since the install (default false).") }, "path"),
@@ -325,6 +327,7 @@ public static class McpServer
                 Enforce = Flag(a, "enforce", false),
                 Branch = Str(a, "branch") ?? "ss12",
                 Configuration = Str(a, "configuration") ?? "DebugOpt",
+                Engine = Str(a, "engine") ?? baseOptions.Engine,
             };
             var report = new Report(echo: false);
             var installer = new Installer(options, report);

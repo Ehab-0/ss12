@@ -63,6 +63,38 @@ public static class SelfTest
             Check(code == 0, "install succeeds on the newer health bar shape");
             Check(File.ReadAllText(bars).Contains("_damageable.GetTotalDamage((uid, damageable))"), "the health bar method is written for the newer CalcProgress signature");
 
+            Console.WriteLine("\n-- health bar overlay before InjurableComponent (engines before 277)");
+            var legacy = Path.Combine(temp, "legacy");
+            Fixture.Create(legacy, false);
+            bars = Path.Combine(legacy, "Content.Client/Overlays/EntityHealthBarOverlay.cs");
+            File.WriteAllText(bars, File.ReadAllText(bars)
+                .Replace("// reads InjurableComponent and the damage thresholds", "// reads the damage container of DamageableComponent")
+                .Replace("protected override void Draw(in OverlayDrawArgs args)\n    {\n", "protected override void Draw(in OverlayDrawArgs args)\n    {\n        _prototype.TryIndex(StatusIcon, out var statusIcon);\n"));
+            code = new Installer(Opts(legacy, source)).Install(false);
+            var legacyText = File.ReadAllText(bars);
+            Check(code == 0 && legacyText.Contains("public bool TryGetBar("), "install adds the health bar method to the older overlay");
+            Check(legacyText.Contains("!DamageContainers.Contains(damageable.DamageContainerID)") && !legacyText.Contains("InjurableComponent"),
+                "the older health bar method reads the damage container of DamageableComponent");
+            Check(legacyText.Contains("_prototype.TryIndex(StatusIcon, out var statusIcon);\n        if (statusIcon != null"), "the older health bar method looks the status icon up like the overlay does (TryIndex)");
+
+            Console.WriteLine("\n-- click lookup with more parameters (RMC-14)");
+            var rmc = Path.Combine(temp, "rmc");
+            Fixture.Create(rmc, false);
+            gameplay = Path.Combine(rmc, "Content.Client/Gameplay/GameplayStateBase.cs");
+            File.WriteAllText(gameplay, File.ReadAllText(gameplay).Replace("IEye? eye, bool excludeFaded = true)", "IEye? eye, bool excludeFaded = true, bool ignoreInteractionTransparency = false)"));
+            code = new Installer(Opts(rmc, source)).Install(false);
+            Check(code == 0 && File.ReadAllText(gameplay).Contains("GetClickableEntities(coordinates, eye, excludeFaded, ignoreInteractionTransparency)"),
+                "the 3D pick passes every extra parameter of GetClickableEntities on");
+
+            Console.WriteLine("\n-- engine versions");
+            EngineVersionTest(Path.Combine(temp, "engine"), source);
+
+            Console.WriteLine("\n-- files for older engines");
+            EngineVariantTest(Path.Combine(temp, "variants"), source);
+
+            Console.WriteLine("\n-- packaging tool output folder");
+            PackagingOutputTest(Path.Combine(temp, "packaging"));
+
             Console.WriteLine("\n-- MCP server");
             var mcpDir = Path.Combine(temp, "mcp");
             Fixture.Create(mcpDir, false);
@@ -93,6 +125,146 @@ public static class SelfTest
 
         Console.WriteLine(_failures == 0 ? "\nAll installer tests passed." : $"\n{_failures} installer test(s) FAILED.");
         return _failures == 0;
+    }
+
+    private static void EngineVersionTest(string dir, string? source)
+    {
+        Check(Installer.ParseEngine("264.0.2-fix-physics") == new Version(264, 0, 2), "an engine version with a fork suffix is read (264.0.2-fix-physics)");
+        Check(Installer.ParseEngine("270.1.0") == new Version(270, 1, 0) && Installer.ParseEngine("v275.2.1") == new Version(275, 2, 1),
+            "plain and v-prefixed engine versions are read");
+        Check(Installer.ParseEngine("291")?.Major == 291 && Installer.ParseEngine("master") == null && Installer.ParseEngine(null) == null,
+            "a bare major version is read, text without a number is not");
+
+        Fixture.Create(dir, false, "264.0.2-fix-physics");
+        var installer = new Installer(Opts(dir, source));
+        Check(installer.EngineVersion() == "264.0.2-fix-physics" && installer.Engine()?.Major == 264, "the engine version is read from the codebase with its suffix");
+        var overridden = Opts(dir, source);
+        overridden.Engine = "270.1.0";
+        Check(new Installer(overridden).Engine() == new Version(270, 1, 0), "--engine overrides the version in the codebase");
+
+        var located = SourceInfo.Locate(source, new Report(echo: false))!;
+        var min = Installer.ParseEngine(located.Compat.MinEngineVersion)!;
+        foreach (var (major, supported) in new[] { (min.Major - 1, false), (min.Major, true) })
+        {
+            var options = Opts(dir, source);
+            options.Force = false;
+            options.DryRun = true;
+            options.Engine = $"{major}.0.0";
+            var report = new Report(echo: false);
+            var code = new Installer(options, report).Install(false);
+            var tooOld = report.ToString().Contains("the oldest engine the 3D view supports");
+            Check(supported ? !tooOld : tooOld && code == 2,
+                $"engine {major} is {(supported ? "supported" : "refused without --force")} (oldest supported {located.Compat.MinEngineVersion})");
+        }
+    }
+
+    /// <summary>A throw-away overlay source with versions of files for older engines, and an install that follows an engine update.</summary>
+    private static void EngineVariantTest(string dir, string? source)
+    {
+        var src = Path.Combine(dir, "source");
+        void Put(string rel, string text)
+        {
+            var path = Path.Combine(src, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, text);
+        }
+
+        const string engineDir = "Content.Client/Render3D/Engine/";
+        foreach (var name in new[] { "Mouse", "Fov", "Grids", "Uniforms" })
+            Put(engineDir + name + ".cs", "default " + name);
+        Put(SourceInfo.EngineVariantsDir + "/before-286/" + engineDir + "Mouse.cs", "286 Mouse");
+        Put(SourceInfo.EngineVariantsDir + "/before-286/" + engineDir + "Fov.cs", "286 Fov");
+        Put(SourceInfo.EngineVariantsDir + "/before-283/" + engineDir + "Fov.cs", "283 Fov");
+        Put(SourceInfo.EngineVariantsDir + "/before-278/" + engineDir + "Grids.cs", "278 Grids");
+        Put(SourceInfo.EngineVariantsDir + "/before-265/" + engineDir + "Uniforms.cs", "265 Uniforms");
+        Put(SourceInfo.EngineVariantsDir + "/notes.txt", "not a variant folder");
+
+        var located = SourceInfo.Locate(src, new Report(echo: false))!;
+        Check(located.Root == Path.GetFullPath(src), "the throw-away source is used");
+        Check(located.OverlayFiles().All(f => !SourceInfo.IsEngineVariant(f)) && located.OverlayFiles().Contains(engineDir + "Mouse.cs"),
+            "versions for older engines are not overlay files themselves");
+
+        string Pick(string name, string? engine) => File.ReadAllText(located.SourceFor(engineDir + name + ".cs", Installer.ParseEngine(engine)).Path);
+        Check(Pick("Mouse", "264.0.2") == "286 Mouse" && Pick("Fov", "264.0.2") == "283 Fov" && Pick("Grids", "264.0.2") == "278 Grids" && Pick("Uniforms", "264.0.2") == "265 Uniforms",
+            "engine 264 gets every older version, each from the nearest folder above it");
+        Check(Pick("Uniforms", "270.1.0") == "default Uniforms" && Pick("Grids", "275.2.1") == "278 Grids" && Pick("Fov", "284.0.0") == "286 Fov" && Pick("Mouse", "285.9.0") == "286 Mouse",
+            "the boundaries: 270 and 275 and 284 and 285 get the right versions");
+        Check(new[] { "Mouse", "Fov", "Grids", "Uniforms" }.All(n => Pick(n, "286.0.0") == "default " + n && Pick(n, "291.0.1") == "default " + n && Pick(n, null) == "default " + n),
+            "engine 286 and newer, and an unknown engine, get the overlay files themselves");
+        Check(located.VariantTargets().SequenceEqual(new[] { "Fov", "Grids", "Mouse", "Uniforms" }.Select(n => engineDir + n + ".cs")),
+            "every file with versions for older engines is known");
+
+        // install on 270, then the engine is updated to 291: doctor warns, update installs the current files
+        var target = Path.Combine(dir, "target");
+        Fixture.Create(target, false, "270.1.0");
+        var original = Snapshot(target);
+        Check(new Installer(Opts(target, src)).Install(false) == 0, "install on engine 270 succeeds");
+        string Installed(string name) => File.ReadAllText(Path.Combine(target, engineDir + name + ".cs"));
+        Check(Installed("Mouse") == "286 Mouse" && Installed("Fov") == "283 Fov" && Installed("Grids") == "278 Grids" && Installed("Uniforms") == "default Uniforms",
+            "install on engine 270 copies the versions for engine 270");
+        var manifest = JsonSerializer.Deserialize<InstallManifest>(File.ReadAllText(Path.Combine(target, Installer.StateDir, Installer.ManifestName)))!;
+        Check(manifest.EngineVariants is { Count: 3 } v && v[engineDir + "Fov.cs"] == "before-283", "the manifest records which versions were installed");
+
+        var report = new Report(echo: false);
+        Check(new Installer(Opts(target, src), report).Doctor(false) == 0 && !report.ToString().Contains("Run `ss12 update`"), "doctor is quiet while the engine has not changed");
+
+        File.WriteAllText(Path.Combine(target, "RobustToolbox/MSBuild/Robust.Engine.Version.props"), "<Project><PropertyGroup><Version>291.0.0</Version></PropertyGroup></Project>\n");
+        report = new Report(echo: false);
+        Check(new Installer(Opts(target, src), report).Doctor(false) == 0 && report.ToString().Contains("needs the one for current engines. Run `ss12 update`"),
+            "doctor warns (only) when the engine changed since the install");
+        Check(new Installer(Opts(target, src)).Install(true) == 0 && new[] { "Mouse", "Fov", "Grids", "Uniforms" }.All(n => Installed(n) == "default " + n),
+            "update after the engine update installs the files for the new engine");
+        report = new Report(echo: false);
+        Check(new Installer(Opts(target, src), report).Doctor(false) == 0 && !report.ToString().Contains("Run `ss12 update`"), "doctor is quiet again after the update");
+
+        File.WriteAllText(Path.Combine(target, "RobustToolbox/MSBuild/Robust.Engine.Version.props"), "<Project><PropertyGroup><Version>270.1.0</Version></PropertyGroup></Project>\n");
+        Check(new Installer(Opts(target, src)).Uninstall() == 0, "uninstall succeeds");
+        var restored = Snapshot(target);
+        Check(restored.Count == original.Count && restored.All(kv => original.TryGetValue(kv.Key, out var o) && o == kv.Value),
+            "uninstall after an engine change restores every file byte for byte");
+
+        // the real overlay: every version for an older engine replaces an overlay file and has the same public members
+        var real = SourceInfo.Locate(source, new Report(echo: false))!;
+        var overlay = real.OverlayFiles().ToHashSet(StringComparer.Ordinal);
+        var bad = new List<string>();
+        foreach (var (variant, rel, path) in real.VariantFiles())
+        {
+            if (!overlay.Contains(rel))
+                bad.Add($"{variant}/{rel} replaces no overlay file");
+            else if (!PublicMembers(File.ReadAllText(path)).SetEquals(PublicMembers(File.ReadAllText(Path.Combine(real.Root, rel)))))
+                bad.Add($"{variant}/{rel} has other public members than {rel}");
+        }
+
+        foreach (var b in bad)
+            Console.WriteLine("    " + b);
+        Check(bad.Count == 0, $"the {real.VariantFiles().Count} file(s) for older engines in the overlay each replace an overlay file with the same public members");
+    }
+
+    /// <summary>The declarations of a file's public members ("public static bool HasRelativeMouse"), without bodies.</summary>
+    private static HashSet<string> PublicMembers(string text) =>
+        System.Text.RegularExpressions.Regex.Matches(text, @"^[ \t]*(public [^=;{\n]*?)\s*(?:=>|\{|;|$)", System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(m => System.Text.RegularExpressions.Regex.Replace(m.Groups[1].Value, @"\s+", " "))
+            .ToHashSet(StringComparer.Ordinal);
+
+    private static void PackagingOutputTest(string dir)
+    {
+        Check(Installer.PackagingOutput(dir) == null, "no packaging output when Content.Packaging was not built");
+        string Built(string tfm, DateTime when)
+        {
+            var folder = Path.Combine(dir, "Content.Packaging", "bin", "Release", tfm);
+            Directory.CreateDirectory(folder);
+            var dll = Path.Combine(folder, "Content.Packaging.dll");
+            File.WriteAllText(dll, tfm);
+            File.SetLastWriteTimeUtc(dll, when);
+            return folder;
+        }
+
+        var net9 = Built("net9.0", DateTime.UtcNow);
+        Check(Installer.PackagingOutput(dir) == net9, "the net9.0 output of older engines is found");
+        var net10 = Built("net10.0", DateTime.UtcNow.AddHours(-1));
+        Check(Installer.PackagingOutput(dir) == net9, "of two outputs the one built last is used");
+        File.SetLastWriteTimeUtc(Path.Combine(net10, "Content.Packaging.dll"), DateTime.UtcNow.AddHours(1));
+        Check(Installer.PackagingOutput(dir) == net10, "after an engine update the net10.0 output built last is used");
     }
 
     private static void McpCheck(string dir, string? source)
@@ -279,13 +451,13 @@ public static class SelfTest
 /// <summary>Minimal stand-ins for the upstream files the edits anchor on (the original upstream code).</summary>
 internal static class Fixture
 {
-    public static void Create(string dir, bool crlf)
+    public static void Create(string dir, bool crlf, string engine = "291.0.0")
     {
         Directory.CreateDirectory(dir);
         foreach (var project in new[] { "Content.Client", "Content.Shared", "Content.Server" })
             Write(dir, $"{project}/{project}.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n", false);
 
-        Write(dir, "RobustToolbox/MSBuild/Robust.Engine.Version.props", "<Project><PropertyGroup><Version>291.0.0</Version></PropertyGroup></Project>\n", false);
+        Write(dir, "RobustToolbox/MSBuild/Robust.Engine.Version.props", $"<Project><PropertyGroup><Version>{engine}</Version></PropertyGroup></Project>\n", false);
 
         Write(dir, "Content.Client/Weapons/Ranged/Systems/GunSystem.cs", """
             namespace Content.Client.Weapons.Ranged.Systems;
