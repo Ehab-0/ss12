@@ -95,23 +95,20 @@ public static class DynamicView
         var pitch = Pick(u, 0f, ThirdPitch, 28f, s.IsoPitch, s.OverheadPitch, TopPitch, TopPitch);
         var fov = Pick(u, s.WalkFov, s.WalkFov, (s.WalkFov + s.IsoFov) * 0.5f, s.IsoFov, s.OverheadFov, TopFov, TopFov);
 
+        // How much of the floor the picture shows (its height in tiles at the point looked at) at the stops from the third person one on.
+        var heights = StopHeights(s);
         float distance;
         if (u <= ThirdStop)
         {
-            // from the character's eyes out to the third person distance
-            distance = third * (u / ThirdStop);
+            // from the character's eyes out to the third person distance (the one that shows the third person stop's floor)
+            distance = heights[0] / (2f * MathF.Tan(s.WalkFov * MathF.PI / 360f)) * (u / ThirdStop);
         }
         else
         {
             // From there on the distance is read off how much of the floor the picture shows, which grows steadily (and evenly per notch: it
             // is interpolated by ratio). Picking the distance and the field of view independently let the narrowing field of view of the
             // isometric stop outweigh the distance growing, and the picture zoomed in a little on the way to it.
-            var heightThird = Visible(third, s.WalkFov);
-            var heightIso = Visible(s.OverheadDistance, s.IsoFov);
-            var heightOverhead = Visible(s.OverheadDistance, s.OverheadFov);
-            var heightTop = Visible(s.TopDistance, TopFov);
-            var heightHigh = heightThird + (MathF.Max(heightIso, heightThird) - heightThird) * 0.5f;
-            var visible = PickRatio(u, heightThird, heightHigh, heightIso, heightOverhead, heightTop, heightTop);
+            var visible = PickRatio(u, heights[0], heights[1], heights[2], heights[3], heights[4], heights[4]);
             distance = visible / (2f * MathF.Tan(fov * MathF.PI / 360f));
         }
 
@@ -134,6 +131,35 @@ public static class DynamicView
     ///     straight-down view, so that the hand-over to the (north-up) classic 2D view is not turned.
     /// </summary>
     public static float TurnWeight(float u) => 1f - SmoothStep(OverheadStop, TopStop, u);
+
+    /// <summary>The least step up (a ratio) between two stops' picture heights, so the wheel always zooms out on the way up.</summary>
+    private const float MinGrowth = 1.02f;
+
+    /// <summary>
+    ///     How tall (tiles) the picture is at the third person, high third person, isometric, overhead and straight-down stops. The straight-down
+    ///     one is fixed (it has to match the classic 2D view it fades into); the others are what the settings give, but never smaller than the
+    ///     stop before: a wide walking field of view shows more floor than a narrow isometric one at a similar distance, and without this the
+    ///     picture would zoom in on the way up, and out again after. Steps are lifted to at least <see cref="MinGrowth"/>, but not past the top.
+    /// </summary>
+    public static float[] StopHeights(in DynamicViewSettings s)
+    {
+        var top = Visible(s.TopDistance, TopFov);
+        var third = MathF.Min(Visible(s.ThirdDistance, s.WalkFov), top * 0.9f);
+        var iso = Visible(s.OverheadDistance, s.IsoFov);
+        var overhead = Visible(s.OverheadDistance, s.OverheadFov);
+
+        // each stop is at least a little above the one before, and at most as high as the top allows the ones after it to be
+        float Step(float previous, float wanted, int stopsLeft)
+        {
+            var ceiling = top * MathF.Pow(1f / MinGrowth, stopsLeft);
+            return MathF.Min(MathF.Max(wanted, previous * MinGrowth), ceiling);
+        }
+
+        var high = Step(third, third + (MathF.Max(iso, third) - third) * 0.5f, 3);
+        iso = Step(high, iso, 2);
+        overhead = Step(iso, overhead, 1);
+        return new[] { third, high, iso, overhead, top };
+    }
 
     /// <summary>How much of the classic 2D view is blended over the 3D picture: 0 until <see cref="FadeStart"/>, 1 from <see cref="FadeEnd"/>.</summary>
     public static float Fade(float u) => SmoothStep(FadeStart, FadeEnd, u);

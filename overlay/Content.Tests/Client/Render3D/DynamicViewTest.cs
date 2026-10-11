@@ -36,6 +36,49 @@ public sealed class DynamicViewTest
 
     private static DynamicViewState At(float u) => DynamicView.Evaluate(u, Settings);
 
+    // a very wide walking field of view (a player's 110) with a far third person: it shows more floor than the narrow isometric stop does
+    private static readonly DynamicViewSettings WideSettings = new(
+        WalkFov: 110f,
+        ThirdDistance: 4.5f,
+        IsoPitch: 32f,
+        IsoFov: 30f,
+        OverheadPitch: 35f,
+        OverheadDistance: 7.1f,
+        OverheadFov: 57f,
+        TopDistance: 13f,
+        WalkWall: 4f,
+        ElevatedWall: 1.3f);
+
+    [Test]
+    public void AWideWalkingFieldOfViewDoesNotMakeThePictureZoomInHalfWayUp()
+    {
+        float Floor(float u)
+        {
+            var v = DynamicView.Evaluate(u, WideSettings);
+            return DynamicView.Visible(v.Distance, v.FovDegrees);
+        }
+
+        var last = 0f;
+        for (var u = 0.01f; u <= DynamicView.TopStop; u += 0.002f)
+        {
+            var floor = Floor(u);
+            Assert.That(floor, Is.GreaterThanOrEqualTo(last - 1e-3f), $"u={u}");
+            last = floor;
+        }
+
+        // and the straight-down stop still shows as much as the classic view it fades into
+        Assert.That(Floor(DynamicView.TopStop), Is.EqualTo(DynamicView.Visible(WideSettings.TopDistance, DynamicView.TopFov)).Within(0.05f));
+    }
+
+    [Test]
+    public void TheStopsNeverShowLessFloorThanTheOneBefore([Values(40f, 80f, 110f)] float walkFov, [Values(1.2f, 3f, 4.5f)] float third, [Values(20f, 30f, 60f)] float isoFov)
+    {
+        var settings = new DynamicViewSettings(walkFov, third, 38f, isoFov, 55f, 9f, 45f, 13f, 2.3f, 1.1f);
+        var heights = DynamicView.StopHeights(settings);
+        for (var i = 1; i < heights.Length; i++)
+            Assert.That(heights[i], Is.GreaterThan(heights[i - 1]), $"stop {i}");
+    }
+
     [Test]
     public void TheCurveThroughTheStopsPassesThroughThemAndNeverOvershoots()
     {
