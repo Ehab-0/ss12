@@ -3,13 +3,13 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **The follow camera is removed, and the dynamic view zoom is smoother.** The follow camera (`PageUp`, `render3d.follow_camera`, `follow_lead`) never behaved well enough, so it is gone. In the dynamic view the numbers between the stops now follow a smooth curve (the straight lines between them made the speed jump at each stop), the wheel position glides with a damped spring, and the camera's collision with the walls lets go as the camera rises over them and moves smoothly, so the zoom no longer catches on the walls between the high third person and the isometric steps.
 - **One high camera, and a tidier settings window.** The shoulder, isometric and free orbit cameras are gone: the **overhead** camera now does
   it all. Hold the middle mouse button over the view and drag to turn it to any heading (a diagonal is the isometric look) and to tilt it;
   the Camera rotate keys snap to eighth turns. Old saved choices carry over (isometric and free orbit become overhead, shoulder becomes
   third person); `render3d.orbit_pitch`, `shoulder_distance` and `shoulder_fov` are removed, and `iso_pitch` / `iso_fov` now belong to the
   dynamic view's isometric step. In the `F11` General tab the quality preset and the performance settings come first (no title), and the
-  sliders of every camera are always shown, in groups, instead of hiding behind the camera picked. The follow camera now also works
-  in the dynamic view once it is high.
+  sliders of every camera are always shown, in groups, instead of hiding behind the camera picked.
 - **Turn the dynamic view by dragging.** Once the dynamic view is high (isometric and overhead), holding the middle mouse button and
   dragging turns the picture as in the overhead camera (the heading only; the look-down angle stays as the wheel set it). It is given up on the way
   down and fades out towards the straight-down view, so the hand-over to 2D stays north-up.
@@ -28,9 +28,6 @@
 - **A camera key and a dynamic view.** `Insert` goes through third person, first person, overhead and the **dynamic view** (below), and
   a short notice names the one you land on (`N` and `O` work as before). New settings: `render3d.camera_extra`; new keys: `Insert`
   (next camera) and the turn drag (middle mouse), both rebindable. `r3d_cam tp|fp|oh|dynamic` for the dev channel.
-- **A follow camera** (`PageUp`, `render3d.follow_camera`, off by default; the overhead camera, and the dynamic view once it is high): the camera looks where
-  your character is looking. Its focus moves ahead of the character in the direction it faces (it turns to face the cursor, so this follows
-  where you aim) by `render3d.follow_lead` tiles (2.5), stops short of a wall that way, and settles smoothly.
 - **A dynamic view.** The mouse wheel moves one camera all the way from first person, through third person, a high third person, isometric
   and overhead, to a straight-down view, and **then to the real classic 2D view** if the server allows 2D: the 2D picture fades in over the
   3D one, then the 3D view is switched off and the game's own 2D view is shown, where the wheel still works. Close to the character the

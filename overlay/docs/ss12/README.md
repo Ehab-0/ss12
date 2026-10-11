@@ -42,7 +42,6 @@ After a `Release` build run `dotnet restore` before building `DebugOpt` again (t
 | Toggle first / third person (from the overhead view: back to walking) | `N` |
 | Toggle the overhead view | `O` |
 | Next camera (third person, first person, overhead, dynamic view, and round again) | `Insert` |
-| Follow camera on and off (overhead camera, and the dynamic view when it is high) | `PageUp` |
 | Dynamic view: closer to the character / further and higher, all the way to the 2D view | the mouse wheel (the zoom keys do the same) |
 | Overhead camera: turn and tilt it (the high dynamic view: turn it) | hold the middle mouse button over the view and drag |
 | Turn the overhead view an eighth turn left or right (the dynamic view: a quarter turn), or back to north up | the existing Camera rotate left / right / reset keys (while a high view is on) |
@@ -98,11 +97,6 @@ the overhead view. The General tab of the settings window (`F11`) starts with th
 | **Overhead** | See above. It is also the isometric and the free orbit camera: drag to turn it to any heading (a diagonal gives the isometric look; the Camera rotate keys snap to eighth turns) and to tilt it; the pitch, distance, field of view and wall height sliders set the rest. |
 | **Dynamic view** | One camera that the mouse wheel moves all the way: first person, third person, a high third person, isometric, overhead, straight down, and last the classic 2D view. See below. |
 
-**Follow camera** (the overhead camera, and the dynamic view once it is high; `PageUp` or the checkbox in the General tab, `render3d.follow_camera`): the camera
-looks where the character is looking. Its focus moves ahead of the character, in the direction the character faces (the character turns
-to face the cursor, so this follows where you aim), by `render3d.follow_lead` tiles (2.5 by default), but stops 0.75 tiles short of a wall
-that way so the view never pokes through one. The focus settles on the new place smoothly (about a third of a second). It is off by default.
-
 **The dynamic view** (`render3d.camera_extra` 4; the cameras in `Insert`'s order, last):
 
 - The wheel moves one number from 0 (first person) to 1 (the classic 2D view); the camera glides there. Rolling the wheel away from you
@@ -120,6 +114,7 @@ that way so the view never pokes through one. The focus settles on the new place
   turns the picture, as in the overhead camera; only the heading turns, the look-down angle stays what the wheel set. WASD follows the screen
   at the new heading. The turn is given up on the way down to the walking cameras and fades out towards the straight-down view, so the hand-over
   to the classic 2D view is not turned; the camera rotate keys reset it.
+- **A smooth wheel.** The numbers between the stops follow a smooth curve through them (not straight lines, whose bends made the speed jump at each stop), the wheel position glides with a critically damped spring (it starts and ends softly, and several notches in a row run together), and the camera's collision with the walls lets go as the camera rises over them, then moves smoothly, instead of snapping in on the way up.
 - **The last step is the real 2D view**, if the server allows 2D (`render3d.dynamic_view_2d`, on by default; a server that makes 3D mandatory stops
   the scroll at the straight-down view). The straight-down camera is set up to cover as many tiles as the 2D view does, and the 2D picture is
   faded in over it; at the very end the 3D view is switched off and the game shows its own 2D view, where the wheel still works and the
@@ -138,7 +133,7 @@ real human play.**
 | Rendering: walls, floors, ceilings, space, fog, lights, FOV hiding, doors, windows, tables, wall decals, glowing layers | working |
 | Camera: third-person spring arm, first person, yaw sync to the server, camera-relative movement | working, covered by unit + integration tests |
 | Overhead camera (high, no ceiling, free cursor) | unit tests (camera geometry, wall-top ray casts, quad order, mouse capture); drawn and turned by the quarter-turn key in a local round. **Needs a human:** clicking, aiming and dragging with a real cursor, a rotating shuttle, doors and windows seen from above |
-| The overhead camera (with free turn and tilt), the dynamic view, the follow camera, the tabbed settings window | unit tests (camera modes and their settings, the mapping of the old isometric / orbit / shoulder settings, the isometric heading, the follow camera's numbers, the dynamic view's stops, its steadily growing picture, its wheel steps and switches, the turn fade-out); in a local round the cameras were drawn, the camera key went through them, the dynamic view was put at positions from third person to the classic 2D view (the cross-fade and the real 2D view were seen, and scrolling back), and the settings tabs were opened (a Debug build, about 4 FPS). **Needs a human:** the mouse wheel itself, the middle-mouse drag (in the overhead camera and the dynamic view), how the follow camera feels |
+| The overhead camera (with free turn and tilt), the dynamic view, the tabbed settings window | unit tests (camera modes and their settings, the mapping of the old isometric / orbit / shoulder settings, the isometric heading, the dynamic view's stops, its steadily growing picture, its wheel steps and switches, the smooth curve and the damped glide, the turn fade-out); in a local round the cameras were drawn, the camera key went through them, the dynamic view was put at positions from third person to the classic 2D view (the cross-fade and the real 2D view were seen, and scrolling back), and the settings tabs were opened (a Debug build, about 4 FPS). **Needs a human:** the mouse wheel itself, the middle-mouse drag (in the overhead camera and the dynamic view) |
 | Interaction: pick up, drop, throw, open lockers, doors, pull, cuff, melee, flash, gun firing at the crosshair, context menu, examine | each exercised live |
 | HUD in 3D: health bars, status/sec HUD icons, speech bubbles, popups, map text | working |
 | Enforcement (`render3d.enforced`), options tab, key rebinding | working |
@@ -186,7 +181,6 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.overhead` (false) | Use the overhead camera (see [The overhead view](#the-overhead-view)); it takes the place of first and third person while on. |
 | `render3d.overhead_pitch` (55, degrees), `overhead_distance` (9, tiles; 4 to 16), `overhead_fov` (45, degrees), `overhead_wall_height` (1.1, tiles) | The overhead camera: how far it looks down (dragging up and down changes it), how far it hangs from the character along the line of sight, its field of view, and the height walls have in this view. |
 | `render3d.camera_extra` (0) | Which of the other cameras is on: 0 none, 4 the dynamic view (the older values 1 isometric and 2 free orbit now mean the overhead camera, 3 shoulder means third person). It wins over `overhead` and `first_person`; the camera key and the settings window set all three together, and a high camera leaves `first_person` as it was so leaving it returns to the walking camera you had. |
-| `render3d.follow_camera` (false), `render3d.follow_lead` (2.5, tiles) | The follow camera (overhead camera, and the dynamic view once it is high): the camera looks where the character looks, this many tiles ahead. |
 | `render3d.dynamic_view_u` (0.2), `dynamic_view_speed` (0.06), `dynamic_view_invert` (false), `dynamic_view_2d` (true) | The dynamic view: where the wheel left it (0 first person to 1 the classic 2D view), how far a notch goes, the wheel turned round, and whether the last step is the real 2D view. |
 | `render3d.iso_pitch` (38, degrees), `iso_fov` (30, degrees) | The isometric step of the dynamic view: how far it looks down, and its field of view. |
 | `render3d.pointlist` (true) | A small list, to the right, of what the crosshair points at: the thing under it first, then the others on the same spot (a pile on a table), with those out of reach greyed. Up / Down move a highlight, Space (or a click with `Alt` held) selects the row as the target and Space again acts on it like a left click (the target is let go once used, when you look away, after 8 seconds or beyond 9 tiles). Reachable loose things are listed first. The panel only shows while there is something to list. Key `L`; `render3d_pointlist [on\|off]`. |

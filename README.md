@@ -50,8 +50,7 @@ It is a fan-made add-on. It is **not** made by, or connected to, the Space Stati
   rotate keys turn the view by quarter turns.
 - **More cameras.** `Insert` goes through third person, first person, **overhead** (high above, free mouse; hold the middle mouse button
   and drag to turn and tilt it to any heading, a diagonal being the isometric look) and the **dynamic view**: with the mouse wheel you
-  go from first person, through third person and isometric, all the way up to the real 2D view, and back. A **follow camera** option
-  makes the high cameras look where your character is looking (`PageUp`).
+  go from first person, through third person and isometric, all the way up to the real 2D view, and back.
 - **A tidier settings window.** `F11` now has tabs (General, Interface, Controls, Graphics), and the camera settings in General only
   show the settings of the camera you picked.
 - **Mouse look.** Move the mouse to look around, `W A S D` to walk where you are looking.
@@ -112,7 +111,6 @@ More pictures are in the [screenshots folder](docs/screenshots/).
 | Switch the overhead view on and off (the mouse is always free in it) | `O` |
 | Next camera: third person, first person, overhead, dynamic view | `Insert` |
 | In the dynamic view: closer / further, up to the 2D view | mouse wheel |
-| Follow camera on and off (overhead camera, and the dynamic view when it is high) | `PageUp` |
 | **Free the mouse to click menus, buttons and the inventory: HOLD** | **`Alt`** |
 | Minimap on and off; small or large | `M`; `-` |
 | List of what you point at, on and off | `L` |
