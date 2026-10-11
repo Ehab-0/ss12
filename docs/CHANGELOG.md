@@ -21,6 +21,7 @@
 - **Installer fixes.** Engine versions with a fork's suffix (`264.0.2-fix-physics`) are read (they were not, so the check
   was skipped). `ss12 package` finds the packaging tool of engines that build on .NET 9. The 3D pick passes every extra
   parameter of the click lookup on (RMC-14 has one more), and health bars are drawn on the older health-bar overlay too.
+  `ss12 update` records a file that already matched the new version as installed (doctor called it modified).
 - **Tables can be used where you point, and everything you point at is marked.** Things lying on a table or the floor were picked over a quad bigger than
   their picture (a gold bar caught clicks over more than a tile), so putting something on a table meant clicking its very edge. They are now picked
   only where their picture is not see-through, and a click on a table lands where you pointed. The mark of the pointed-at thing is now very subtle (a faint one pixel line at any zoom,
