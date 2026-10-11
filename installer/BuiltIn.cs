@@ -45,9 +45,10 @@ public static class BuiltIn
             Edits: new Edit[]
             {
                 new InsertAfterEdit(
-                    // GetClickableEntities(MapCoordinates coordinates, IEye? eye[, bool excludeFaded = true]) { ... if (eye == null) return ...; }
-                    Anchor: @"GetClickableEntities\(MapCoordinates coordinates, IEye\? eye(?:, bool (?<ex>\w+)[^)]*)?\)\s*\{[\s\S]*?if \(eye == null\)\s*return Array\.Empty<EntityUid>\(\);",
-                    Build: m => PickMergeBlock(m.Groups["ex"].Success ? ", " + m.Groups["ex"].Value : ""),
+                    // GetClickableEntities(MapCoordinates coordinates, IEye? eye[, bool excludeFaded = true[, ...]]) { ... if (eye == null) return ...; }
+                    // Every extra parameter is passed on (RMC-14 adds `bool ignoreInteractionTransparency = false`).
+                    Anchor: @"GetClickableEntities\(MapCoordinates coordinates, IEye\? eye(?<params>(?:,\s*[\w.<>?]+\s+\w+(?:\s*=\s*[^,)]+)?)*)\)\s*\{[\s\S]*?if \(eye == null\)\s*return Array\.Empty<EntityUid>\(\);",
+                    Build: m => PickMergeBlock(ForwardedArguments(m.Groups["params"].Value)),
                     Done: "Render3DPicking.TryBegin"),
             }),
 
@@ -148,22 +149,30 @@ public static class BuiltIn
                     Find: @"public sealed class EntityHealthBarOverlay : Overlay(?![\w,])",
                     Replace: "public sealed class EntityHealthBarOverlay : Overlay, " + Ns + ".IRender3DHealthBar",
                     Done: "IRender3DHealthBar"),
-                // Two shapes of CalcProgress exist: (uid, mobState, DamageableComponent dmg, thresholds) and the newer
+                // Three shapes exist: CalcProgress(uid, mobState, DamageableComponent dmg, thresholds) with the damage container
+                // on DamageableComponent (before engine 277), the same with InjurableComponent, and the newer
                 // (uid, mobState, FixedPoint2 totalDamage, injurable, thresholds). The method is built for whichever is found.
                 new InsertBeforeEdit(
                     Anchor: @"^[ \t]*/// <summary>\s*\n[ \t]*/// Returns a ratio between 0 and 1, and whether the entity is in crit\.\s*\n[ \t]*/// </summary>\s*\n[ \t]*private \(float ratio, bool inCrit\)\? CalcProgress\(\s*EntityUid uid,\s*MobStateComponent component,\s*(?:(?<new>FixedPoint2 totalDamage,)|(?<old>DamageableComponent dmg,))",
-                    Build: m => m.Groups["new"].Success
+                    Build: (m, text) => m.Groups["new"].Success
                         ? HealthBarMethod.Replace(
                             "CalcProgress(uid, mobState, damageable, thresholds)",
                             "CalcProgress(uid, mobState, _damageable.GetTotalDamage((uid, damageable)), injurable, thresholds)")
-                        : HealthBarMethod,
+                        : text.Contains("InjurableComponent", StringComparison.Ordinal)
+                            ? HealthBarMethod
+                            : LegacyHealthBarMethod(text),
                     Done: "public bool TryGetBar("),
             },
-            // the inserted method is written against this overlay's current designs; other designs are not targets
-            RequiresText: new[] { "InjurableComponent", "CalcProgress(", "GetProgressColor(" }),
+            // the inserted method is written against these designs of the overlay; other designs are not targets
+            RequiresText: new[] { "CalcProgress(", "GetProgressColor(" }),
     };
 
-    /// <summary>The block inserted into GetClickableEntities; <paramref name="extraArgs"/> forwards an optional trailing parameter (excludeFaded).</summary>
+    /// <summary>", excludeFaded" for the parameter list ", bool excludeFaded = true": each extra parameter, passed on by name.</summary>
+    private static string ForwardedArguments(string parameters) =>
+        string.Concat(System.Text.RegularExpressions.Regex.Matches(parameters, @",\s*[\w.<>?]+\s+(?<name>\w+)")
+            .Select(p => ", " + p.Groups["name"].Value));
+
+    /// <summary>The block inserted into GetClickableEntities; <paramref name="extraArgs"/> forwards the optional trailing parameters (excludeFaded).</summary>
     private static string PickMergeBlock(string extraArgs) => string.Join(Lf, new[]
     {
         "",
@@ -218,4 +227,18 @@ public static class BuiltIn
         + "        return true;\n"
         + "    }\n"
         + "\n";
+
+    /// <summary>
+    ///     <see cref="HealthBarMethod"/> for the overlay before InjurableComponent (engines before 277): the damage container
+    ///     is on DamageableComponent, and older code looks the status icon up with TryIndex instead of Resolve.
+    /// </summary>
+    private static string LegacyHealthBarMethod(string text)
+    {
+        var lookup = System.Text.RegularExpressions.Regex.Match(text, @"_prototype\.(?<how>Resolve|TryIndex)\(StatusIcon, out var statusIcon\);");
+        return HealthBarMethod
+            .Replace("\n            || !_entManager.TryGetComponent(uid, out InjurableComponent? injurable))", ")")
+            .Replace("injurable.DamageContainer == null || !DamageContainers.Contains(injurable.DamageContainer)",
+                "damageable.DamageContainerID == null || !DamageContainers.Contains(damageable.DamageContainerID)")
+            .Replace("_prototype.Resolve(StatusIcon,", "_prototype." + (lookup.Success ? lookup.Groups["how"].Value : "Resolve") + "(StatusIcon,");
+    }
 }

@@ -455,7 +455,8 @@ public static class McpServer
                     sb.AppendLine("```");
                     sb.AppendLine("Insert:");
                     sb.AppendLine("```");
-                    sb.AppendLine(b.Build(Match.Empty));
+                    // the text of the shape with InjurableComponent, as before builders could see the file
+                    sb.AppendLine(b.Build(Match.Empty, "InjurableComponent"));
                     sb.AppendLine("```");
                     break;
             }

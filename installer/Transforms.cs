@@ -79,13 +79,21 @@ public sealed record InsertAfterEdit(string Anchor, Func<Match, string> Build, s
     }
 }
 
-/// <summary>Inserts <paramref name="Text"/> directly before the first match of <paramref name="Anchor"/>.</summary>
-public sealed record InsertBeforeEdit(string Anchor, Func<Match, string> Build, string Done) : Edit(Done)
+/// <summary>
+///     Inserts text directly before the first match of <paramref name="Anchor"/>. The text can depend on what the anchor
+///     matched and on the rest of the file (the whole text, LF), for code whose shape differs elsewhere in the file.
+/// </summary>
+public sealed record InsertBeforeEdit(string Anchor, Func<Match, string, string> Build, string Done) : Edit(Done)
 {
     private readonly Regex _regex = new(Anchor, RegexOptions.Multiline | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     public InsertBeforeEdit(string Anchor, string Text, string Done)
-        : this(Anchor, _ => Text, Done)
+        : this(Anchor, (_, _) => Text, Done)
+    {
+    }
+
+    public InsertBeforeEdit(string Anchor, Func<Match, string> Build, string Done)
+        : this(Anchor, (m, _) => Build(m), Done)
     {
     }
 
@@ -98,7 +106,7 @@ public sealed record InsertBeforeEdit(string Anchor, Func<Match, string> Build, 
         if (!match.Success)
             return new EditOutcome(EditStatus.NoAnchor);
 
-        return new EditOutcome(EditStatus.Pending, text.Insert(match.Index, Build(match)));
+        return new EditOutcome(EditStatus.Pending, text.Insert(match.Index, Build(match, text)));
     }
 }
 
