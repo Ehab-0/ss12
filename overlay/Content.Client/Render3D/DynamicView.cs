@@ -38,6 +38,7 @@ public static class DynamicView
     public const float TopStop = 0.93f;
 
     private static readonly float[] Stops = { 0f, ThirdStop, HighStop, IsoStop, OverheadStop, TopStop, 1f };
+    private static readonly float[] StopsFromThird = { ThirdStop, HighStop, IsoStop, OverheadStop, TopStop, 1f };
 
     /// <summary>The look-down angle of the third person stop, degrees (the third person camera's usual 0.15 radians).</summary>
     public const float ThirdPitch = 8.6f;
@@ -80,6 +81,9 @@ public static class DynamicView
     /// <summary>How fast the camera glides to where the wheel put it (1 / seconds).</summary>
     public const float GlideRate = 9f;
 
+    /// <summary>About how long (seconds) the camera takes to settle where the wheel put it.</summary>
+    public const float GlideTime = 0.2f;
+
     /// <summary>The furthest the wheel goes: the classic view when it is allowed, otherwise the straight-down view.</summary>
     public static float MaxU(bool allow2D) => allow2D ? 1f : TopStop;
 
@@ -120,6 +124,12 @@ public static class DynamicView
     }
 
     /// <summary>
+    ///     How far the camera has risen clear of the walls (0 = down among them, 1 = well over their tops), for a camera at
+    ///     <paramref name="cameraHeight"/> and walls <paramref name="wallHeight"/> tall. The spring arm's hold on the camera lets go with it.
+    /// </summary>
+    public static float Clearance(float cameraHeight, float wallHeight) => SmoothStep(wallHeight + 0.3f, wallHeight + 2.0f, cameraHeight);
+
+    /// <summary>
     ///     How much of the heading the player has dragged the view to still counts: all of it up to the overhead stop, fading out to the
     ///     straight-down view, so that the hand-over to the (north-up) classic 2D view is not turned.
     /// </summary>
@@ -144,57 +154,93 @@ public static class DynamicView
     /// <summary>A switch with hysteresis: on from <paramref name="on"/> upwards, off again below <paramref name="off"/>.</summary>
     public static bool Latch(bool current, float u, float on, float off) => current ? u >= off : u >= on;
 
-    /// <summary>The value at <paramref name="u"/>, given one value per stop (seven), linear between neighbouring stops.</summary>
+    /// <summary>
+    ///     The value at <paramref name="u"/>, given one value per stop (seven): a smooth curve through the stops that never overshoots them
+    ///     (a monotone cubic), so the speed does not jump as the wheel passes a stop, as it would with straight lines between them.
+    /// </summary>
     private static float Pick(float u, float v0, float v1, float v2, float v3, float v4, float v5, float v6)
     {
-        for (var i = 1; i < Stops.Length; i++)
-        {
-            if (u > Stops[i])
-                continue;
-
-            var t = (u - Stops[i - 1]) / (Stops[i] - Stops[i - 1]);
-            var (from, to) = i switch
-            {
-                1 => (v0, v1),
-                2 => (v1, v2),
-                3 => (v2, v3),
-                4 => (v3, v4),
-                5 => (v4, v5),
-                _ => (v5, v6),
-            };
-            return from + (to - from) * t;
-        }
-
-        return v6;
+        var values = new[] { v0, v1, v2, v3, v4, v5, v6 };
+        return Monotone(u, Stops, values);
     }
 
     /// <summary>How tall (tiles) the picture is, at the distance of the point looked at, for a distance and a vertical field of view in degrees.</summary>
     public static float Visible(float distance, float fovDegrees) => 2f * distance * MathF.Tan(fovDegrees * MathF.PI / 360f);
 
     /// <summary>
-    ///     Like <see cref="Pick"/>, for the values of the stops from the third person one on (six values), but between two stops the value
-    ///     changes by a constant ratio, not a constant difference. Values must be above zero.
+    ///     Like <see cref="Pick"/>, for the values of the stops from the third person one on (six values), but the curve runs through the
+    ///     logarithms of the values, so a stop-to-stop change is by a ratio, not a difference. Values must be above zero.
     /// </summary>
     private static float PickRatio(float u, float v1, float v2, float v3, float v4, float v5, float v6)
     {
-        for (var i = 2; i < Stops.Length; i++)
+        var logs = new[]
         {
-            if (u > Stops[i])
-                continue;
+            MathF.Log(MathF.Max(v1, 1e-4f)), MathF.Log(MathF.Max(v2, 1e-4f)), MathF.Log(MathF.Max(v3, 1e-4f)),
+            MathF.Log(MathF.Max(v4, 1e-4f)), MathF.Log(MathF.Max(v5, 1e-4f)), MathF.Log(MathF.Max(v6, 1e-4f)),
+        };
 
-            var t = Math.Clamp((u - Stops[i - 1]) / (Stops[i] - Stops[i - 1]), 0f, 1f);
-            var (from, to) = i switch
-            {
-                2 => (v1, v2),
-                3 => (v2, v3),
-                4 => (v3, v4),
-                5 => (v4, v5),
-                _ => (v5, v6),
-            };
-            return from * MathF.Pow(MathF.Max(to, 1e-4f) / MathF.Max(from, 1e-4f), t);
+        return MathF.Exp(Monotone(u, StopsFromThird, logs));
+    }
+
+    /// <summary>
+    ///     A monotone cubic through the points (<paramref name="xs"/>, <paramref name="ys"/>) (Fritsch-Carlson): it passes through every
+    ///     point, goes up or down only where the points do, and is flat where they are, so it neither overshoots nor wobbles.
+    /// </summary>
+    public static float Monotone(float x, float[] xs, float[] ys)
+    {
+        var n = xs.Length;
+        if (x <= xs[0])
+            return ys[0];
+        if (x >= xs[n - 1])
+            return ys[n - 1];
+
+        var k = 0;
+        while (x > xs[k + 1])
+            k++;
+
+        var h = xs[k + 1] - xs[k];
+        var t = (x - xs[k]) / h;
+        var m0 = Slope(xs, ys, k);
+        var m1 = Slope(xs, ys, k + 1);
+        var t2 = t * t;
+        var t3 = t2 * t;
+        return (2f * t3 - 3f * t2 + 1f) * ys[k] + (t3 - 2f * t2 + t) * h * m0
+            + (-2f * t3 + 3f * t2) * ys[k + 1] + (t3 - t2) * h * m1;
+    }
+
+    private static float Delta(float[] xs, float[] ys, int i) => (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]);
+
+    private static float Slope(float[] xs, float[] ys, int k)
+    {
+        var n = xs.Length;
+        if (k > 0 && k < n - 1)
+        {
+            var d0 = Delta(xs, ys, k - 1);
+            var d1 = Delta(xs, ys, k);
+            if (d0 * d1 <= 0f)
+                return 0f;
+
+            var h0 = xs[k] - xs[k - 1];
+            var h1 = xs[k + 1] - xs[k];
+            var w1 = 2f * h1 + h0;
+            var w2 = h1 + 2f * h0;
+            return (w1 + w2) / (w1 / d0 + w2 / d1);
         }
 
-        return v6;
+        // the ends: a one-sided estimate, kept from pointing the wrong way or overshooting
+        var i0 = k == 0 ? 0 : n - 2;
+        var i1 = k == 0 ? 1 : n - 3;
+        var da = Delta(xs, ys, i0);
+        var db = Delta(xs, ys, i1);
+        var ha = xs[i0 + 1] - xs[i0];
+        var hb = k == 0 ? xs[2] - xs[1] : xs[n - 2] - xs[n - 3];
+        var m = ((2f * ha + hb) * da - ha * db) / (ha + hb);
+        if (MathF.Sign(m) != MathF.Sign(da))
+            return 0f;
+        if (MathF.Sign(da) != MathF.Sign(db) && MathF.Abs(m) > 3f * MathF.Abs(da))
+            return 3f * da;
+
+        return m;
     }
 
     private static float SmoothStep(float edge0, float edge1, float x)

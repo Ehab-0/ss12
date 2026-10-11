@@ -142,11 +142,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private bool _turnDragging;
     private CameraMode _lastMode = CameraMode.ThirdPerson;
 
-    // follow camera: how far ahead of the character (a world offset) the camera looks, smoothed
-    private Vector2 _followLead;
-
     // dynamic view: where the wheel wants the camera (0 first person to 1 the classic 2D view) and where it has glided to
     private float _scrollTarget = DynamicView.ThirdStop;
+    private float _scrollVelocity;
     private bool _scrollInit;
     private bool _scrollFree;
     private bool _scrollNoCeiling;
@@ -234,10 +232,11 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             _scrollInit = true;
             _scrollTarget = ScrollU = Math.Clamp(_cfg.GetCVar(CCVars.Render3DDynamicViewU), 0f, max);
+            _scrollVelocity = 0f;
         }
 
         _scrollTarget = Math.Min(_scrollTarget, max);
-        ScrollU = Math.Clamp(FollowCamera.Smooth(ScrollU, _scrollTarget, dt, DynamicView.GlideRate), 0f, max);
+        ScrollU = Math.Clamp(Glide.Damp(ScrollU, ref _scrollVelocity, _scrollTarget, dt, DynamicView.GlideTime), 0f, max);
         _scrollFree = DynamicView.Latch(_scrollFree, ScrollU, DynamicView.FreeOn, DynamicView.FreeOff);
         if (!_scrollFree)
         {
@@ -260,6 +259,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         _scrollNoCeiling = false;
         _scrollBias = float.NaN;
         _scrollTurn = 0.0;
+        _scrollVelocity = 0f;
         ScrollTwoD = false;
         ScrollFade = 0f;
         Camera.ScrollElevated = false;
@@ -1076,9 +1076,6 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             _overheadTurn = new Angle(_overheadTurn).Reduced().Theta;
             _overheadSnap = false;
 
-            // the follow camera: the camera looks where the character is looking
-            UpdateFollow(eyePos, player, _cfg.GetCVar(CCVars.Render3DFollowCamera), turnDt);
-
             var pitchDegrees = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadPitch), OverheadCamera.MinPitchDegrees, OverheadCamera.MaxPitchDegrees);
             cam.Pitch = -MathHelper.DegreesToRadians(pitchDegrees);
         }
@@ -1096,7 +1093,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             // High above and behind the character, looking down at it. No ceiling and no spring arm: nothing is above the walls.
             var armLength = Math.Clamp(_cfg.GetCVar(CCVars.Render3DOverheadDistance), OverheadCamera.MinDistance, OverheadCamera.MaxDistance);
-            cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y) + _followLead, cam.Forward, armLength);
+            cam.Position = OverheadCamera.Position(new Vector2(head.X, head.Y), cam.Forward, armLength);
             _cameraToHead = armLength;
             _armFraction = 1f;
             cam.UpdateBasis();
@@ -1157,34 +1154,6 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             grid = _xformSys.GetWorldRotation(g);
 
         return OverheadCamera.Yaw(grid, OverheadSteps);
-    }
-
-    /// <summary>
-    ///     Settles the follow camera's focus on a point ahead of the character, in the direction it faces (see <see cref="FollowCamera"/>), but
-    ///     short of any wall that way. With the follow camera off the focus settles back on the character.
-    /// </summary>
-    private void UpdateFollow(MapCoordinates eyePos, EntityUid? player, bool active, float dt)
-    {
-        var target = Vector2.Zero;
-        if (active && player is { } p && _xformSys != null && _entMan.TryGetComponent(p, out TransformComponent? xform))
-        {
-            var lead = Math.Clamp(_cfg.GetCVar(CCVars.Render3DFollowLead), FollowCamera.MinLead, FollowCamera.MaxLead);
-            var facing = _xformSys.GetWorldRotation(xform).ToWorldVec();
-            var wall = float.PositiveInfinity;
-            if (_tileWorld != null)
-            {
-                var origin = new Vector3(eyePos.X, eyePos.Y, OverheadCamera.TargetHeight);
-                if (_tileWorld.RayCastWalls(eyePos.MapId, origin, new Vector3(facing, 0f), lead + FollowCamera.WallMargin, WallHeight,
-                        out var hit, out _, out _, out _, includeClosedDoors: true))
-                {
-                    wall = hit;
-                }
-            }
-
-            target = FollowCamera.LookAhead(facing, lead, wall);
-        }
-
-        _followLead = FollowCamera.Smooth(_followLead, target, dt);
     }
 
     /// <summary>
@@ -1249,9 +1218,6 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var head = new Vector3(eyePos.X, eyePos.Y, eyeHeight);
         cam.Head = head;
 
-        // the follow camera, once the view is high (it fades out towards the straight-down view, which hands over to the classic 2D picture)
-        UpdateFollow(eyePos, player, free && _cfg.GetCVar(CCVars.Render3DFollowCamera), dt);
-
         if (view.Distance < 0.02f)
         {
             // first person
@@ -1263,25 +1229,32 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         var right = new Vector2(cam.Right.X, cam.Right.Y);
         var target = new Vector3(head.X, head.Y, view.TargetHeight);
-        target += new Vector3(_followLead * DynamicView.TurnWeight(ScrollU), 0f);
         var desired = target - cam.Forward * view.Distance + new Vector3(right * view.Side, 0f);
 
-        // Spring arm while the camera is down among the walls (the same one the third person camera has); above them nothing is in the way.
+        // Spring arm while the camera is down among the walls (the same one the third person camera has). Its hold lets go as the camera
+        // rises over the walls (it is no longer in their way, and a wall below it can only be seen over), so the zoom does not catch on
+        // them half way up; and while it lets go, it moves smoothly in both directions instead of snapping in.
         var wallHeight = view.WallHeight;
+        var clear = DynamicView.Clearance(desired.Z, wallHeight);
         var fraction = 1f;
-        if (_tileWorld != null && desired.Z < wallHeight + 0.6f)
+        if (_tileWorld != null && clear < 1f)
         {
             var map = eyePos.MapId;
             var tw = _tileWorld;
             fraction = Camera3D.SpringArmFraction(head, desired, 0.2f, 0.3f,
                 (Vector3 o, Vector3 dir, float maxT, out float t) =>
                     tw.RayCastWalls(map, o, dir, maxT, wallHeight, out t, out _, out _, out _, includeClosedDoors: true));
+            fraction += (1f - fraction) * clear;
         }
 
-        if (fraction < _armFraction || dt <= 0f || dt > 0.25f || float.IsNaN(_armFraction))
+        if (dt <= 0f || dt > 0.25f || float.IsNaN(_armFraction))
             _armFraction = fraction;
+        else if (fraction < _armFraction)
+            _armFraction = clear > 0f
+                ? Glide.Smooth(_armFraction, fraction, dt, 16f)
+                : fraction; // down among the walls the camera is never let into one
         else
-            _armFraction += (fraction - _armFraction) * (1f - MathF.Exp(-dt * 6f));
+            _armFraction = Glide.Smooth(_armFraction, fraction, dt, 5f);
 
         desired = head + (desired - head) * _armFraction;
         cam.Position = desired;

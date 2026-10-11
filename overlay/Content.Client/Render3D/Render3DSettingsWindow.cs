@@ -141,7 +141,7 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         BuildCamera(page);
     }
 
-    /// <summary>The camera dropdown, the follow camera, and the sliders of every camera, grouped by the camera they belong to.</summary>
+    /// <summary>The camera dropdown and the sliders of every camera, grouped by the camera they belong to.</summary>
     private void BuildCamera(BoxContainer page)
     {
         var row = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Horizontal, SeparationOverride = 8 };
@@ -164,8 +164,6 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
         _cameraHint = new Label { FontColorOverride = HintColor };
         page.AddChild(_cameraHint);
 
-        AddCheck(CCVars.Render3DFollowCamera, "render3d-settings-follow");
-        AddSlider(CCVars.Render3DFollowLead, "render3d-settings-follow-lead", FollowCamera.MinLead, FollowCamera.MaxLead, "0.0");
 
         AddSubHeader("render3d-settings-group-walking");
         AddSlider(CCVars.Render3DThirdPersonDistance, "render3d-settings-distance", 0.8f, 3f, "0.0");

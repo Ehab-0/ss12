@@ -19,7 +19,6 @@ public static class Render3DKeys
     public static readonly BoundKeyFunction ToggleCameraMode = Render3DKeyFunctions.Toggle3DCameraMode;
     public static readonly BoundKeyFunction ToggleOverhead = Render3DKeyFunctions.Toggle3DOverhead;
     public static readonly BoundKeyFunction CycleCamera = Render3DKeyFunctions.Cycle3DCamera;
-    public static readonly BoundKeyFunction ToggleFollow = Render3DKeyFunctions.Toggle3DFollowCamera;
     public static readonly BoundKeyFunction OrbitDrag = Render3DKeyFunctions.Render3DOrbitDrag;
     public static readonly BoundKeyFunction FreeCursor = Render3DKeyFunctions.Render3DFreeCursor;
     public static readonly BoundKeyFunction OpenSettings = Render3DKeyFunctions.Render3DSettings;
@@ -39,7 +38,6 @@ public static class Render3DKeys
         (ToggleCameraMode, Keyboard.Key.N, "render3d-key-toggle-camera"),
         (ToggleOverhead, Keyboard.Key.O, "render3d-key-toggle-overhead"),
         (CycleCamera, Keyboard.Key.Insert, "render3d-key-cycle-camera"),
-        (ToggleFollow, Keyboard.Key.PageUp, "render3d-key-toggle-follow"),
         (OrbitDrag, Keyboard.Key.MouseMiddle, "render3d-key-orbit-drag"),
         (Minimap, Keyboard.Key.M, "render3d-key-minimap"),
         (MinimapSize, Keyboard.Key.Minus, "render3d-key-minimap-size"),

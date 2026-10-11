@@ -37,6 +37,65 @@ public sealed class DynamicViewTest
     private static DynamicViewState At(float u) => DynamicView.Evaluate(u, Settings);
 
     [Test]
+    public void TheCurveThroughTheStopsPassesThroughThemAndNeverOvershoots()
+    {
+        float[] xs = { 0f, 0.1f, 0.4f, 0.6f, 1f };
+        float[] ys = { 0f, 5f, 5f, 9f, 10f };
+        for (var i = 0; i < xs.Length; i++)
+            Assert.That(DynamicView.Monotone(xs[i], xs, ys), Is.EqualTo(ys[i]).Within(1e-4f));
+
+        var last = 0f;
+        for (var x = 0f; x <= 1f; x += 0.002f)
+        {
+            var y = DynamicView.Monotone(x, xs, ys);
+            Assert.That(y, Is.GreaterThanOrEqualTo(last - 1e-4f), $"x={x}");
+            Assert.That(y, Is.InRange(0f, 10f));
+            last = y;
+        }
+
+        // flat where the points are flat
+        Assert.That(DynamicView.Monotone(0.25f, xs, ys), Is.EqualTo(5f).Within(0.5f));
+    }
+
+    [Test]
+    public void TheSpeedOfTheCameraDoesNotJumpWhereTheWheelPassesAStop()
+    {
+        const float e = 0.0002f;
+        foreach (var stop in new[] { DynamicView.ThirdStop, DynamicView.HighStop, DynamicView.IsoStop, DynamicView.OverheadStop, DynamicView.TopStop })
+        {
+            var before = At(stop - e);
+            var at = At(stop);
+            var after = At(stop + e);
+            void Check(string name, float a, float b, float c)
+            {
+                var left = (b - a) / e;
+                var right = (c - b) / e;
+                Assert.That(MathF.Abs(right - left), Is.LessThanOrEqualTo(0.25f * (MathF.Abs(left) + MathF.Abs(right)) + 2f), $"{name} at {stop}");
+            }
+
+            Check("pitch", before.PitchDown, at.PitchDown, after.PitchDown);
+            Check("fov", before.FovDegrees, at.FovDegrees, after.FovDegrees);
+            Check("height", before.TargetHeight, at.TargetHeight, after.TargetHeight);
+        }
+    }
+
+    [Test]
+    public void TheCameraHoldsLetGoAsItRisesOverTheWalls()
+    {
+        Assert.That(DynamicView.Clearance(0.5f, 2.7f), Is.EqualTo(0f));
+        Assert.That(DynamicView.Clearance(2.7f, 2.7f), Is.EqualTo(0f));
+        Assert.That(DynamicView.Clearance(8f, 2.7f), Is.EqualTo(1f));
+
+        var last = 0f;
+        for (var z = 0f; z < 10f; z += 0.05f)
+        {
+            var c = DynamicView.Clearance(z, 2.7f);
+            Assert.That(c, Is.GreaterThanOrEqualTo(last));
+            last = c;
+        }
+    }
+
+    [Test]
     public void ADraggedTurnCountsUpToOverheadAndFadesOutBeforeTheClassicView()
     {
         Assert.That(DynamicView.TurnWeight(DynamicView.IsoStop), Is.EqualTo(1f));

@@ -99,17 +99,6 @@ public sealed partial class CCVars
     public static readonly CVarDef<int> Render3DCameraExtra =
         CVarDef.Create("render3d.camera_extra", 0, CVar.CLIENTONLY | CVar.ARCHIVE);
 
-    /// <summary>
-    ///     Follow camera (overhead camera, and the dynamic view once it is high): the camera looks where the character is looking. Its focus moves ahead of the
-    ///     character in the direction it faces (but not through a wall), smoothly.
-    /// </summary>
-    public static readonly CVarDef<bool> Render3DFollowCamera =
-        CVarDef.Create("render3d.follow_camera", false, CVar.CLIENTONLY | CVar.ARCHIVE);
-
-    /// <summary>Follow camera: how many tiles ahead of the character the camera looks.</summary>
-    public static readonly CVarDef<float> Render3DFollowLead =
-        CVarDef.Create("render3d.follow_lead", 2.5f, CVar.CLIENTONLY | CVar.ARCHIVE);
-
     /// <summary>Dynamic view: how many degrees the isometric step is pitched down (the classic isometric look is about 35).</summary>
     public static readonly CVarDef<float> Render3DIsoPitch =
         CVarDef.Create("render3d.iso_pitch", 38f, CVar.CLIENTONLY | CVar.ARCHIVE);

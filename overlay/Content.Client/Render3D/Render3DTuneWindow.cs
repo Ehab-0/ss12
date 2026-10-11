@@ -46,7 +46,6 @@ public sealed partial class Render3DTuneWindow : DefaultWindow
         ["render3d.iso_fov"] = (15f, 60f),
         ["render3d.dynamic_view_u"] = (0f, 1f),
         ["render3d.dynamic_view_speed"] = (0.01f, 0.3f),
-        ["render3d.follow_lead"] = (0f, 6f),
         ["render3d.overhead_distance"] = (4f, 16f),
         ["render3d.overhead_fov"] = (30f, 70f),
         ["render3d.overhead_wall_height"] = (0.6f, 2.7f),

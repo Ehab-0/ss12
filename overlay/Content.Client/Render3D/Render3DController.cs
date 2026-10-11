@@ -112,7 +112,6 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             .Bind(Render3DKeys.ToggleCameraMode, new Render3DInputHandler(down => { if (down) ToggleCameraMode(); }, consume: true))
             .Bind(Render3DKeys.ToggleOverhead, new Render3DInputHandler(down => { if (down) ToggleOverhead(); }, consume: true))
             .Bind(Render3DKeys.CycleCamera, new Render3DInputHandler(down => { if (down) CycleCamera(); }, consume: true))
-            .Bind(Render3DKeys.ToggleFollow, new Render3DInputHandler(down => { if (down) ToggleFollowCamera(); }, consume: true))
             // the rotate keys turn the high views (the overhead camera by eighth turns, the dynamic view by quarter turns); they go before the mover's own handlers, which would turn the mover alone
             .BindBefore(EngineKeyFunctions.CameraRotateLeft, new Render3DInputHandler(down => { if (down) TurnOverhead(1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
             .BindBefore(EngineKeyFunctions.CameraRotateRight, new Render3DInputHandler(down => { if (down) TurnOverhead(-1); }, () => Active && ElevatedOn), typeof(SharedMoverController))
@@ -347,16 +346,6 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
     /// <summary>The camera key: the next camera in <see cref="CameraModes.Cycle"/>.</summary>
     private void CycleCamera() => SwitchCamera(CameraModes.Next(CurrentCameraMode));
-
-    private void ToggleFollowCamera()
-    {
-        if (_control == null || !UsableNow)
-            return;
-
-        var on = !_cfg.GetCVar(CCVars.Render3DFollowCamera);
-        _cfg.SetCVar(CCVars.Render3DFollowCamera, on);
-        _control.ShowNotice(Robust.Shared.Localization.Loc.GetString(on ? "render3d-notice-follow-on" : "render3d-notice-follow-off"), 2.5f);
-    }
 
     /// <summary>Turns the high views a step (1 = to the left, -1 = to the right), or back to the grid's north (0).</summary>
     private void TurnOverhead(int quarterTurns) => _control?.TurnView(quarterTurns);
