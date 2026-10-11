@@ -298,8 +298,12 @@ about 200 FPS uncapped on a Radeon RX 580 at 1080p, so this is only for much wea
 - Gas, fire and explosion overlays are drawn on the floor only (they come from the 2D ground capture).
 - The sky is procedural, not the map's parallax.
 - Scoped-gun eye offset and sprite-fade towards the cursor are disabled in 3D.
-- Sprite post-shaders (the 2D interaction outline) cannot be drawn through `DrawEntity`; the hovered entity is
-  brightened instead.
+- Sprite post-shaders (the 2D interaction outline) cannot be drawn through `DrawEntity`; the 3D view marks what the pointer is on itself
+  (needs the game's outline setting on): a sprite gets a thin bright line round its silhouette (about two screen pixels, at any zoom), a
+  table, rack, door or window panel gets a thin frame, a wall gets a frame on the faces that face the camera and on its top when seen from
+  above, and a floor tile gets a frame on the floor. Things lying on the floor or on a table are picked only where their picture is not
+  see-through (the game's own click map decides), so they no longer catch clicks meant for the table under them, and a click on a table lands
+  on the spot that was pointed at, not the middle of the table.
 - Sprites that have a layer with its own shader still get their glowing layers lit (the glow pass cannot cover them).
 - The normal screenshot key captures the 3D image (it takes the final frame); the "no UI" screenshot variant reads the hidden 2D viewport instead.
 - Speech bubbles are not hidden when the speaker is behind a wall; status icons, health bars and map-text labels are.
