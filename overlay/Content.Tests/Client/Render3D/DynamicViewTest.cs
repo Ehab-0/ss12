@@ -71,6 +71,16 @@ public sealed class DynamicViewTest
     }
 
     [Test]
+    public void AWideWalkingFieldOfViewStillLeavesEveryStepOfTheWheelAVisibleZoom()
+    {
+        var heights = DynamicView.StopHeights(WideSettings);
+        for (var i = 1; i < heights.Length; i++)
+            Assert.That(heights[i] / heights[i - 1], Is.GreaterThan(1.2f), $"stop {i}: a notch there would hardly show");
+
+        Assert.That(heights[^1] / heights[0], Is.GreaterThan(4f));
+    }
+
+    [Test]
     public void TheStopsNeverShowLessFloorThanTheOneBefore([Values(40f, 80f, 110f)] float walkFov, [Values(1.2f, 3f, 4.5f)] float third, [Values(20f, 30f, 60f)] float isoFov)
     {
         var settings = new DynamicViewSettings(walkFov, third, 38f, isoFov, 55f, 9f, 45f, 13f, 2.3f, 1.1f);

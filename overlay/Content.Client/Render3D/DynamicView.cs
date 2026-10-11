@@ -135,18 +135,24 @@ public static class DynamicView
     /// <summary>The least step up (a ratio) between two stops' picture heights, so the wheel always zooms out on the way up.</summary>
     private const float MinGrowth = 1.02f;
 
+    /// <summary>The most of the isometric stop's floor the third person stop may show.</summary>
+    private const float ThirdShare = 0.6f;
+
     /// <summary>
     ///     How tall (tiles) the picture is at the third person, high third person, isometric, overhead and straight-down stops. The straight-down
-    ///     one is fixed (it has to match the classic 2D view it fades into); the others are what the settings give, but never smaller than the
-    ///     stop before: a wide walking field of view shows more floor than a narrow isometric one at a similar distance, and without this the
-    ///     picture would zoom in on the way up, and out again after. Steps are lifted to at least <see cref="MinGrowth"/>, but not past the top.
+    ///     one is fixed (it has to match the classic 2D view it fades into); the others are what the settings give, with two safeguards that
+    ///     keep the wheel meaningful. A wide walking field of view (110, say) shows far more floor than the narrow isometric stop does at a
+    ///     similar distance, so the third person stop is held to <see cref="ThirdShare"/> of the isometric stop's floor (the dynamic view's
+    ///     third person is then a little closer than the walking camera, for such a field of view); and no stop shows less floor than the
+    ///     one before (lifted by at least <see cref="MinGrowth"/>, but not past the top). Without them the picture zoomed in half way up and
+    ///     out again, or squeezed the whole wheel into a few percent of zoom.
     /// </summary>
     public static float[] StopHeights(in DynamicViewSettings s)
     {
         var top = Visible(s.TopDistance, TopFov);
-        var third = MathF.Min(Visible(s.ThirdDistance, s.WalkFov), top * 0.9f);
         var iso = Visible(s.OverheadDistance, s.IsoFov);
         var overhead = Visible(s.OverheadDistance, s.OverheadFov);
+        var third = MathF.Min(Visible(s.ThirdDistance, s.WalkFov), MathF.Min(iso * ThirdShare, top * 0.9f));
 
         // each stop is at least a little above the one before, and at most as high as the top allows the ones after it to be
         float Step(float previous, float wanted, int stopsLeft)
