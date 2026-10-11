@@ -187,7 +187,8 @@ and they are not 3D-specific:
   needed to generate the round's extra grids. We spawn two wrecks and one ruin instead of 12 to 16 and two, no asteroid, no salvage
   magnet or expeditions, and keep only the four lightest maps in the pool.
 - **`npc.enabled = false`** (creature AI off), `net.tickrate = 30`.
-- **Do not restart often.** After every restart the first player who joins waits while the game compiles its code.
+- **Do not restart often.** After every restart the first player who joins waits while the game compiles its code and loads the
+  station, unless the server loads the round by itself (ours does; see the ss12.org page).
 
 The files are in [`servers/ss12.org/`](../servers/ss12.org/README.md); the map and station changes are a patch against Wizard's Den
 `fb9401cf`, so take it as a list of what to change, not as something to apply to a different version.
@@ -204,7 +205,7 @@ what kicks people.
 - `ss14-restart.timer` runs `ss14-restart-if-empty.sh` every 10 minutes. The script does nothing while any player is connected.
   When the server is empty it installs a build staged as `pending/server.zip` (keeping the old one as `server_prev`, your
   rollback) and a configuration staged as `pending/server_config.toml` (checked to be valid TOML first, the old one kept as
-  `.prev`). With nothing staged it restarts for a fresh round after three hours of uptime.
+  `.prev`). With nothing staged it restarts for a fresh round after a set uptime (one hour on ours).
 - If the server's status endpoint stops answering (it can wedge when many client downloads are abandoned half way), the script
   counts the players from the log instead and restarts a wedged server as soon as the count is zero.
 
