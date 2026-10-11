@@ -5,8 +5,8 @@
 ## Unreleased
 - **Tables can be used where you point, and everything you point at is marked.** Things lying on a table or the floor were picked over a quad bigger than
   their picture (a gold bar caught clicks over more than a tile), so putting something on a table meant clicking its very edge. They are now picked
-  only where their picture is not see-through, and a click on a table lands where you pointed. The mark of the pointed-at thing is now thin (about two
-  screen pixels at any zoom, it was far too thick up close) and works on tables, racks, doors and windows (a frame), walls (a frame on the faces
+  only where their picture is not see-through, and a click on a table lands where you pointed. The mark of the pointed-at thing is now very subtle (a faint one pixel line at any zoom,
+  it was far too thick up close) and works on tables, racks, doors and windows (a frame), walls (a frame on the faces
   and the top) and floor tiles (a frame on the floor), not only on things with the game's outline.
 - **The follow camera is removed, and the dynamic view zoom is smoother.** The follow camera (`PageUp`, `render3d.follow_camera`, `follow_lead`) never behaved well enough, so it is gone. In the dynamic view the numbers between the stops now follow a smooth curve (the straight lines between them made the speed jump at each stop), the wheel position glides with a damped spring, and the camera's collision with the walls lets go as the camera rises over them and moves smoothly, so the zoom no longer catches on the walls between the high third person and the isometric steps. The zoom also no longer reverses half way between the 2D view and first person with a wide walking field of view: the stops never show less floor than the one before.
 - **One high camera, and a tidier settings window.** The shoulder, isometric and free orbit cameras are gone: the **overhead** camera now does

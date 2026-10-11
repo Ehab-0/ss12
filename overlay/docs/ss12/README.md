@@ -299,8 +299,8 @@ about 200 FPS uncapped on a Radeon RX 580 at 1080p, so this is only for much wea
 - The sky is procedural, not the map's parallax.
 - Scoped-gun eye offset and sprite-fade towards the cursor are disabled in 3D.
 - Sprite post-shaders (the 2D interaction outline) cannot be drawn through `DrawEntity`; the 3D view marks what the pointer is on itself
-  (needs the game's outline setting on): a sprite gets a thin bright line round its silhouette (about two screen pixels, at any zoom), a
-  table, rack, door or window panel gets a thin frame, a wall gets a frame on the faces that face the camera and on its top when seen from
+  (needs the game's outline setting on): a sprite gets a very subtle pale line round its silhouette (one screen pixel, at any zoom), a
+  table, rack, door or window panel gets a faint frame, a wall gets a frame on the faces that face the camera and on its top when seen from
   above, and a floor tile gets a frame on the floor. Things lying on the floor or on a table are picked only where their picture is not
   see-through (the game's own click map decides), so they no longer catch clicks meant for the table under them, and a click on a table lands
   on the spot that was pointed at, not the middle of the table.
