@@ -217,6 +217,14 @@ public static class SelfTest
         report = new Report(echo: false);
         Check(new Installer(Opts(target, src), report).Doctor(false) == 0 && !report.ToString().Contains("Run `ss12 update`"), "doctor is quiet again after the update");
 
+        // a file that already matches the new version (put in by hand) is recorded with its new hash by update
+        File.WriteAllText(Path.Combine(src, engineDir + "Mouse.cs"), "default Mouse v2");
+        File.WriteAllText(Path.Combine(target, engineDir + "Mouse.cs"), "default Mouse v2");
+        Check(new Installer(Opts(target, src)).Install(true) == 0, "update with a file that already matches the new version succeeds");
+        report = new Report(echo: false);
+        new Installer(Opts(target, src), report).Doctor(false);
+        Check(!report.ToString().Contains("modified since install"), "a file that already matched the new version is not reported as modified after the update");
+
         File.WriteAllText(Path.Combine(target, "RobustToolbox/MSBuild/Robust.Engine.Version.props"), "<Project><PropertyGroup><Version>270.1.0</Version></PropertyGroup></Project>\n");
         Check(new Installer(Opts(target, src)).Uninstall() == 0, "uninstall succeeds");
         var restored = Snapshot(target);

@@ -299,6 +299,7 @@ public sealed class Installer
                        ?? new Dictionary<string, string>();
         var engine = Engine();
         var variants = new Dictionary<string, string>(StringComparer.Ordinal);
+        var identical = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var rel in overlayFiles)
         {
             var (src, variant) = source.SourceFor(rel, engine);
@@ -313,7 +314,10 @@ public sealed class Installer
 
             var current = Hashing.Sha256(dst);
             if (current == Hashing.Sha256(src))
-                continue; // identical already
+            {
+                identical[rel] = current; // nothing to copy, but the record must say what is there now
+                continue;
+            }
 
             if (previous.TryGetValue(rel, out var recorded) && recorded == current)
             {
@@ -444,12 +448,10 @@ public sealed class Installer
             overlayRecords[rel] = new FileRecord(rel, Hashing.Sha256(dst));
         }
 
-        // files that were identical already still belong to the installation
-        foreach (var rel in overlayFiles)
-        {
-            if (!overlayRecords.ContainsKey(rel) && File.Exists(Path.Combine(_root, rel)))
-                overlayRecords[rel] = new FileRecord(rel, Hashing.Sha256(Path.Combine(_root, rel)));
-        }
+        // files that were identical already still belong to the installation, with the hash they have now (a file that already
+        // matched the new version keeps an old record otherwise, and doctor and uninstall then take it for a change of the user's)
+        foreach (var (rel, hash) in identical)
+            overlayRecords[rel] = new FileRecord(rel, hash);
 
         var modifiedRecords = manifest.Modified.ToDictionary(f => f.Path, StringComparer.Ordinal);
         foreach (var (rel, ids) in touchedBy)
