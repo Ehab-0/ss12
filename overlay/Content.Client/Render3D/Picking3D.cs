@@ -18,8 +18,17 @@ public static class Picking3D
     ///     Double sided.
     /// </summary>
     public static bool RayQuad(Vector3 origin, Vector3 dir, Vector3 p0, Vector3 p1, Vector3 p3, float shrink, out float t)
+        => RayQuad(origin, dir, p0, p1, p3, shrink, out t, out _, out _);
+
+    /// <summary>
+    ///     Like the other overload, and also gives where on the quad the ray hit it: <paramref name="s"/> along the edge p0 to p1 and
+    ///     <paramref name="u"/> along the edge p0 to p3, each 0 to 1 across the whole quad (not just the part that counts as a hit).
+    /// </summary>
+    public static bool RayQuad(Vector3 origin, Vector3 dir, Vector3 p0, Vector3 p1, Vector3 p3, float shrink, out float t, out float s, out float u)
     {
         t = 0;
+        s = 0;
+        u = 0;
         var e1 = p1 - p0;
         var e2 = p3 - p0;
         var n = Vector3.Cross(e1, e2);
@@ -37,8 +46,8 @@ public static class Picking3D
         if (l1 < 1e-12f || l2 < 1e-12f)
             return false;
 
-        var s = Vector3.Dot(p, e1) / l1;
-        var u = Vector3.Dot(p, e2) / l2;
+        s = Vector3.Dot(p, e1) / l1;
+        u = Vector3.Dot(p, e2) / l2;
         var lo = 0.5f - shrink * 0.5f;
         var hi = 0.5f + shrink * 0.5f;
         return s >= lo && s <= hi && u >= lo && u <= hi;

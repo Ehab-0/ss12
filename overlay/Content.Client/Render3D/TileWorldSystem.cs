@@ -379,6 +379,41 @@ public sealed partial class TileWorldSystem : EntitySystem
         return false;
     }
 
+    /// <summary>The tile at a world point: its centre, and its two sides as vectors (the grid may be turned), for drawing a frame round it. False in space.</summary>
+    public bool TryGetTileBox(MapId mapId, Vector2 point, out Vector2 center, out Vector2 sideX, out Vector2 sideY)
+    {
+        center = default;
+        sideX = Vector2.UnitX;
+        sideY = Vector2.UnitY;
+        if (!_map.TryFindGridAt(mapId, point, out var grid, out var comp))
+            return false;
+
+        var local = Vector2.Transform(point, _xform.GetInvWorldMatrix(grid));
+        var size = comp.TileSize;
+        var tile = new Vector2i((int) MathF.Floor(local.X / size), (int) MathF.Floor(local.Y / size));
+        if (!_map.TryGetTileRef(grid, comp, tile, out var tileRef) || tileRef.Tile.IsEmpty)
+            return false;
+
+        return TryGetTileBox(grid, tile, out center, out sideX, out sideY);
+    }
+
+    /// <summary>The same for a tile of a grid.</summary>
+    public bool TryGetTileBox(EntityUid grid, Vector2i tile, out Vector2 center, out Vector2 sideX, out Vector2 sideY)
+    {
+        center = default;
+        sideX = Vector2.UnitX;
+        sideY = Vector2.UnitY;
+        if (!TryComp(grid, out MapGridComponent? comp))
+            return false;
+
+        var size = comp.TileSize;
+        center = Vector2.Transform(new Vector2(tile.X + 0.5f, tile.Y + 0.5f) * size, _xform.GetWorldMatrix(grid));
+        var rotation = _xform.GetWorldRotation(grid);
+        sideX = rotation.RotateVec(Vector2.UnitX) * size;
+        sideY = rotation.RotateVec(Vector2.UnitY) * size;
+        return true;
+    }
+
     public bool TryGetWallEntity(EntityUid grid, Vector2i tile, out EntityUid wall)
     {
         if (_grids.TryGetValue(grid, out var data) && data.Walls.TryGetValue(tile, out var entry))

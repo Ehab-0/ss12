@@ -10,6 +10,7 @@ using Robust.Client.Graphics;
 using Robust.Client.Input;
 using Robust.Client.Player;
 using Robust.Client.ResourceManagement;
+using Robust.Client.State;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.CustomControls;
 using Robust.Shared.Configuration;
@@ -37,6 +38,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     [Dependency] private IPlayerManager _player = default!;
     [Dependency] private IPrototypeManager _protos = default!;
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private IStateManager _states = default!;
     [Dependency] private IResourceCache _resCache = default!;
 
     /// <summary>Radians of look per pixel of mouse movement at sensitivity 1.</summary>
@@ -797,12 +799,26 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     private void UpdateHighlight(EntityPass pass)
     {
         pass.HighlightUid = null;
+        pass.Box = null;
         if (!PointerLive || !_cfg.GetCVar(CCVars.OutlineEnabled))
             return;
 
-        var first = Pick(PointerPixel).FirstEntity;
-        if (first is { } uid && _entMan.HasComponent<InteractionOutlineComponent>(uid))
+        // Whatever the pointer is on is marked: a thing (a sprite gets a thin bright line round it, a table or a door a frame), a wall (a
+        // frame on the faces and the top), or the floor tile.
+        var pick = Pick(PointerPixel);
+        if (pick.FirstIsWall)
+        {
+            if (_tileWorld != null && _tileWorld.TryGetTileBox(pick.WallGrid, pick.WallTile, out var center, out var sideX, out var sideY))
+                pass.Box = new EntityPass.HighlightBox { Center = center, SideX = sideX, SideY = sideY, Height = WallHeight };
+        }
+        else if (pick.FirstEntity is { } uid)
+        {
             pass.HighlightUid = uid;
+        }
+        else if (pick.OnFloor && _tileWorld != null && _tileWorld.TryGetTileBox(_lastMap, pick.Coords.Position, out var tc, out var tx, out var ty))
+        {
+            pass.Box = new EntityPass.HighlightBox { Center = tc, SideX = tx, SideY = ty, Height = 0f };
+        }
     }
 
     /// <summary>
@@ -1405,12 +1421,20 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         public readonly List<EntityUid> Entities = new();
         public EntityUid? FirstEntity;
         public float Distance;
+
+        /// <summary>The ray ended on the floor (not a wall, not the sky): <see cref="Coords"/> is a floor point.</summary>
+        public bool OnFloor;
+
+        /// <summary>The first thing is a wall, which stands on this tile of this grid.</summary>
+        public bool FirstIsWall;
+        public EntityUid WallGrid;
+        public Vector2i WallTile;
     }
 
     /// <summary>The most recent pick; <see cref="TryGetClickable"/> matches against it.</summary>
     public PickResult? LastPick { get; private set; }
 
-    private readonly List<(EntityUid Uid, float T, Vector2 Pos)> _hits = new();
+    private readonly List<EntityPass.PickHit> _hits = new();
     private (long Frame, Vector2 Pixel, PickResult Result)? _pickCache;
 
     /// <summary>
@@ -1441,18 +1465,21 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var origin = cam.Position;
         var wallHeight = WallHeight;
 
-        TryCastToGround(localPixel, out var worldPoint, out var worldT);
+        var onGround = TryCastToGround(localPixel, out var worldPoint, out var worldT);
 
         // wall under the ray (for targeting walls)
         EntityUid? wallEntity = null;
+        var wallGrid = EntityUid.Invalid;
+        var wallTile = Vector2i.Zero;
         if (_tileWorld != null
-            && _tileWorld.RayCastWalls(_lastMap, origin, dir, MathF.Max(worldT + 0.5f, 0.01f), wallHeight, out _, out _, out var wallGrid, out var wallTile)
+            && _tileWorld.RayCastWalls(_lastMap, origin, dir, MathF.Max(worldT + 0.5f, 0.01f), wallHeight, out _, out _, out wallGrid, out wallTile)
             && _tileWorld.TryGetWallEntity(wallGrid, wallTile, out var wall))
         {
             wallEntity = wall;
         }
 
         _entityPass?.Pick(origin, dir, _hits);
+        DropSeeThroughHits();
 
         // With the mouse captured the player's own body is in the line of sight of the third-person camera and must
         // not eat every click; it stays pickable with the free cursor (strip/inspect yourself).
@@ -1478,10 +1505,15 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             result.Coords = new MapCoordinates(worldPoint, _lastMap);
             result.Distance = worldT;
+            result.OnFloor = onGround;
             if (wallEntity != null)
             {
                 result.FirstEntity = wallEntity;
                 result.Entities.Add(wallEntity.Value);
+                result.FirstIsWall = true;
+                result.WallGrid = wallGrid;
+                result.WallTile = wallTile;
+                result.OnFloor = false;
             }
         }
 
@@ -1489,6 +1521,28 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         _pickCache = (frame, localPixel, result);
         LastPick = result;
         return result;
+    }
+
+    /// <summary>
+    ///     A thing lying on the floor or a table is drawn on a quad bigger than its picture, and the ray can hit the part where the picture is
+    ///     see-through. The classic click code knows which pixels of a sprite count (its click map), so ask it: a hit on a see-through pixel is
+    ///     dropped, and the click goes on to what is under it (the table the thing lies on).
+    /// </summary>
+    private void DropSeeThroughHits()
+    {
+        if (_xformSys == null || _states.CurrentState is not Content.Client.Gameplay.GameplayStateBase gameplay)
+            return;
+
+        for (var i = _hits.Count - 1; i >= 0; i--)
+        {
+            var hit = _hits[i];
+            if (hit.Offset is not { } offset || !_entMan.EntityExists(hit.Uid))
+                continue;
+
+            var world = _xformSys.GetWorldPosition(hit.Uid) + offset;
+            if (!gameplay.GetClickableEntities(new MapCoordinates(world, _lastMap), false).Contains(hit.Uid))
+                _hits.RemoveAt(i);
+        }
     }
 
     /// <summary>Puts the entity chosen from the list of what the player points at in front of whatever the ray found.</summary>

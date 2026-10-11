@@ -48,6 +48,8 @@ void fragment()
     // valid for every pixel; it also cannot live in a helper function because those are compiled into the vertex stage too.
     highp vec2 texPx = uv * atlasSize;
     highp vec2 texAa = max(fwidth(texPx), vec2(0.0001));
+    // how far the picture's uv moves over one screen pixel: the highlight is a few screen pixels wide at any zoom
+    highp vec2 uvPx = fwidth(uv);
 
     // depth test against walls / floor / ceiling
     highp float sceneDepth = texture2D(sceneTex, sp).a;
@@ -69,9 +71,11 @@ void fragment()
         discard;
 
     // quad kind: 0 alpha tested, 1 alpha blended, 2 contact shadow, 3 lamp halo, 4 layer of a slab (alpha tested, no smoothing),
-    // 5 solid top of a door or window frame (overhead camera); +0.5 = draw the edge outline
+    // 5 solid top of a door or window frame (overhead camera), 6 a thin bright frame (the highlight of a table, a door, a wall or a tile; uv -1 to 1);
+    // +0.5 = draw the edge outline; +0.75 = the thing the player points at: a thin bright line round its silhouette
     highp float kind = floor(vData.w + 0.1);
     highp float outline = (vData.w - kind) > 0.25 ? 1.0 : 0.0;
+    highp float hl = (vData.w - kind) > 0.6 ? 1.0 : 0.0;
 
     if (kind > 2.5 && kind < 3.5)
     {
@@ -87,6 +91,16 @@ void fragment()
             discard;
 
         COLOR = vec4(tint, k * vData.z * nearFade * haloFade);
+    }
+    else if (kind > 5.5 && kind < 6.5)
+    {
+        // a frame a couple of screen pixels wide along the edge of the quad
+        highp float px = max(uvPx.x, uvPx.y);
+        highp float edgeDist = 1.0 - max(abs(uv.x), abs(uv.y));
+        if (edgeDist > px * 2.2)
+            discard;
+
+        COLOR = vec4(1.0, 0.9, 0.3, nearFade);
     }
     else if (kind > 4.5 && kind < 5.5)
     {
@@ -126,11 +140,25 @@ void fragment()
 
         highp vec4 tex = zTextureSpec(TEXTURE, suv);
         highp float a = tex.a;
+        highp float ring = 0.0;
         if (kind < 0.5 || kind > 3.5)
         {
             // alpha tested; kind 4 is a layer of a slab, which is sampled with plain nearest (no smoothing along its edge)
             if (a < 0.5)
-                discard;
+            {
+                // a transparent texel right next to the pointed-at thing is part of its highlight line (about two screen pixels wide)
+                if (hl > 0.5)
+                {
+                    highp vec2 o = uvPx * 1.6;
+                    highp float near = max(max(texture2D(TEXTURE, uv + vec2(o.x, 0.0)).a, texture2D(TEXTURE, uv - vec2(o.x, 0.0)).a),
+                                           max(texture2D(TEXTURE, uv + vec2(0.0, o.y)).a, texture2D(TEXTURE, uv - vec2(0.0, o.y)).a));
+                    ring = near > 0.5 ? 1.0 : 0.0;
+                }
+
+                if (ring < 0.5)
+                    discard;
+            }
+
             a = nearFade;
         }
         else
@@ -155,6 +183,16 @@ void fragment()
                                    min(texture2D(TEXTURE, centre + vec2(0.0, t.y)).a, texture2D(TEXTURE, centre - vec2(0.0, t.y)).a));
             if (edge < 0.5)
                 outRgb *= 0.5;
+        }
+
+        // the pointed-at thing: a thin bright line round its silhouette (just outside it, and just inside it)
+        if (hl > 0.5)
+        {
+            highp vec2 o2 = uvPx * 1.6;
+            highp float inner = min(min(texture2D(TEXTURE, uv + vec2(o2.x, 0.0)).a, texture2D(TEXTURE, uv - vec2(o2.x, 0.0)).a),
+                                    min(texture2D(TEXTURE, uv + vec2(0.0, o2.y)).a, texture2D(TEXTURE, uv - vec2(0.0, o2.y)).a));
+            if (ring > 0.5 || inner < 0.5)
+                outRgb = vec3(1.0, 0.9, 0.3);
         }
 
         COLOR = vec4(outRgb, a);

@@ -102,6 +102,24 @@ public sealed class EntityPass : IDisposable
         public EntityUid Uid;
         public Vector3 P0, P1, P3;
         public Vector2 Pos;
+
+        /// <summary>The place a ray hit counts as (not the middle of the entity): the top of a table, so what is put on it lands where it was pointed.</summary>
+        public bool UseHitPoint;
+
+        /// <summary>For a quad that shows a picture with see-through parts: the picture's corners (atlas uv: top left, top right, bottom left), the atlas size and where the entity sits in it (pixels).</summary>
+        public bool Picture;
+        public Vector2 Uv0, Uv1, Uv3;
+        public float AtlasSize;
+        public Vector2 OriginPx;
+    }
+
+    /// <summary>What a ray hit: the entity, how far, where it counts as (see <see cref="PickQuad.UseHitPoint"/>), and for a see-through picture the offset (tiles, from the entity) of the hit pixel.</summary>
+    public struct PickHit
+    {
+        public EntityUid Uid;
+        public float T;
+        public Vector2 Pos;
+        public Vector2? Offset;
     }
 
     private readonly List<PickQuad> _pick = new();
@@ -110,9 +128,25 @@ public sealed class EntityPass : IDisposable
     private Vector2 _curPos;
     private bool _curTranslucent;
     private float _curSortBias;
+    private bool _curSurfaceTop;
 
-    /// <summary>Entity drawn brighter (the crosshair hover highlight that replaces the 2D outline).</summary>
+    // things drawn as plain flat shapes without a see-through picture (tables, door and window panels) get a frame, not a silhouette outline
+    private bool _curFrame;
+    private bool _curPicture;
+    private float _curAtlasSize;
+    private Vector2 _curOriginPx;
+
+    /// <summary>Entity drawn brighter and outlined (the crosshair hover highlight that replaces the 2D outline).</summary>
     public EntityUid? HighlightUid;
+
+    /// <summary>A tile (a floor tile or a wall) that gets a frame drawn round it as the pointed-at thing: centre, the two sides (vectors), and the height of what stands on it (0 for a floor tile).</summary>
+    public struct HighlightBox
+    {
+        public Vector2 Center, SideX, SideY;
+        public float Height;
+    }
+
+    public HighlightBox? Box;
 
     /// <summary>The entities drawn this frame (nearest first when capped).</summary>
     public EntityDraw3D[] DrawArray => _draws;
@@ -422,6 +456,8 @@ public sealed class EntityPass : IDisposable
 
             BuildQuads(ref e, cam, atlasSize, wallHeight);
         }
+
+        AddHighlightBox(cam);
     }
 
     /// <summary>The area to reserve in the atlas for a sprite drawn with the entity rotation <paramref name="entityRotation"/>.</summary>
@@ -455,44 +491,77 @@ public sealed class EntityPass : IDisposable
         Vector2 uv0, Vector2 uv1, Vector2 uv2, Vector2 uv3,
         Vector2 foot, float shade = 1f, float alpha = 1f, bool blend = false, bool pick = true, bool layer = false, float kind = -1f)
     {
-        if (HighlightUid == _curUid)
-            shade *= 1.6f;
+        var highlighted = HighlightUid == _curUid;
+        if (highlighted)
+            shade *= 1.15f;
         var translucent = blend || _curTranslucent;
         // a layer of a slab (kind 4) is alpha tested like a plain quad but sampled without smoothing, which left bright dots along its edge
+        var flags = kind >= 0f ? kind : translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f;
+        if (highlighted && kind < 0f && !_curFrame)
+            flags = MathF.Floor(flags) + HighlightFlag; // the shader draws a thin bright line round the silhouette (entity.swsl)
         _quads.Add(p0, p1, p2, p3, uv0, uv1, uv2, uv3, foot, shade, alpha, translucent,
-            flags: kind >= 0f ? kind : translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f, sortBias: _curSortBias);
+            flags: flags, sortBias: _curSortBias);
+        if (highlighted && kind < 0f && _curFrame)
+            AddFrame(p0, p1, p2, p3, foot);
+
         if (pick && _curClickable)
-            _pick.Add(new PickQuad { Uid = _curUid, P0 = p0, P1 = p1, P3 = p3, Pos = _curPos });
+        {
+            _pick.Add(new PickQuad
+            {
+                Uid = _curUid, P0 = p0, P1 = p1, P3 = p3, Pos = _curPos,
+                UseHitPoint = _curSurfaceTop,
+                Picture = _curPicture && !blend && kind < 0f,
+                Uv0 = uv0, Uv1 = uv1, Uv3 = uv3, AtlasSize = _curAtlasSize, OriginPx = _curOriginPx,
+            });
+        }
     }
 
     /// <summary>
     ///     Finds the entities whose quads the ray hits (sprite bounds shrunk by 10%), nearest first. Each entity
     ///     appears once with its nearest hit.
     /// </summary>
-    public void Pick(Vector3 origin, Vector3 dir, List<(EntityUid Uid, float T, Vector2 Pos)> results)
+    public void Pick(Vector3 origin, Vector3 dir, List<PickHit> results)
     {
         results.Clear();
         foreach (var q in _pick)
         {
-            if (!Picking3D.RayQuad(origin, dir, q.P0, q.P1, q.P3, Picking3D.ShrinkFraction, out var t))
+            if (!Picking3D.RayQuad(origin, dir, q.P0, q.P1, q.P3, Picking3D.ShrinkFraction, out var t, out var s, out var u))
                 continue;
 
             // Things this close to the camera are faded out of view (entity.swsl), so they must not eat clicks either.
             if (t < MinPickDistance)
                 continue;
 
+            var hit = new PickHit
+            {
+                Uid = q.Uid,
+                T = t,
+                Pos = q.UseHitPoint ? new Vector2(origin.X + dir.X * t, origin.Y + dir.Y * t) : q.Pos,
+                Offset = q.Picture ? PictureOffset(q, s, u) : null,
+            };
+
             var existing = results.FindIndex(r => r.Uid == q.Uid);
             if (existing >= 0)
             {
                 if (t < results[existing].T)
-                    results[existing] = (q.Uid, t, q.Pos);
+                    results[existing] = hit;
                 continue;
             }
 
-            results.Add((q.Uid, t, q.Pos));
+            results.Add(hit);
         }
 
         results.Sort((a, b) => a.T.CompareTo(b.T));
+    }
+
+    /// <summary>Where the pixel of the picture that a hit at (<paramref name="s"/>, <paramref name="u"/>) shows lies, in tiles from the entity (x east, y north, as the picture is drawn into the atlas).</summary>
+    public static Vector2 PictureOffset(in PickQuad q, float s, float u)
+    {
+        var uv = q.Uv0 + (q.Uv1 - q.Uv0) * s + (q.Uv3 - q.Uv0) * u;
+        var px = uv.X * q.AtlasSize;
+        var py = (1f - uv.Y) * q.AtlasSize;
+        const float perTile = BillboardAtlas.PixelsPerTile;
+        return new Vector2((px - q.OriginPx.X) / perTile, -(py - q.OriginPx.Y) / perTile);
     }
 
     /// <summary>
@@ -550,6 +619,13 @@ public sealed class EntityPass : IDisposable
         _curPos = pos;
         _camXy = new Vector2(cam.Position.X, cam.Position.Y);
         _curClickable = _clickable.HasComp(e.Uid);
+        // a thing lying on the floor or a surface is picked where its picture is not see-through (the quad is bigger than the picture:
+        // it has room to turn), so it does not catch clicks meant for what is under it
+        _curPicture = e.Mode == Render3DMode.FlatFloor && e.DrawRotated && e.Glass == null;
+        _curAtlasSize = atlasSize;
+        _curOriginPx = new Vector2(e.Slot.Left, e.Slot.Top) + e.SlotOrigin;
+        _curSurfaceTop = false;
+        _curFrame = e.Mode is Render3DMode.TableBox or Render3DMode.Panel or Render3DMode.EdgePanel or Render3DMode.GlassBox;
         // translucent sprites (construction and placement ghosts, fading effects) are alpha blended, not alpha tested
         _curTranslucent = e.Sprite.Color.A < 0.99f;
         // Things that share a plane (a window and the grille in the same tile, a table and what stands on it) are
@@ -671,7 +747,9 @@ public sealed class EntityPass : IDisposable
             {
                 var half = 0.5f;
                 var tb = new Box2(-half, -half, half, half);
+                _curSurfaceTop = true;
                 AddFlat(pos, tb, e.Z, uvTl, uvTr, uvBr, uvBl, pos, 1f);
+                _curSurfaceTop = false;
                 // sides: a thin strip of the same art, darkened
                 var sTop = Vector2.Lerp(uvTl, uvBl, 0.80f);
                 var sBot = Vector2.Lerp(uvTl, uvBl, 0.95f);
@@ -1045,6 +1123,76 @@ public sealed class EntityPass : IDisposable
             new Vector3(center + along - perp, z), new Vector3(center - along - perp, z),
             zero, zero, zero, zero, foot, kind: OverheadTopKind);
     }
+
+    /// <summary>
+    ///     A thin bright frame round the edge of a quad (quad kind 6 in entity.swsl), drawn after what is under it. The frame is made in the shader
+    ///     from the quad's uv (-1 to 1), and its width is a couple of screen pixels, whatever the size of the quad or the distance to it.
+    /// </summary>
+    private void AddFrame(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Vector2 foot)
+    {
+        _quads.Add(p0, p1, p2, p3, new Vector2(-1f, 1f), new Vector2(1f, 1f), new Vector2(1f, -1f), new Vector2(-1f, -1f),
+            foot, 1f, 1f, false, flags: FrameKind, sortBias: _curSortBias - 2f * SurfaceItemSortBias);
+    }
+
+    /// <summary>The quad kind of <see cref="AddFrame"/> in entity.swsl.</summary>
+    private const float FrameKind = 6f;
+
+    /// <summary>
+    ///     The frame round the tile the player points at: on the floor for a floor tile, and for a wall on the sides that face the camera
+    ///     and on its top when the camera is above it.
+    /// </summary>
+    private void AddHighlightBox(Camera3D cam)
+    {
+        if (Box is not { } box)
+            return;
+
+        _curUid = default;
+        _curClickable = false;
+        _curSortBias = 0f;
+        var half = 0.5f;
+        var foot = box.Center;
+        var camXy = new Vector2(cam.Position.X, cam.Position.Y);
+
+        if (box.Height <= 0f)
+        {
+            // the floor tile (a hair above the floor so it is not lost in it)
+            const float z = 0.02f;
+            var a = box.Center - box.SideX * half + box.SideY * half;
+            var b = box.Center + box.SideX * half + box.SideY * half;
+            var c = box.Center + box.SideX * half - box.SideY * half;
+            var d = box.Center - box.SideX * half - box.SideY * half;
+            AddFrame(new Vector3(a, z), new Vector3(b, z), new Vector3(c, z), new Vector3(d, z), foot);
+            return;
+        }
+
+        var h = box.Height + 0.01f;
+        if (cam.Position.Z > box.Height)
+        {
+            var a = box.Center - box.SideX * half + box.SideY * half;
+            var b = box.Center + box.SideX * half + box.SideY * half;
+            var c = box.Center + box.SideX * half - box.SideY * half;
+            var d = box.Center - box.SideX * half - box.SideY * half;
+            AddFrame(new Vector3(a, h), new Vector3(b, h), new Vector3(c, h), new Vector3(d, h), foot);
+        }
+
+        // the four sides; the ones that face the camera
+        for (var i = 0; i < 4; i++)
+        {
+            var normal = i switch { 0 => box.SideY, 1 => box.SideX, 2 => -box.SideY, _ => -box.SideX };
+            var along = i switch { 0 => box.SideX, 1 => -box.SideY, 2 => -box.SideX, _ => box.SideY };
+            var faceCenter = box.Center + normal * half;
+            if (Vector2.Dot(camXy - faceCenter, normal) <= 0f)
+                continue;
+
+            var out01 = normal * 0.01f;
+            var l = faceCenter - along * half + out01;
+            var r = faceCenter + along * half + out01;
+            AddFrame(new Vector3(l, h), new Vector3(r, h), new Vector3(r, 0f), new Vector3(l, 0f), foot);
+        }
+    }
+
+    /// <summary>The fraction added to a quad's flags to mark it as the thing the player points at (entity.swsl).</summary>
+    private const float HighlightFlag = 0.75f;
 
     /// <summary>The quad kind of <see cref="AddTop"/> in entity.swsl.</summary>
     private const float OverheadTopKind = 5f;
