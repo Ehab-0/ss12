@@ -357,11 +357,30 @@ public static class SelfTest
               - parents: [TableBase]
                 fixed: false
             """);
+        Put("Resources/Prototypes/Render3D/old.yml", """
+            - type: render3dRules
+              id: Old
+              rules:
+              - mode: Panel
+                parents:
+                - BaseRenamedDoor
+                - BaseRenamedWindow
+              aliases:
+                OldDoor: BaseRenamedDoor # this codebase has the old name
+                OldWindow: BaseRenamedWindow
+            """);
+        Put("Resources/Prototypes/Entities/doors.yml", """
+            - type: entity
+              id: OldDoor
+            """);
         Put("Content.Client/Aim.cs", "class A { void F() { var a = _eye.PixelToMap(_input.MouseScreenPosition); var b = _eye.PixelToMap(args.PointerLocation.Position); var c = vp.PixelToMap(_input.MouseScreenPosition.Position); } }\n");
         Put("Content.Client/Aimed.cs", "class B { void F() { var a = Content.Client.Render3D.Render3DPointer.PixelToMap(_eye, _input.MouseScreenPosition); } }\n");
         Put("Content.Client/Render3D/Own.cs", "class C { void F() { var a = _eye.PixelToMap(_input.MouseScreenPosition); } }\n");
 
         var unknown = ContentCheck.UnknownRuleNames(dir);
+        Check(unknown.TryGetValue("Resources/Prototypes/Render3D/old.yml", out var old) && old.SequenceEqual(new[] { "BaseRenamedWindow" }),
+            "content check: a new name is not missing when the codebase has the older name an alias gives its rules to");
+        unknown.Remove("Resources/Prototypes/Render3D/old.yml");
         Check(unknown.Count == 1 && unknown.ContainsKey("Resources/Prototypes/Render3D/rules.yml"), "content check: only the rule file with unknown names is reported");
         Check(unknown.Values.SelectMany(v => v).OrderBy(v => v, StringComparer.Ordinal).SequenceEqual(new[] { "GoneChair", "OldRack" }),
             "content check: block, inline, quoted and commented names are read, and known ones are not reported");

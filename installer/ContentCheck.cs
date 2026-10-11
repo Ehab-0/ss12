@@ -14,7 +14,8 @@ public static class ContentCheck
     /// <summary>
     ///     Prototype names that the Render3D rule files list under <c>parents:</c> but that no prototype of the codebase defines.
     ///     Such a rule matches nothing (harmless), but whatever it was written for is then drawn by the generic guesses.
-    ///     Returns the rule file (relative) with the missing names.
+    ///     A name is not missing when an alias (<c>aliases:</c>, old name: new name) gives its rules to an older name the
+    ///     codebase has. Returns the rule file (relative) with the missing names.
     /// </summary>
     public static SortedDictionary<string, List<string>> UnknownRuleNames(string root)
     {
@@ -39,12 +40,23 @@ public static class ContentCheck
             }
         }
 
-        foreach (var file in Directory.EnumerateFiles(rulesDir, "*.yml", SearchOption.TopDirectoryOnly))
+        var ruleFiles = Directory.EnumerateFiles(rulesDir, "*.yml", SearchOption.TopDirectoryOnly).ToList();
+        var covered = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in ruleFiles)
+        {
+            foreach (var (old, current) in AliasPairs(File.ReadAllLines(file)))
+            {
+                if (known.Contains(old))
+                    covered.Add(current);
+            }
+        }
+
+        foreach (var file in ruleFiles)
         {
             var missing = new List<string>();
             foreach (var name in ParentNames(File.ReadAllLines(file)))
             {
-                if (!known.Contains(name) && !missing.Contains(name))
+                if (!known.Contains(name) && !covered.Contains(name) && !missing.Contains(name))
                     missing.Add(name);
             }
 
@@ -91,6 +103,32 @@ public static class ContentCheck
     private static readonly Regex AimCall = new(@"\b\w*[eE]ye\w*\.PixelToMap\s*\(.*Mouse", RegexOptions.Compiled);
     private static readonly Regex Item = new(@"^\s*-\s+(?<v>[^\s#\[\]{}:]+)\s*(?:#.*)?$", RegexOptions.Compiled);
     private static readonly Regex Key = new(@"^\s*(?:-\s+)?parents:\s*(?<rest>.*)$", RegexOptions.Compiled);
+    private static readonly Regex AliasKey = new(@"^(?<indent>\s*)aliases:\s*(?:#.*)?$", RegexOptions.Compiled);
+    private static readonly Regex AliasPair = new(@"^(?<indent>\s+)['""]?(?<old>[^\s#'"":]+)['""]?\s*:\s*['""]?(?<new>[^\s#'""]+)['""]?\s*(?:#.*)?$", RegexOptions.Compiled);
+
+    /// <summary>The <c>old: new</c> lines of every <c>aliases:</c> block.</summary>
+    private static IEnumerable<(string Old, string New)> AliasPairs(string[] lines)
+    {
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var key = AliasKey.Match(lines[i]);
+            if (!key.Success)
+                continue;
+
+            for (var j = i + 1; j < lines.Length; j++)
+            {
+                var t = lines[j].Trim();
+                if (t.Length == 0 || t.StartsWith('#'))
+                    continue;
+
+                var pair = AliasPair.Match(lines[j]);
+                if (!pair.Success || pair.Groups["indent"].Value.Length <= key.Groups["indent"].Value.Length)
+                    break;
+
+                yield return (pair.Groups["old"].Value, pair.Groups["new"].Value);
+            }
+        }
+    }
 
     /// <summary>The names under every <c>parents:</c> key: a block list or an inline list.</summary>
     private static IEnumerable<string> ParentNames(string[] lines)
