@@ -3,8 +3,6 @@
 # official-server-only parts (IPIntel contact, panic bunker, WD privacy policy / feedback origin).
 
 [game]
-# keep the simulation (and so the round) running with nobody connected, so the round is loaded when the first player arrives
-auto_pause_empty = false
 hostname = "[3D] ss12.org - Test server"
 desc = "SS12: Space Station 13 in 3D, running on Space Station 14. Vanilla ruleset. Test server."
 lobbyenabled = true
@@ -118,3 +116,9 @@ enabled = false
 
 [chat]
 motd = "ss12.org is a test server running on a small, cheap machine, so you may notice lag or short freezes, especially when many people are online. We are sorry about that and we are working on it. Thanks for trying SS12!"
+
+[ss12]
+# a round that has lost its lights for good (nobody is keeping the power going) is restarted, with a warning
+station_health_restart = true
+# when the last player leaves, the next one gets a fresh station, not what is left of the old round
+fresh_round_when_empty = true
