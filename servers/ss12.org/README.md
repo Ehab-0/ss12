@@ -30,6 +30,13 @@ install SS12 never get these files; it is here so the test server can be rebuilt
   characters along the bottom. The scene is kept inside the left 72% of the image, because the lobby draws its chat panel over
   the right side, crops a little from the top and bottom and puts its own buttons in the top left and its credits in the
   bottom left corner. When a key changes, change the table in the script and draw it again.
+- **A round that is already loaded.** After a restart the server used to sit in the lobby, with its clock stopped, until the first player
+  connected, and that player then waited for the station to load. Two things change that. The engine pauses the whole simulation while nobody
+  is connected (`game.auto_pause_empty`), so `deploy/server_config.toml` turns that off, and the patch makes the lobby countdown start at
+  once even with nobody connected (`ServerGameTicker.RoundFlow.cs`). The round starts about half a minute after a restart and keeps
+  running with nobody on it, which costs a little processor time, and an unattended station slowly loses power, so the restart script
+  gives an empty server a fresh round every hour. The Rules and Info page also tells new players that the server is a small test machine
+  and may lag.
 - **The name.** `deploy/server_config.toml` names the server "[3D] Join for a ..." and spells SURPRISE with letter emoji, one
   space between the letters (two letter emoji side by side fuse into a country flag).
 
@@ -52,7 +59,7 @@ connected (the server's reported player count includes admins, so `admin.admins_
 When the server is empty it installs a new build if one is staged in `/opt/ss14/pending/server.zip` (the old build is
 kept in `/opt/ss14/server_prev`) and a new configuration if one is staged in `/opt/ss14/pending/server_config.toml` (checked
 to be valid TOML first; the old one is kept as `server_config.toml.prev`). With nothing staged it restarts for a fresh
-round once the server has been up for three hours (each restart makes the first player who joins wait while the game compiles its code). Staging a file never disturbs the running server. If the server's status endpoint stops answering (it can wedge when many
+round once the server has been up for one hour (the round runs while the server is empty, see "A round that is already loaded" above, and an empty station slowly runs out of power). Staging a file never disturbs the running server. If the server's status endpoint stops answering (it can wedge when many
 client downloads are abandoned half way), the script counts the players from the server log instead and restarts the
 wedged server as soon as that count is zero. A server that started less than three minutes ago is left alone, since it has not opened the endpoint yet.
 
@@ -65,7 +72,7 @@ and no mining asteroid (the asteroid alone was about 50 000 of the round's 81 00
 server time it took to generate the round's extra grids), `nanotrasen.yml` leaves the salvage magnet, expeditions and job
 board out of the station, and the four pool maps have no Salvage Specialist slots, so there is no mining at all,
 `deploy/server_config.toml` turns creature AI off (`npc.enabled = false`), and the restart script waits until the server has
-been up for three hours before it restarts an empty server for a fresh round.
+been up for one hour before it restarts an empty server for a fresh round.
 
 ## Simple stats
 

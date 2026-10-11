@@ -58,6 +58,24 @@ index 8a44dffa..22740fbb 100644
          SetGuide(link);
      }
  
+diff --git a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
+index 981ea1ab..4176ee00 100644
+--- a/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
++++ b/Content.Server/GameTicking/ServerGameTicker.RoundFlow.cs
+@@ -640,10 +640,9 @@ public override void RestartRound()
+         }
+         else
+         {
+-            if (_playerManager.PlayerCount == 0)
+-                _roundStartCountdownHasNotStartedYetDueToNoPlayers = true;
+-            else
+-                _roundStartTime = Timing.CurTime + LobbyDuration;
++            // ss12.org: the countdown starts even with nobody connected, so the station is already loaded when the
++            // first player arrives (upstream waits for the first connection and that player waits for the load).
++            _roundStartTime = Timing.CurTime + LobbyDuration;
+ 
+             SendStatusToAll();
+             UpdateInfoText();
 diff --git a/Resources/Locale/en-US/game-ticking/game-ticker.ftl b/Resources/Locale/en-US/game-ticking/game-ticker.ftl
 index c03e8671..965fdc2f 100644
 --- a/Resources/Locale/en-US/game-ticking/game-ticker.ftl
@@ -442,10 +460,10 @@ index 50a102be..6e7b7936 100644
  </Document>
 diff --git a/Resources/ServerInfo/Guidebook/ServerRules/SS12Welcome.xml b/Resources/ServerInfo/Guidebook/ServerRules/SS12Welcome.xml
 new file mode 100644
-index 00000000..25d83365
+index 00000000..4c5bc16c
 --- /dev/null
 +++ b/Resources/ServerInfo/Guidebook/ServerRules/SS12Welcome.xml
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,50 @@
 +<Document>
 +  # Welcome to SS12
 +
@@ -477,6 +495,8 @@ index 00000000..25d83365
 +  SS12 is SS13 in 3D, using SS14. This server is the SS12 test server: the Space Station 14 game, built from the Wizard's Den codebase, with a first-person and third-person 3D view added on top. The jobs, items, rules of the round and balance are those of Space Station 14.
 +
 +  This is a fan-made test server. It is not made by, run by or connected to the Space Station 14 team or Wizard's Den.
++
++  [color=yellow][bold]About lag:[/bold][/color] the server runs on a small, cheap test machine, so you may notice lag or short freezes, especially when several people are online. We are sorry about that and we are working on it.
 +
 +  ## Links
 +  - [textlink="Website: ss12.org" link="https://ss12.org"]

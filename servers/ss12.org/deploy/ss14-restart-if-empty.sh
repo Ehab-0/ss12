@@ -4,7 +4,9 @@
 #  - A new configuration staged in /opt/ss14/pending/server_config.toml is installed (the old one is kept as
 #    server_config.toml.prev) after it has been checked to be valid TOML.
 #  - Either of those restarts the server. With nothing staged, the server is restarted for a fresh round once it has been
-#    up for at least three hours (every restart makes the first player who joins wait while the game compiles its code).
+#    up for at least one hour. The round keeps running while the server is empty (game.auto_pause_empty is off, so the
+#    next player joins a round that is already loaded), and an empty station slowly runs out of power, so an empty
+#    server gets a fresh round every hour.
 #  - If the server's status endpoint does not answer at all (it can wedge when many client downloads are abandoned half way),
 #    the players are counted from the server log instead, and a wedged server is restarted as soon as that count is zero.
 #    A server that started less than three minutes ago is left alone, because it has not opened the endpoint yet.
@@ -113,7 +115,7 @@ fi
 pid=$(systemctl show -p MainPID --value ss14.service)
 [ -z "$pid" ] || [ "$pid" = "0" ] && exit 0
 up=$(ps -o etimes= -p "$pid" | tr -d ' ')
-if [ "${up:-0}" -ge 10800 ]; then
+if [ "${up:-0}" -ge 3600 ]; then
     logger -t ss14-restart "no players and uptime ${up}s: restarting ss14"
     systemctl restart ss14.service
 fi
