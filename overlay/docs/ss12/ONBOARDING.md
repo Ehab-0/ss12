@@ -14,10 +14,10 @@ what it did.
 ## Requirements
 
 * The .NET SDK your codebase already requires (see its `global.json`) and git.
-* **A codebase on RobustToolbox 286 or newer** (check `RobustToolbox/MSBuild/Robust.Engine.Version.props`). Mouse-look
-  needs the engine's relative mouse mode and the FOV hiding needs the viewport's FOV render target, which older engines
-  do not have. The installer refuses older ones with that explanation. In practice this means codebases that track
-  current upstream; see [COMPAT.md](COMPAT.md) for what was tried, including the popular forks that are not there yet.
+* **A codebase on RobustToolbox 264 or newer** (check `RobustToolbox/MSBuild/Robust.Engine.Version.props`). On 264 to
+  285 the installer copies versions of a few files made for those engines (the summary lists them): the mouse is not
+  captured there, the hidden cursor steers the view instead, and what the eye cannot see comes from a mask of the 2D
+  view. Older engines are refused. See [COMPAT.md](COMPAT.md) for what was tried.
 
 ## Five-minute path
 
@@ -97,8 +97,9 @@ ss12 doctor    /path/to/your/server/codebase     # checks files, edits, config; 
 
 ## When something does not fit
 
-* **Engine version.** Older than 286 is refused (see Requirements). Newer than the tested version (291) only gets a
-  warning; if the build then fails, `ss12 doctor <path> --build --report` tells you what differs.
+* **Engine version.** Older than 264 is refused (see Requirements). Far from a tested version only gets a warning; if
+  the build then fails, `ss12 doctor <path> --build --report` tells you what differs. After updating the engine, run
+  `ss12 update` so the files for engines before 286 match it; `--engine <version>` sets the version if it cannot be read.
 * **A required edit is missing.** Your fork changed that code. The installer tells you the file and the change; make
   it by hand (it is one call) and run the installer again, or open an issue with the report below.
 * **The build fails after installing.** Run `ss12 doctor <path> --build --report`. It writes `ss12-report.txt`

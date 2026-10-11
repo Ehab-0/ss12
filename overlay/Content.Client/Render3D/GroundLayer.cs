@@ -1,9 +1,13 @@
 using System.Numerics;
+using Content.Shared.CCVar;
 using DrawDepthContent = Content.Shared.DrawDepth.DrawDepth;
 using Robust.Client.Graphics;
+using Robust.Shared;
+using Robust.Shared.Configuration;
 using Robust.Shared.Enums;
 using Robust.Shared.Graphics;
 using Robust.Shared.Map;
+using Robust.Shared.Prototypes;
 
 namespace Content.Client.Render3D;
 
@@ -17,6 +21,12 @@ namespace Content.Client.Render3D;
 ///     The copy is taken by <see cref="GroundCaptureOverlay"/>: a world-space overlay whose ZIndex sits just above
 ///     <see cref="DrawDepthContent.HighFloorObjects"/>, so the engine draws it after every floor-level sprite and before
 ///     walls, mobs and objects (assumption A1).
+///     <para>
+///         What the eye can see comes from the viewport's FOV shadow map on engine 283 and newer. Older engines do not
+///         expose it, so a mask is captured instead (<see cref="FovMaskFillOverlay"/>): the engine paints the FOV colour
+///         over everything the eye cannot see between the <see cref="OverlaySpace.WorldSpaceBelowFOV"/> and
+///         <see cref="OverlaySpace.WorldSpace"/> overlays, which is exactly the 2D view's FOV.
+///     </para>
 /// </remarks>
 public sealed class GroundLayer : IDisposable
 {
@@ -24,10 +34,16 @@ public sealed class GroundLayer : IDisposable
 
     private readonly IClyde _clyde;
     private readonly IOverlayManager _overlays;
+    private readonly IConfigurationManager _cfg;
 
     private IClydeViewport? _viewport;
     private IRenderTexture? _groundTexture;
     private GroundCaptureOverlay? _overlay;
+
+    private IRenderTexture? _fovMask;
+    private FovMaskFillOverlay? _fovFill;
+    private FovMaskCaptureOverlay? _fovCapture;
+    private bool _fovMaskCaptured;
     private readonly Robust.Shared.Graphics.Eye _eye = new() { Zoom = Vector2.One };
 
     /// <summary>Radius in tiles that the ground texture covers around <see cref="Center"/>.</summary>
@@ -48,7 +64,18 @@ public sealed class GroundLayer : IDisposable
 
     public IClydeViewport? Viewport => _viewport;
     public IRenderTexture? LightTarget => _viewport?.LightRenderTarget;
-    public IRenderTexture? FovTarget => _viewport?.FovRenderTarget;
+    public IRenderTexture? FovTarget => _viewport == null ? null : Render3DEngine.FovTarget(_viewport);
+
+    /// <summary>Where <see cref="EntityPass"/> reads what the eye can see from, for the last <see cref="Render"/>.</summary>
+    public GroundFov FovMode { get; private set; }
+
+    /// <summary>
+    ///     The FOV mask (same mapping as <see cref="GroundTexture"/>): <see cref="FovMaskKey"/> where the eye can see,
+    ///     the engine's FOV colour where it cannot. Null unless <see cref="FovMode"/> is <see cref="GroundFov.Mask"/>.
+    /// </summary>
+    public Texture? FovMask => FovMode == GroundFov.Mask ? _fovMask?.Texture : null;
+
+    public Color FovMaskKey { get; private set; } = Color.White;
 
     private bool _captured;
 
@@ -56,6 +83,7 @@ public sealed class GroundLayer : IDisposable
     {
         _clyde = clyde;
         _overlays = overlays;
+        _cfg = IoCManager.Resolve<IConfigurationManager>();
     }
 
     public void SetRadius(int radiusTiles)
@@ -72,7 +100,6 @@ public sealed class GroundLayer : IDisposable
         _viewport.AutomaticRender = false;
         _viewport.RenderScale = Vector2.One;
         _viewport.Eye = _eye;
-        _viewport.ClearWhenMissingEye = true;
 
         _groundTexture = _clyde.CreateRenderTarget(
             size,
@@ -108,9 +135,71 @@ public sealed class GroundLayer : IDisposable
         FovEnabled = _eye.DrawFov && _eye.DrawLight;
         Center = snapped;
 
+        var useMask = !Render3DEngine.HasViewportFov || _cfg.GetCVar(CCVars.Render3DDevFovMask);
+        if (useMask && _fovMask == null)
+            CreateFovMask();
+        else if (!useMask && _fovMask != null)
+            DisposeFovMask();
+
+        if (_fovFill != null && _fovCapture != null)
+        {
+            FovMaskKey = MaskKey(_cfg.GetCVar(CVars.RenderFOVColor));
+            _fovFill.Key = FovMaskKey;
+            _fovCapture.Captured = false;
+        }
+
         _overlay.Captured = false;
         _viewport.Render();
         _captured = _overlay.Captured;
+        _fovMaskCaptured = _fovCapture?.Captured ?? false;
+
+        // A frame without a copy shows everything, like a missing shadow map does.
+        FovMode = !FovEnabled ? GroundFov.Off
+            : _fovMask != null ? (_fovMaskCaptured ? GroundFov.Mask : GroundFov.Off)
+            : FovTarget != null ? GroundFov.ShadowMap
+            : GroundFov.Off;
+    }
+
+    /// <summary>
+    ///     The colour the mask is filled with before the engine paints <paramref name="fovColor"/> (render.fov_color) over
+    ///     what the eye cannot see: in every channel the opposite end from the FOV colour, so the two differ by at least
+    ///     half in each channel whatever the server picks.
+    /// </summary>
+    public static Color MaskKey(string fovColor)
+    {
+        var fov = Color.TryParse(fovColor, out var parsed) ? parsed : Color.Black;
+        return new Color(fov.R < 0.5f ? 1f : 0f, fov.G < 0.5f ? 1f : 0f, fov.B < 0.5f ? 1f : 0f, 1f);
+    }
+
+    private void CreateFovMask()
+    {
+        if (_viewport == null)
+            return;
+
+        _fovMask = _clyde.CreateRenderTarget(
+            SizePixels,
+            new RenderTargetFormatParameters(RenderTargetColorFormat.Rgba8Srgb),
+            new TextureSampleParameters { Filter = false },
+            "render3d-fov-mask");
+        _fovFill = new FovMaskFillOverlay(_viewport, IoCManager.Resolve<IPrototypeManager>().Index<ShaderPrototype>("unshaded").Instance());
+        _fovCapture = new FovMaskCaptureOverlay(_viewport, _fovMask);
+        _overlays.AddOverlay(_fovFill);
+        _overlays.AddOverlay(_fovCapture);
+        _fovMaskCaptured = false;
+    }
+
+    private void DisposeFovMask()
+    {
+        if (_fovFill != null)
+            _overlays.RemoveOverlay(_fovFill);
+        if (_fovCapture != null)
+            _overlays.RemoveOverlay(_fovCapture);
+
+        _fovFill = null;
+        _fovCapture = null;
+        _fovMask?.Dispose();
+        _fovMask = null;
+        _fovMaskCaptured = false;
     }
 
     /// <summary>Maps a world XY position to uv in the ground texture (v grows downwards, like screen pixels).</summary>
@@ -127,6 +216,7 @@ public sealed class GroundLayer : IDisposable
 
     private void DisposeTargets()
     {
+        DisposeFovMask();
         if (_overlay != null)
         {
             _overlays.RemoveOverlay(_overlay);
@@ -150,20 +240,27 @@ public sealed class GroundLayer : IDisposable
 ///     Copies the engine's screen texture (the ground viewport's render target at this point of the frame) into a
 ///     persistent texture. Does nothing for any other viewport.
 /// </summary>
-public sealed class GroundCaptureOverlay : Overlay
+/// <remarks>Not sealed: the overlay manager keeps one overlay per type, so the FOV mask copy is a type of its own.</remarks>
+public class GroundCaptureOverlay : Overlay
 {
     private readonly IClydeViewport _viewport;
     private readonly IRenderTexture _target;
 
     public bool Captured;
 
-    public override OverlaySpace Space => OverlaySpace.WorldSpaceEntities;
+    public override OverlaySpace Space { get; }
 
     public GroundCaptureOverlay(IClydeViewport viewport, IRenderTexture target)
+        : this(viewport, target, OverlaySpace.WorldSpaceEntities, (int) DrawDepthContent.HighFloorObjects + 1)
+    {
+    }
+
+    protected GroundCaptureOverlay(IClydeViewport viewport, IRenderTexture target, OverlaySpace space, int zIndex)
     {
         _viewport = viewport;
         _target = target;
-        ZIndex = (int) DrawDepthContent.HighFloorObjects + 1;
+        Space = space;
+        ZIndex = zIndex;
         RequestScreenTexture = true;
     }
 
@@ -188,5 +285,65 @@ public sealed class GroundCaptureOverlay : Overlay
         }, Color.Transparent);
 
         Captured = true;
+    }
+}
+
+/// <summary>
+///     Copies the ground viewport after the engine applied FOV to it (the first <see cref="OverlaySpace.WorldSpace"/>
+///     overlay), over the key colour of <see cref="FovMaskFillOverlay"/>: the FOV mask.
+/// </summary>
+public sealed class FovMaskCaptureOverlay : GroundCaptureOverlay
+{
+    public FovMaskCaptureOverlay(IClydeViewport viewport, IRenderTexture target)
+        : base(viewport, target, OverlaySpace.WorldSpace, int.MinValue)
+    {
+    }
+}
+
+/// <summary>Where the 3D view reads what the eye can see from.</summary>
+public enum GroundFov
+{
+    /// <summary>Everything is shown (no FOV for this eye, or nothing was captured).</summary>
+    Off,
+
+    /// <summary>The viewport's FOV shadow map (engine 283 and newer).</summary>
+    ShadowMap,
+
+    /// <summary>The mask captured by <see cref="FovMaskFillOverlay"/> (older engines).</summary>
+    Mask,
+}
+
+/// <summary>
+///     Fills the ground viewport with <see cref="Key"/> just before the engine applies FOV to it, so what the
+///     <see cref="GroundCaptureOverlay"/> in <see cref="OverlaySpace.WorldSpace"/> copies afterwards is a mask: the key
+///     where the eye can see, the FOV colour where it cannot. Draws over the ground viewport only, after the floor copy.
+/// </summary>
+public sealed class FovMaskFillOverlay : Overlay
+{
+    private readonly IClydeViewport _viewport;
+    private readonly ShaderInstance _unshaded;
+
+    public Color Key = Color.White;
+
+    public override OverlaySpace Space => OverlaySpace.WorldSpaceBelowFOV;
+
+    /// <param name="unshaded">The engine's "unshaded" shader: the default one multiplies by the light, and the key must stay exact.</param>
+    public FovMaskFillOverlay(IClydeViewport viewport, ShaderInstance unshaded)
+    {
+        _viewport = viewport;
+        _unshaded = unshaded;
+        ZIndex = int.MaxValue;
+    }
+
+    protected override bool BeforeDraw(in OverlayDrawArgs args)
+    {
+        return args.Viewport == _viewport;
+    }
+
+    protected override void Draw(in OverlayDrawArgs args)
+    {
+        args.WorldHandle.UseShader(_unshaded);
+        args.WorldHandle.DrawRect(args.WorldAABB, Key);
+        args.WorldHandle.UseShader(null);
     }
 }

@@ -75,6 +75,24 @@ public sealed partial class Render3DDevChannel : UIController
                 c.SetDebugNoGlow(args[0] == "off");
         });
         _console.RegisterCommand("r3d_cam", "Set the 3D camera mode", "r3d_cam fp|tp", CamCommand);
+        _console.RegisterCommand("r3d_steer", "Mouse steering as if the cursor were at an offset from the centre (1 = full speed), or 'off'; prints the camera look direction", "r3d_steer <x> <y> | r3d_steer off", (shell, _, args) =>
+        {
+            if (UIManager.GetUIController<Render3DController>().Control is not { } c)
+                return;
+
+            if (args.Length == 2
+                && float.TryParse(args[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+                && float.TryParse(args[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y))
+            {
+                c.DevSteerCursor = new System.Numerics.Vector2(x, y);
+            }
+            else if (args.Length == 1 && args[0] == "off")
+            {
+                c.DevSteerCursor = null;
+            }
+
+            _sawmill.Info($"steer: steering={c.Steering} cursor={c.DevSteerCursor?.ToString() ?? "real"} yaw={c.Camera.Yaw * 180 / Math.PI:F1} pitch={c.Camera.Pitch * 180 / Math.PI:F1}");
+        });
     }
 
     private void LookCommand(IConsoleShell shell, string argStr, string[] args)

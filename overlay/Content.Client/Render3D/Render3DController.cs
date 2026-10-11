@@ -449,6 +449,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
 
         UpdateScrollHost(scrollMode);
         UpdateMouseMode();
+        UpdateSteering(args.DeltaSeconds);
         UpdateWindowPlacement();
         UpdateAutoQuality(args.DeltaSeconds);
         UpdateMinimap();
@@ -507,7 +508,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
             if (now - _lastRequest >= interval)
             {
                 _lastRequest = now;
-                _clyde.MainWindow.SetRelativeMouseMode(true);
+                RequestRelativeMouse(true);
             }
         }
 
@@ -548,7 +549,7 @@ public sealed partial class Render3DController : UIController, IOnStateEntered<G
         _relative = relative;
         // DevForceCapture only exists for scripted tests of an unfocused window; never grab a real mouse for it.
         if (!relative || _clyde.MainWindow.IsFocused)
-            _clyde.MainWindow.SetRelativeMouseMode(relative);
+            RequestRelativeMouse(relative);
 
         if (_control != null)
             _control.RelativeMouse = relative;

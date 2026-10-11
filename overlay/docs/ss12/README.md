@@ -176,6 +176,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.atlas_size` (2048), `billboard_cap` (400) | Sprite atlas size and the maximum entities drawn (nearest first). |
 | `render3d.tp_distance` (1.6) | Third-person camera distance (also changed by the zoom keys). |
 | `render3d.mouse_sensitivity` (1.0), `invert_y` (false) | Mouse look. |
+| `render3d.mouse_steer` (false), `steer_speed` (150), `steer_deadzone` (0.12), `steer_pitch` (true), `steer_indicator` (true) | Mouse steering instead of a captured mouse: the hidden cursor turns the view like a joystick, `steer_speed` degrees per second at full deflection (times the sensitivity), nothing inside the still zone (`steer_deadzone`, a fraction of the full deflection), up and down too with `steer_pitch`, a circle and a dot around the crosshair with `steer_indicator`. Always on for engines before 286, which cannot capture the mouse; `mouse_steer` picks it on newer ones. |
 | `render3d.crosshair_names` (true) | Name of what is under the crosshair. |
 | `render3d.first_person` (false) | Start in first person. |
 | `render3d.overhead` (false) | Use the overhead camera (see [The overhead view](#the-overhead-view)); it takes the place of first and third person while on. |
@@ -188,7 +189,7 @@ All client-side unless noted. Defaults in parentheses; most are also in Options 
 | `render3d.quality` (2), `render3d.auto_quality` (true), `render3d.auto_quality_fps` (45), `render3d.auto_lowered` (false) | Preset (0 low, 1 medium, 2 high, 3 custom), the automatic step-down, and whether the last lowering was the game's own (then the next round starts on High again). |
 | `render3d.fx.bloom`, `fxaa`, `ao`, `surface`, `ambient`, `shadows`, `outline`, `sharp`, `grade`, `haze`, `sky`, `fixtures`, `glass`, `head_bob`, `item_lift`, `item_lean`, `item_thick`, `item_surface`, `item_spread`, `item_fixed`, `object_fixed`, `char_lean`, `char_thick`, `object_lean`, `object_thick` | The individual effects (see above). |
 | `render3d.thickness_layers` (4) | How many stacked layers thick things are drawn with (0 = flat). The Low / Medium / High presets set 0 / 3 / 4. |
-| `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true) | Developer aids. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
+| `render3d.dev_channel` (false), `render3d.debug_view` (0; 1 ground capture, 2 light, 3 field of view, 41 billboard atlas, 42 its glow layer), `render3d.cap_hysteresis` (0.6), `render3d.dev_atlas_offset` (true), `render3d.dev_fov_mask` (false) | Developer aids. `dev_fov_mask` takes what the eye can see from the FOV mask that engines before 283 use, to compare it with the shadow map on a newer engine. `cap_hysteresis` is how much closer an entity drawn last frame counts when the nearest `billboard_cap` are picked (1 = no head start). |
 
 ## Graphics, and turning things off for older PCs
 
@@ -347,6 +348,7 @@ line as a console command (start the client with `--cvar player.name=<name>` so 
 | `render3d_dynamic_view <0 to 1>` | put the dynamic view at a position (0 first person, 1 the classic 2D view) |
 | `r3d_press <KeyFunction> [down\|up\|tap]` | synthetic input through the real viewport path (use `down`, wait, `up` for melee-class items) |
 | `r3d_capture on\|off` | force the captured-mouse path without window focus |
+| `r3d_steer <x> <y>` / `r3d_steer off` | mouse steering as if the cursor were at that offset from the centre (1 = full speed; x right, y down); logs the camera look direction |
 | `render3d_tune` | open the tuning window: a slider, box or switch for every client-side `render3d.*` setting, applied at once; "Copy changes" copies the changed values |
 | `r3d_atlas <name>` | save the billboard atlas and its glow layer as `atlas_<name>.png` / `atlasglow_<name>.png` |
 | `r3d_audit <name>` | draw every entity of the next frame alone in a roomy cell, save the sheets as `audit_<name>_<n>.png` and log the atlas slot of each cell (art outside its slot is painted onto a neighbour in the real atlas) |

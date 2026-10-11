@@ -18,7 +18,9 @@ uniform sampler2D lightTex;    // light buffer of the ground viewport
 uniform sampler2D fovTex;      // FOV shadow-depth map of the ground viewport
 uniform highp vec2 viewSize;
 uniform highp vec4 groundParams; // x,y = world centre of the ground texture, z = world size, w = 1 / size
-uniform highp vec4 fovParams;    // x,y = FOV eye position (world), z = enabled, w = bias
+uniform highp vec4 fovParams;    // x,y = FOV eye position (world), z = 0 off / 1 shadow map (fovTex) / 2 mask (fovMaskTex), w = bias
+uniform sampler2D fovMaskTex;  // FOV mask of the ground viewport (engines before 283): fovMaskKey where the eye can see
+uniform highp vec4 fovMaskKey;
 
 varying highp vec3 vUvW;   // uv / w, 1 / w
 varying highp vec4 vData;  // light/fov world position xy, alpha multiplier, flags
@@ -60,8 +62,16 @@ void fragment()
     if (fovParams.z > 0.5)
     {
         highp vec2 rel = vData.xy - fovParams.xy;
-        if (dot(rel, rel) > 0.8 && doesOcclude(rel, fovTex, 0.75, fovParams.w))
-            discard;
+        if (dot(rel, rel) > 0.8)
+        {
+            bool hidden;
+            if (fovParams.z < 1.5)
+                hidden = doesOcclude(rel, fovTex, 0.75, fovParams.w);
+            else
+                hidden = dot(abs(texture2D(fovMaskTex, groundUv(vData.xy)).rgb - fovMaskKey.rgb), vec3(1.0)) > 0.75;
+            if (hidden)
+                discard;
+        }
     }
 
     // Things right next to the camera would fill the screen with one big block: fade them out smoothly as they get close

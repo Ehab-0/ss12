@@ -1,4 +1,5 @@
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
 using Robust.Shared.Maths;
 
 namespace Content.Client.Render3D;

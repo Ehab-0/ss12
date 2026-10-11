@@ -76,6 +76,29 @@ public sealed partial class CCVars
     public static readonly CVarDef<bool> Render3DInvertY =
         CVarDef.Create("render3d.invert_y", false, CVar.CLIENTONLY | CVar.ARCHIVE);
 
+    /// <summary>
+    ///     Steer the view with the hidden cursor (the further from the centre, the faster it turns) instead of capturing the
+    ///     mouse. Always the case on engines before 286, which cannot capture the mouse; this picks it on newer ones too.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DMouseSteer =
+        CVarDef.Create("render3d.mouse_steer", false, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Mouse steering: how fast the view turns with the cursor far from the centre, in degrees per second (times the mouse sensitivity).</summary>
+    public static readonly CVarDef<float> Render3DSteerSpeed =
+        CVarDef.Create("render3d.steer_speed", 150f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Mouse steering: the size of the still zone around the centre, as a fraction of the distance at which the full speed is reached.</summary>
+    public static readonly CVarDef<float> Render3DSteerDeadZone =
+        CVarDef.Create("render3d.steer_deadzone", 0.12f, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Mouse steering: the cursor above or below the centre also looks up or down.</summary>
+    public static readonly CVarDef<bool> Render3DSteerPitch =
+        CVarDef.Create("render3d.steer_pitch", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>Mouse steering: show the still zone and the cursor around the crosshair.</summary>
+    public static readonly CVarDef<bool> Render3DSteerIndicator =
+        CVarDef.Create("render3d.steer_indicator", true, CVar.CLIENTONLY | CVar.ARCHIVE);
+
     /// <summary>Show the name of the entity under the crosshair.</summary>
     public static readonly CVarDef<bool> Render3DCrosshairNames =
         CVarDef.Create("render3d.crosshair_names", true, CVar.CLIENTONLY | CVar.ARCHIVE);
@@ -186,6 +209,13 @@ public sealed partial class CCVars
     /// </summary>
     public static readonly CVarDef<bool> Render3DDevAtlasOffset =
         CVarDef.Create("render3d.dev_atlas_offset", true, CVar.CLIENTONLY);
+
+    /// <summary>
+    ///     A developer aid: take what the eye can see from the captured FOV mask (what engines before 283 use) instead of the
+    ///     viewport's FOV shadow map, to compare the two on a newer engine. Debug view 3 shows the source in use.
+    /// </summary>
+    public static readonly CVarDef<bool> Render3DDevFovMask =
+        CVarDef.Create("render3d.dev_fov_mask", false, CVar.CLIENTONLY);
 
     /// <summary>Step the quality down automatically when the frame rate is low (never steps up).</summary>
     public static readonly CVarDef<bool> Render3DAutoQuality =

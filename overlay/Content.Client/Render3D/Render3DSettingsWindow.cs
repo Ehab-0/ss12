@@ -197,6 +197,21 @@ public sealed partial class Render3DSettingsWindow : DefaultWindow
     {
         AddSlider(CCVars.Render3DMouseSensitivity, "render3d-settings-sensitivity", 0.1f, 3f, "0.00");
         AddCheck(CCVars.Render3DInvertY, "render3d-settings-invert-y");
+        AddSteerSettings();
+    }
+
+    /// <summary>Mouse steering (MouseSteer): the only mouse-look of engines that cannot capture the mouse, a choice on newer ones.</summary>
+    private void AddSteerSettings()
+    {
+        if (Render3DEngine.HasRelativeMouse)
+            AddCheck(CCVars.Render3DMouseSteer, "render3d-settings-steer");
+        else
+            _body.AddChild(new Label { Text = Loc.GetString("render3d-settings-steer-only"), FontColorOverride = HintColor });
+
+        AddSlider(CCVars.Render3DSteerSpeed, "render3d-settings-steer-speed", 40f, 400f, "0");
+        AddSlider(CCVars.Render3DSteerDeadZone, "render3d-settings-steer-deadzone", 0f, 0.5f, "0.00");
+        AddCheck(CCVars.Render3DSteerPitch, "render3d-settings-steer-pitch");
+        AddCheck(CCVars.Render3DSteerIndicator, "render3d-settings-steer-indicator");
     }
 
     private void BuildInterface()

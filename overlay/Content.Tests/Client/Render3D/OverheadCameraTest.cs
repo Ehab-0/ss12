@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
 using Content.Client.Render3D;
 using Content.Shared.Render3D;
 using NUnit.Framework;

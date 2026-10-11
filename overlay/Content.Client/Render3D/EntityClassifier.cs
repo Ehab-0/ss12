@@ -326,6 +326,22 @@ public sealed class EntityClassifier
                     _shapeComponents.Add((shape.Thickness, shape.Lean, types));
             }
         }
+
+        // older names of base prototypes (forks on older code) get the rules of the newer name, unless they have their own
+        foreach (var set in _protos.EnumeratePrototypes<Render3DRulesPrototype>())
+        {
+            foreach (var (old, current) in set.Aliases)
+            {
+                if (_parentModes.TryGetValue(current, out var mode))
+                    _parentModes.TryAdd(old, mode);
+                if (_glassParents.TryGetValue(current, out var glass))
+                    _glassParents.TryAdd(old, glass);
+                if (_surfaceParents.TryGetValue(current, out var height))
+                    _surfaceParents.TryAdd(old, height);
+                if (_shapeParents.TryGetValue(current, out var shape) && _shapeParents.TryAdd(old, shape) && _turnParents.Contains(current))
+                    _turnParents.Add(old);
+            }
+        }
     }
 
     /// <summary>

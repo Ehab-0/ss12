@@ -1,5 +1,7 @@
 using System.Linq;
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
+using Vector4 = System.Numerics.Vector4;
 using Content.Client.Clickable;
 using Content.Shared.CCVar;
 using Content.Shared.Render3D;
@@ -229,7 +231,7 @@ public sealed class EntityPass : IDisposable
         var camXy = new Vector2(cam.Head.X, cam.Head.Y);
         var aabb = Box2.CenteredAround(camXy, new Vector2(radius * 2f, radius * 2f));
         _query.Clear();
-        _spriteTree.QueryAabb(_query, mapId, aabb);
+        Render3DEngine.QuerySprites(_spriteTree, _query, mapId, aabb);
 
         var wallHeight = wallHeightOverride ?? _cfg.GetCVar(_overhead ? CCVars.Render3DOverheadWallHeight : CCVars.Render3DWallHeight);
         var tableHeight = _cfg.GetCVar(CCVars.Render3DTableHeight);
@@ -1403,11 +1405,14 @@ public sealed class EntityPass : IDisposable
             sh.SetParameter("lightTex", light);
         if (ground.FovTarget?.Texture is { } fov)
             sh.SetParameter("fovTex", fov);
+        if (ground.FovMask is { } fovMask)
+            sh.SetParameter("fovMaskTex", fovMask);
+        sh.SetParameter("fovMaskKey", new Vector4(ground.FovMaskKey.R, ground.FovMaskKey.G, ground.FovMaskKey.B, 1f));
         sh.SetParameter("viewSize", new Vector2(sceneSize.X, sceneSize.Y));
         sh.SetParameter("atlasSize", new Vector2(_atlas.Size, _atlas.Size));
         sh.SetParameter("sharpOn", _fxSharp ? 1f : 0f);
         sh.SetParameter("groundParams", new Vector4(ground.Center.X, ground.Center.Y, ground.WorldSize, 1f / ground.WorldSize));
-        sh.SetParameter("fovParams", new Vector4(ground.Center.X, ground.Center.Y, ground.FovTarget != null && ground.FovEnabled ? 1f : 0f, -0.75f / 32f));
+        sh.SetParameter("fovParams", new Vector4(ground.Center.X, ground.Center.Y, (float) ground.FovMode, -0.75f / 32f));
 
         _quads.Build(cam, out var vertices, out var indices);
         if (indices.Length == 0)

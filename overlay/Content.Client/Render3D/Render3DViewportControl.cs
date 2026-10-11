@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
+using Vector4 = System.Numerics.Vector4;
 using Content.Client.Interactable.Components;
 using Content.Shared.CCVar;
 using Content.Shared.Interaction;
@@ -396,6 +398,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     protected override void ExitedTree()
     {
         base.ExitedTree();
+        DisposeSteer();
         if (_yawSystem != null)
             _yawSystem.DesiredYaw = null;
         DisposeTargets();
@@ -427,7 +430,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             return;
 
         // the overhead camera (and the dynamic view, once it is high) turns while the drag key (the middle mouse button) is held over the view
-        if (args.Function == Render3DKeys.OrbitDrag && (Camera.Mode == CameraMode.Overhead || Camera.Mode == CameraMode.DynamicView && _scrollFree))
+        if (args.Function == Render3DKeys.OrbitDrag && (Camera.Mode == CameraMode.Overhead || Camera.Mode == CameraMode.DynamicView && _scrollFree || SteerLive))
             _turnDragging = true;
 
         ForwardKey(args);
@@ -484,6 +487,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
 
         if (_turnDragging)
         {
+            if (SteerDragTurn(args.Relative))
+                return;
+
             // drag right: the scene turns right; drag down: the camera climbs (looks further down)
             var turn = RadiansPerPixel * Sensitivity * DragTurnGain;
             if (Camera.Mode == CameraMode.DynamicView)
@@ -504,6 +510,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             return;
 
         RelativeTravel += args.Relative.Length();
+        if (Steering)
+            return; // the hidden cursor steers (SteerTick)
+
         var k = RadiansPerPixel * Sensitivity;
         Camera.AddLook(-args.Relative.X * k, (InvertY ? args.Relative.Y : -args.Relative.Y) * k);
     }
@@ -744,6 +753,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         {
             var reach = GetReach(CrosshairPixel);
             DrawCrosshair(screen, pixelSize, reach);
+            DrawSteer(screen, pixelSize);
             DrawHoverLabel(screen, reach, CrosshairPixel, new Vector2(pixelSize.X / 2f, pixelSize.Y / 2f + 18f), true);
         }
         else if (PointerLive)
@@ -1016,7 +1026,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         var tex = DebugView switch
         {
             2 => ground.LightTarget?.Texture,
-            3 => ground.FovTarget?.Texture,
+            3 => ground.FovMode == GroundFov.Mask ? ground.FovMask : ground.FovTarget?.Texture,
             _ => ground.GroundTexture,
         };
 

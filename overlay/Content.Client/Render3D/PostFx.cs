@@ -1,4 +1,5 @@
 using System.Numerics;
+using Vector4 = System.Numerics.Vector4;
 using Content.Shared.CCVar;
 using Robust.Client.Graphics;
 using Robust.Shared.Configuration;

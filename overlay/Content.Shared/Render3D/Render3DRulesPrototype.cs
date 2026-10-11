@@ -29,6 +29,14 @@ public sealed partial class Render3DRulesPrototype : IPrototype
     /// <summary>How high the top of a surface is, for the items that lie on it (see <see cref="Render3DSurfaceRule"/>).</summary>
     [DataField]
     public List<Render3DSurfaceRule> Surfaces = new();
+
+    /// <summary>
+    ///     Older names of base prototypes that the rules name by their newer names, for forks on older code: old name, new
+    ///     name. The old name gets every rule of the new one (of any rule set), unless it has rules of its own. Where the
+    ///     old name inherits the new one, as upstream, this changes nothing.
+    /// </summary>
+    [DataField]
+    public Dictionary<string, string> Aliases = new();
 }
 
 /// <summary>

@@ -217,3 +217,14 @@
     - Sink
     - SinkWide
     height: 0.5
+
+  # The names some base prototypes had before upstream renamed them (2025 and 2026), for forks on older code: each old name
+  # gets the rules of its new name above, unless it has rules of its own. Upstream, every old name inherits its new one,
+  # so this changes nothing there.
+  aliases:
+    Airlock: BaseAirlockIndestructible
+    Bed: BaseBed
+    BaseSign: BaseWallmount
+    BaseWindoor: BaseWindoorGeneric
+    Window: BaseWindowStructure
+    WindowDirectional: BaseWindowStructureDirectional

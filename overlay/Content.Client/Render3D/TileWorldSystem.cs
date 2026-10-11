@@ -1,4 +1,6 @@
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
+using Vector4 = System.Numerics.Vector4;
 using Content.Shared.Wall;
 using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
@@ -238,7 +240,7 @@ public sealed partial class TileWorldSystem : EntitySystem
 
         var aabb = Box2.CenteredAround(camera, new Vector2(radius * 2f, radius * 2f));
         _gridScratch.Clear();
-        _map.FindGridsIntersecting(mapId, aabb, ref _gridScratch);
+        Render3DEngine.FindGrids(_map, mapId, aabb, ref _gridScratch);
         if (_gridScratch.Count == 0)
             return;
 
@@ -385,7 +387,7 @@ public sealed partial class TileWorldSystem : EntitySystem
         center = default;
         sideX = Vector2.UnitX;
         sideY = Vector2.UnitY;
-        if (!_map.TryFindGridAt(mapId, point, out var grid, out var comp))
+        if (!Render3DEngine.TryFindGrid(_map, mapId, point, out var grid, out var comp))
             return false;
 
         var local = Vector2.Transform(point, _xform.GetInvWorldMatrix(grid));

@@ -11,12 +11,16 @@ build. Everything was done with read-only clones in a temp folder; nothing was p
 
 Tested on 2026-10-02 with installer 1.0.0.
 
-## The one hard requirement: engine 286 or newer
+## The one hard requirement: engine 264 or newer
 
-The 3D view needs two engine features that only exist in newer RobustToolbox versions: relative mouse mode for windows
-(for mouse-look, engine 286) and the viewport's FOV render target (engine 283). A codebase on an older engine cannot
-compile it, so the installer refuses with a message (check yours in `RobustToolbox/MSBuild/Robust.Engine.Version.props`).
-`--force` tries anyway and will end in compile errors.
+The installer refuses engines older than 264 with a message (check yours in
+`RobustToolbox/MSBuild/Robust.Engine.Version.props`). Engines 264 to 285 lack two features the 3D view uses on newer ones:
+relative mouse mode for windows (engine 286) and the viewport's FOV render target (engine 283), and a few engine calls
+moved. For them the installer copies versions of the `Content.Client/Render3D/Engine/Render3DEngine.*.cs` files from
+`Tools/ss12-engine/before-<version>/` of the SS12 repository, picked from the engine version (the install summary lists
+them). There, the hidden cursor steers the view (mouse steering, see `render3d.mouse_steer` in README.md) and what the
+eye cannot see comes from a mask captured from the 2D view; the result is the same as on newer engines. After an engine
+update run `ss12 update`; `ss12 doctor` warns when the files are for another engine.
 
 | Codebase | Commit | Engine | Edits found (required / optional) | Result |
 |----------|--------|--------|-----------------------------------|--------|
@@ -26,22 +30,19 @@ compile it, so the installer refuses with a message (check yours in `RobustToolb
 | Russian Marine Corps (73-player server's exact deployed commit; a large Marine Corps fork with z-levels and a Russian UI) | `ae059179` | 290.0.0 | 2/2, 6/6 | built, **launched** and played in 3D (`screenshots/compat_rumc_3d.png`); `update` and `doctor --build` pass. See the note below about one engine call it makes every frame |
 | Frontier Station | `cc55eb68` (current head; the server runs `b069ad38`) | 290.0.0 | 2/2, 5/5 | dry run only: every required edit applies. Not built |
 | Sector Frontier, Funky Station | `110c0dee`, `c4c4e322` | not checked | 2/2, 5/5 | dry run only (their `/info` page gave no engine version): every required edit applies. Not built |
-| Stalker | n/a | 286.0.0 | not tried | engine is at the minimum; not tried |
-| RMC14 (Rouny's Marine Corps) | `1c173c31` | 264.0.2 | 2/2, 5/5 | **refused: engine too old** (edits themselves apply) |
-| Delta-V | `0bcc69b3` | 275.2.1 | 2/2, 5/5 | **refused: engine too old.** A forced build fails on the missing engine APIs |
-| Einstein Engines | `10d41858` | 267.3.0 | 2/2, 3/5 | **refused: engine too old** (edits themselves apply) |
-| Goob Station | `cbd25950` | 270.1.0 | 2/2, 5/5 | **refused: engine too old** (edits themselves apply) |
+| Stalker | n/a | 286.0.0 | not tried | not tried |
+| Space Wizards upstream at engine 277 (2026-06-25) | `51925662e2^` | 277.2.1 | 2/2, 5/5 | installed with the versions for older engines, built, 659 unit tests pass, 26 of the 32 Render3D integration tests pass (the 6 others check that the rules name only prototypes of this codebase, and it predates some names), **launched**: mouse steering and the FOV mask checked in game |
+| RMC14 (Rouny's Marine Corps) | `1c173c31` | 264.0.2 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
+| Delta-V | `0bcc69b3` | 275.2.1 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
+| Einstein Engines | `10d41858` | 267.3.0 | 2/2, 3/5 (October 2) | accepted since engine 264 is; not built yet |
+| Goob Station | `cbd25950` | 270.1.0 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
 | Floofstation | `eff4e2d9` | 239.0.1 | 2/2, 3/5 | **refused: engine too old** (edits themselves apply) |
 
-What this means today: the 3D view installs and runs on codebases that track current upstream (engine 286+). Of the
-14 of the 18 most populated servers on the public list whose version could be read, 5 run engine 286 or newer
-(Starlight, Russian Marine Corps, Frontier, Stalker, upstream Wizard's Den). The others (Delta-V, Goob and its
-relatives, SS220, Corvax, Arcane, RMC14, ...) are on engines 264 to 277, so their hosts would first have to merge a
-newer RobustToolbox and the content changes that come with it, which is what they do for their own updates anyway.
-Once they are on 286+ the edits are already known to apply to their code (see the "Edits found" column).
-
-A "legacy engine" mode (hold-a-key-to-look instead of a captured mouse, no FOV hiding) would lift the requirement to
-about engine 267; it is not implemented.
+What this means today: the 3D view installs on codebases on engine 264 or newer. Of the 14 of the 18 most populated
+servers on the public list whose version could be read, 5 run engine 286 or newer (Starlight, Russian Marine Corps,
+Frontier, Stalker, upstream Wizard's Den), and most of the others (Delta-V, Goob and its relatives, SS220, Corvax,
+Arcane, RMC14, ...) run engines 264 to 277, which are now accepted too. Of those, only upstream code at engine 277 has
+been built and launched so far.
 
 ## Engine calls that forks make which the 3D view had to answer
 

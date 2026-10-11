@@ -1,4 +1,5 @@
 using System.Numerics;
+using Vector3 = System.Numerics.Vector3;
 using Content.Client.StatusIcon;
 using Content.Shared.Render3D;
 using Content.Shared.StatusIcon.Components;
