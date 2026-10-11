@@ -97,10 +97,11 @@ void fragment()
         // a frame a couple of screen pixels wide along the edge of the quad
         highp float px = max(uvPx.x, uvPx.y);
         highp float edgeDist = 1.0 - max(abs(uv.x), abs(uv.y));
-        if (edgeDist > px * 2.2)
+        if (edgeDist > px * 1.1)
             discard;
 
-        COLOR = vec4(1.0, 0.9, 0.3, nearFade);
+        // very subtle: a faint pale line, not a bright one
+        COLOR = vec4(1.0, 0.96, 0.85, 0.45 * nearFade);
     }
     else if (kind > 4.5 && kind < 5.5)
     {
@@ -149,7 +150,7 @@ void fragment()
                 // a transparent texel right next to the pointed-at thing is part of its highlight line (about two screen pixels wide)
                 if (hl > 0.5)
                 {
-                    highp vec2 o = uvPx * 1.6;
+                    highp vec2 o = uvPx * 1.0;
                     highp float near = max(max(texture2D(TEXTURE, uv + vec2(o.x, 0.0)).a, texture2D(TEXTURE, uv - vec2(o.x, 0.0)).a),
                                            max(texture2D(TEXTURE, uv + vec2(0.0, o.y)).a, texture2D(TEXTURE, uv - vec2(0.0, o.y)).a));
                     ring = near > 0.5 ? 1.0 : 0.0;
@@ -188,11 +189,19 @@ void fragment()
         // the pointed-at thing: a thin bright line round its silhouette (just outside it, and just inside it)
         if (hl > 0.5)
         {
-            highp vec2 o2 = uvPx * 1.6;
+            highp vec2 o2 = uvPx * 1.0;
             highp float inner = min(min(texture2D(TEXTURE, uv + vec2(o2.x, 0.0)).a, texture2D(TEXTURE, uv - vec2(o2.x, 0.0)).a),
                                     min(texture2D(TEXTURE, uv + vec2(0.0, o2.y)).a, texture2D(TEXTURE, uv - vec2(0.0, o2.y)).a));
-            if (ring > 0.5 || inner < 0.5)
-                outRgb = vec3(1.0, 0.9, 0.3);
+            // very subtle: the line is the colour of the thing lifted towards a pale warm white, and the part just outside it is faint
+            if (ring > 0.5)
+            {
+                outRgb = vec3(1.0, 0.96, 0.85);
+                a = a * 0.4;
+            }
+            else if (inner < 0.5)
+            {
+                outRgb = mix(outRgb, vec3(1.0, 0.96, 0.85), 0.45);
+            }
         }
 
         COLOR = vec4(outRgb, a);

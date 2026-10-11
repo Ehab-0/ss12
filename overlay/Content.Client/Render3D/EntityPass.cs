@@ -493,7 +493,7 @@ public sealed class EntityPass : IDisposable
     {
         var highlighted = HighlightUid == _curUid;
         if (highlighted)
-            shade *= 1.15f;
+            shade *= 1.05f;
         var translucent = blend || _curTranslucent;
         // a layer of a slab (kind 4) is alpha tested like a plain quad but sampled without smoothing, which left bright dots along its edge
         var flags = kind >= 0f ? kind : translucent ? 1f : layer ? 4f : _curOutline ? 0.5f : 0f;
