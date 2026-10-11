@@ -44,6 +44,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
     /// <summary>Radians of look per pixel of mouse movement at sensitivity 1.</summary>
     private const float RadiansPerPixel = 0.12f * MathF.PI / 180f;
 
+    /// <summary>How much faster the middle mouse drag turns the high cameras than the mouse look turns the walking ones (a turn takes about a screen width of dragging).</summary>
+    private const float DragTurnGain = 5f;
+
     private static readonly ProtoId<ShaderPrototype> RaymarchShader = "Render3DRaymarch";
     private static readonly ProtoId<ShaderPrototype> PresentShader = "Render3DPresent";
     private static readonly ProtoId<ShaderPrototype> ResolveShader = "Render3DResolve";
@@ -482,7 +485,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         if (_turnDragging)
         {
             // drag right: the scene turns right; drag down: the camera climbs (looks further down)
-            var turn = RadiansPerPixel * Sensitivity * 1.5f;
+            var turn = RadiansPerPixel * Sensitivity * DragTurnGain;
             if (Camera.Mode == CameraMode.DynamicView)
             {
                 // the dynamic view keeps the look-down angle its wheel position asks for: only the heading turns
