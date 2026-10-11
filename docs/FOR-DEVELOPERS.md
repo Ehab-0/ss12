@@ -40,15 +40,16 @@ dotnet installer/bin/Release/net10.0/ss12.dll selftest
 
 `selftest` builds throw-away fixture codebases (LF and CRLF line endings), then checks: install, a second install being
 refused, update, doctor, uninstall giving back byte-identical files, a missing required edit stopping with nothing
-written, a missing optional edit only degrading, a newer health-bar overlay shape, a folder that is not SS14, and the
-MCP server over its protocol. It needs no engine and no network. The release build runs it too.
+written, a missing optional edit only degrading, the newer and the older health-bar overlay shapes, engine versions and
+the files for older engines (picked, recorded, updated after an engine change), a folder that is not SS14, and the MCP
+server over its protocol. It needs no engine and no network. The release build runs it too.
 
 ## Where the 3D code is developed
 
 The overlay is generated from a development tree: a Space Station 14 codebase with the 3D view installed on a branch.
 That tree is not part of this repository. If you want to change the 3D code itself, the simplest way:
 
-1. Take any SS14 codebase on engine 286 or newer, install 3D into it with the installer.
+1. Take any SS14 codebase on engine 264 or newer (a current one is simplest), install 3D into it with the installer.
 2. Edit the files under `Content.Client/Render3D`, `Content.Shared/Render3D`, `Content.Server/Render3D` and `Resources/...`.
 3. Build and run it (`dotnet build`, then run `Content.Server` and `Content.Client`).
 4. Copy the changed files back into `overlay/` here (same relative paths). `installer/overlay.manifest` lists which
@@ -58,6 +59,18 @@ For the 3D code the developer helpers are in `overlay/Tools/render3d-dev/`, and 
 list of console commands are in `overlay/docs/ss12/README.md`. Run the client with `--cvar render3d.dev_channel=true
 --cvar player.name=<name>` and `render3d_dev_<name>.txt` in the client's user data folder becomes a command channel
 (`r3d_shot`, `r3d_look`, `r3d_press`, `render3d_fx`, ...). Handy for screenshots and scripted tests.
+
+## Files for older engines
+
+The 3D code is written against the newest engine. The few engine calls that differ between engine 264 and now go
+through `Content.Client/Render3D/Engine/Render3DEngine.*.cs`, one small file per difference. Versions of those files for
+older engines are in `overlay/Tools/ss12-engine/before-<version>/` under the same path; the installer copies the one
+from the folder with the smallest version above the codebase's engine instead of the file itself, and records which in
+the install manifest. They are never compiled in a current codebase, so:
+
+- keep the public members of every version identical (`selftest` compares them);
+- if you change one, build it against an engine of that age (upstream content at a commit with that engine works);
+- `render3d.mouse_steer` and `render3d.dev_fov_mask` run the steering and the FOV mask of older engines on a new one.
 
 ## Rules the 3D code follows (please keep them)
 

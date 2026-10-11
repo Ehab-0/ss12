@@ -166,7 +166,8 @@ lowers the quality itself after a few seconds of slow running, and tells you whe
 
 ## Which servers can use it?
 
-3D can be added to a server **if the server's code is recent** (built on the game engine version 286 or newer).
+3D can be added to a server **if the server's code is recent** (built on the game engine version 264 or newer; on
+264 to 285 the mouse steers the view instead of being captured).
 We tested it on the code of some of the most-played servers; the results are in
 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). If you run a server that is older than that, the installer tells you
 and changes nothing.

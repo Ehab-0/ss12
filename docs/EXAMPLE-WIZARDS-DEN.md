@@ -80,7 +80,7 @@ Dry run: nothing was written.
 
 How to read it:
 
-- **Engine 291.0.0: tested.** The engine is new enough (286 or newer is needed).
+- **Engine 291.0.0: tested.** The engine is new enough (264 or newer is needed).
 - **`[apply]` on every line** means the installer found the exact place in the code it needs to change. Lines marked
   *required* are the ones the 3D view cannot work without. If one of those says **MISSING** instead, the installer
   stops and changes nothing. That means your server's code is customised there; see

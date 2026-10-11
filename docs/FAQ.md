@@ -52,8 +52,13 @@ untested (see [Play the demo](PLAY-THE-DEMO.md)). Mac has no demo and has not be
 No. It is made for keyboard and mouse.
 
 ### Why can't I add 3D to my old server?
-3D needs features of the game engine that were added in engine version **286**. Servers on older engines have to update
-first. This is checked for you: the helper tells you and changes nothing. See [COMPATIBILITY](COMPATIBILITY.md).
+3D needs game engine version **264** or newer. Servers on older engines have to update first. This is checked for you:
+the helper tells you and changes nothing. See [COMPATIBILITY](COMPATIBILITY.md).
+
+### Why does the mouse work differently on some servers?
+Game engines older than 286 cannot hold the mouse inside the window. On those servers the cursor is hidden and steers
+the view like a joystick: away from the cross in the middle the view turns, inside the small circle around it nothing
+turns. Fullscreen works best. See [COMPATIBILITY](COMPATIBILITY.md#engines-264-to-285).
 
 ### I run a fork. What should I check after installing?
 Which prototypes your fork renamed (the 3D view has rules for upstream's names), what the server host should look like, and what new

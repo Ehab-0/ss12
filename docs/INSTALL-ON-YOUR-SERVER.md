@@ -16,10 +16,11 @@ You need three things:
 
 1. **Your server's code folder.** It is the folder you get when you download or clone your server's source code. If you
    open it you should see folders named `Content.Client`, `Content.Server` and `Content.Shared`.
-2. **A fairly recent version of that code.** The game engine inside it must be version **286 or newer**. To check, open
+2. **A fairly recent version of that code.** The game engine inside it must be version **264 or newer**. To check, open
    the file `RobustToolbox/MSBuild/Robust.Engine.Version.props` in a text editor: the number after `<Version>` is the
-   engine version. If it is lower than 286, the helper will say so and **change nothing**. (See
-   [COMPATIBILITY](COMPATIBILITY.md) for which popular servers qualify.)
+   engine version. If it is lower than 264, the helper will say so and **change nothing**. Between 264 and 285 the
+   mouse steers the view instead of being captured. (See [COMPATIBILITY](COMPATIBILITY.md) for which popular servers
+   qualify.)
 3. **A backup or a git copy.** If your code lives in git (most do), the helper makes its own branch and leaves your
    main work alone. If it does not, make a copy of the folder first. Removing 3D later restores your files exactly,
    but a copy is a good habit.
@@ -56,7 +57,7 @@ It stops *before* changing anything and explains why in plain words. The usual r
 
 | What it says | What it means | What to do |
 |--------------|---------------|-----------|
-| "Engine ... is older than 286" | your server's game engine is too old for 3D | update your server to a newer engine version first, as you would for any update |
+| "Engine ... is older than 264" | your server's game engine is too old for 3D | update your server to a newer engine version first, as you would for any update |
 | "A required edit cannot be applied automatically" | your server changed a part of the code the helper needs to touch | send us the report file (see [Troubleshooting](TROUBLESHOOTING.md)); it is a ten-minute fix on our side |
 | "does not look like a Space Station 14 codebase" | you picked the wrong folder | pick the folder that contains `Content.Client` |
 

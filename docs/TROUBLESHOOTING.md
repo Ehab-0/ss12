@@ -69,9 +69,14 @@ Another copy of the demo (or of a game server) is already running. Close all bla
 
 ## Installing on a server
 
-### "Engine ... is older than 286"
-Your server's game engine is too old for 3D (mouse-look needs a feature added in engine 286). Update your server's code
-to a newer version first, the way you would for any update, then run the helper again. Nothing was changed.
+### "Engine ... is older than 264"
+Your server's game engine is too old for 3D (it needs engine 264 or newer). Update your server's code to a newer version
+first, the way you would for any update, then run the helper again. Nothing was changed.
+
+### The build fails with `SetRelativeMouseMode`, `FovRenderTarget` or `FindGridsIntersecting`
+The 3D files were installed for another engine version, usually because the server's engine was updated after 3D was
+installed. Run `ss12 update` on the code folder: it puts in the files for the engine you have now. If the helper cannot
+read your engine version (it says so), pass it yourself: `ss12 update <folder> --engine 270.1.0`.
 
 ### "A required edit cannot be applied automatically"
 Your server changed a spot in its code that the helper needs. Nothing was changed. Attach the report file

@@ -33,7 +33,7 @@ Things to know before touching `overlay/`:
   `overlay/` survives until it has been merged.
 - **CI does not build the game.** It only builds the installer and runs `ss12 selftest` against fake codebases. So a
   green CI says nothing about whether the 3D code compiles or runs. If you change `overlay/`, you must install it into a
-  real SS14 codebase (engine 286 or newer) and build and launch it yourself, then say exactly what you ran.
+  real SS14 codebase (engine 264 or newer) and build and launch it yourself, then say exactly what you ran.
 
 ## Hard rules (do not break these, even if asked to)
 
@@ -91,6 +91,12 @@ Things to know before touching `overlay/`:
 - Indoors the camera cannot rise above the ceiling (wall height 2.3 tiles by default), so things close to it look huge. Test
   visual changes with the default third-person distance, not a far-away camera.
 - Items are tilted at most 20 degrees. A first version used 60 and cards rose like ramps into the view.
+- The overlay manager keeps **one overlay per type**: adding a second instance of a type does nothing, and removing one by
+  instance removes the type. The FOV mask copy is its own type (`FovMaskCaptureOverlay`) for that reason.
+- Anything drawn into the ground viewport with the default shader is multiplied by the light; draw with the engine's
+  `unshaded` shader when the exact colour matters (the FOV mask key).
+- Mouse steering (engines before 286) has an arming latch: after anything let go of the mouse it waits until the cursor is
+  back in the still zone. Without it, closing a window with the cursor near an edge spins the camera.
 
 ### Conventions that cause real bugs
 - World axes: X east, Y north, Z up, one tile = one unit. Camera yaw 0 looks north, positive yaw turns counter-clockwise.
@@ -127,7 +133,11 @@ after changing client code.
 - Edits are anchored regexes; an edit that cannot find its anchor must stop with a clear message (if required) or
   degrade a feature (if optional). Never "fall back" to guessing a location.
 - Windows packaging copies `Content.Packaging` before running it (the running tool locks its own files).
-- Engine versions older than 286 are refused on purpose (no relative mouse mode or FOV render target).
+- Engine versions older than 264 are refused on purpose. Engines 264 to 285 get versions of a few files from
+  `overlay/Tools/ss12-engine/before-<version>/` (see `docs/FOR-DEVELOPERS.md`): the engine calls that differ go through
+  `Render3DEngine`, and every version of one of its files declares the same public members (`selftest` checks it). They are
+  not compiled in a current codebase: build a change to one against an engine of that age (upstream at that engine works).
+  `IMapManager` was removed in engine 280, so it can only be named in a file for older engines.
 - `ss12 doctor` has read-only content checks (`installer/ContentCheck.cs`): rule names that the codebase does not define, and
   mouse aiming that bypasses `Render3DPointer`. They only warn and never make the doctor fail, and they must stay silent on an
   unmodified upstream codebase (check that when you change them: a false alarm on a healthy install costs more than a miss).

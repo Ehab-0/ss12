@@ -3,6 +3,24 @@
 *[Русская версия](ru/CHANGELOG.md)*
 
 ## Unreleased
+- **Servers on engines 264 to 285 can get 3D.** The installer used to refuse anything older than engine 286. It now
+  accepts 264 and newer, which takes in forks such as Delta-V, Goob Station, Einstein Engines and RMC14. Two things work
+  differently there, and the installer picks the files for them by itself from the server's engine version:
+  - **Mouse steering.** Engines before 286 cannot hold the mouse in the window, so the cursor is hidden and works like a
+    joystick around the cross: away from it the view turns, faster further out; in a small circle nothing turns; the
+    middle mouse button drags to turn. After a menu or the free-mouse key, move the mouse back into the circle once. It
+    can also be picked on newer engines (`render3d.mouse_steer`); `steer_speed`, `steer_deadzone`, `steer_pitch` and
+    `steer_indicator` set it up (`F11`).
+  - **What you cannot see** comes from the 2D picture on engines before 283 (they do not hand out the field of view);
+    you see what a 2D player sees, the same as on newer engines.
+  - The 3D rules also know the older names of windows, airlocks, window doors, beds and signs (`aliases:` in `rules.yml`).
+  - After updating a server's engine, run `ss12 update`; `ss12 doctor` warns when the installed files are for another
+    engine. `--engine <version>` sets the version when it cannot be read.
+  Tried on upstream code at engine 277 (built, tested, launched). Delta-V, Goob, Einstein Engines and RMC14 themselves
+  have not been built yet.
+- **Installer fixes.** Engine versions with a fork's suffix (`264.0.2-fix-physics`) are read (they were not, so the check
+  was skipped). `ss12 package` finds the packaging tool of engines that build on .NET 9. The 3D pick passes every extra
+  parameter of the click lookup on (RMC-14 has one more), and health bars are drawn on the older health-bar overlay too.
 - **Tables can be used where you point, and everything you point at is marked.** Things lying on a table or the floor were picked over a quad bigger than
   their picture (a gold bar caught clicks over more than a tile), so putting something on a table meant clicking its very edge. They are now picked
   only where their picture is not see-through, and a click on a table lands where you pointed. The mark of the pointed-at thing is now very subtle (a faint one pixel line at any zoom,
