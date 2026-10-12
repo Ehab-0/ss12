@@ -30,26 +30,68 @@ them; it picks them by itself from your engine version, and the summary lists th
 - **If you update your engine later**, run `ss12 update`: it puts in the files for the new engine. `ss12 doctor` warns
   when they do not match.
 
+## Supported engine versions
+
+| Engine | | Servers on it (public server list, 12 October 2026) |
+|--------|---|------------------------------------------------------|
+| 292 | tested, played | Goob Station (Sigma, Basileus), Corvax Вега |
+| 291 | tested, played | Wizard's Den Lizard |
+| 290 | tested, played | Starlight, Russian Marine Corps, Colonial Marines Universe |
+| 289 | tested | Время Приключений, Wizard's Den Leviathan |
+| 286 to 288 | supported | Misfits, S.T.A.L.K.E.R. Zona 14 |
+| 278 to 285 | supported | |
+| 277 | tested, played | LUST STATION, Рыбья станция, SS220 |
+| 276 | tested | Мёртвый космос |
+| 275 | tested | Euphoria Station, Delta-V |
+| 274 | tested | Hardlight Sector |
+| 271 to 273 | supported | |
+| 270 | tested | ARCANE, Omu Station, CorvaxGoob, RatBite |
+| 268 | tested | Funky Station |
+| 267 | tested | Frontier, Lone Star |
+| 265, 266 | supported | |
+| 264 | tested, played | Rouny's Marine Corps and Space Stories (their engine `264.0.2-fix-physics`; RMC-14's own code was built with 3D) |
+| 263 and older | **not supported** | Floofstation (239) |
+
+*Tested*: SS12 was installed into Space Station 14 code on that engine, built, and its tests were run. *Played*: also
+launched and checked in game. *Supported*: the installer accepts it, and it lies between tested versions. A fork can
+still have changed a spot the installer needs; it then says where and changes nothing.
+
 ## What was actually tried
 
-Everything below was tried on real code in October 2026 with this project's installer (version 1.0.0).
-"Launched" means a server and a 3D game window were started from the converted code, connected, and showed the game.
+Everything below was tried on real code in October 2026. "Launched" means a server and a 3D game window were started
+from the converted code, connected, and showed the game. "The tests" are the 3D unit tests (659) and the 3D
+integration tests (32). Six of the integration tests check that the 3D rules name only prototypes that exist in that
+codebase; on code older than some of the names (before about August 2026) those six fail, as expected, and the rules
+for the older names (`aliases:`) take over.
 
 | Server code | Engine | Result |
 |-------------|--------|--------|
 | Space Station 14 (Wizard's Den, the version its public servers ran on 2026-10-02) | 291 | Works. Converted, built, packaged into a server build, launched in 3D; the server hands out the 3D game files. Removing 3D gave back the exact original code. Full walk-through: [the worked example](EXAMPLE-WIZARDS-DEN.md). The official launcher joined a local copy of the packaged server and downloaded the 3D game from it (not tried over the internet). |
+| Space Station 14 code of 2026-09-30 on engine 292 | 292 | Works. Built, all the tests pass, launched and walked. Engine 292 keeps the smoothed position of moving things apart from the simulated one, so on 292 the 3D view draws them where the 2D view does (a version of one file for 292 and newer). That code is older than engine 292, so three spots in it that 292 changed were adjusted by hand for the test; a real 292 codebase has them already. |
+| Space Station 14 code of 2026-09-13 | 289 | Works. Built, the tests pass (30 of 32: two of the name checks). |
 | Starlight | 290 | Works. Converted at the exact version the public server runs, built, launched. |
 | Russian Marine Corps | 290 | Works. Converted at the exact version the public server runs, built, launched and played. Update and check also pass. |
-| Frontier Station | 290 | The installer's changes all fit. Not built or launched. |
-| Sector Frontier, Funky Station | unknown | The installer's changes all fit. Not built or launched. |
-| Stalker | 286 | Not tried. |
-| Space Station 14 (Wizard's Den code as it was on 2026-06-25) | 277 | Works. Installed with the versions for older engines, built, the unit tests and 26 of 32 3D integration tests pass, launched: mouse steering and hiding what you cannot see checked in game. The six integration tests that fail check that the 3D rules name only prototypes that exist, and that code is older than some of the names. |
-| Space Station 14 (Wizard's Den code as it was on 2025-07-23) | 264 | Works, with a caveat: it was built on .NET 10 with the newest packages on this computer instead of the exact ones engine 264 asks for (and the small engine changes later engines made for them), so it checks the 3D code against engine 264, not engine 264 itself. Installed with the versions for older engines, unit tests and 26 of 32 3D integration tests pass (the same six name checks as below fail), launched: mouse steering, hiding what you cannot see, doors, windows and lamps checked in game. Building it found four things that would have broken older forks, fixed since. |
-| Delta-V, Goob Station, Einstein Engines, RMC14 | 264 to 275 | Should work now: their engines lie between the two tested above. **The forks themselves have not been built or launched yet.** |
+| Space Station 14 code of 2026-06-25 | 277.2.1 | Works. Built, the tests pass (26 of 32), launched: mouse steering and hiding what you cannot see checked in game. |
+| Space Station 14 code of 2026-05-09 | 277.0.0 | Works. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2026-05-01 | 276 | Works. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2026-03-29 | 275.2.1 | Works. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2026-03-17 | 274 | Works. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2026-01-01 | 270.1.0 | Works. Built, the tests pass (26 of 32). Built with the next version of one engine package (SDL bindings) and the two-line engine change that came with it. |
+| Space Station 14 code of 2025-11-13 | 268 | Works\*. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2025-10-14 | 267.3.0 | Works\*. Built, the tests pass (26 of 32). |
+| Space Station 14 code of 2025-07-23 | 264.0.0 | Works\*. Built, the tests pass (26 of 32), launched: mouse steering, hiding what you cannot see, doors, windows and lamps checked in game. Building and launching it found four things that would have broken older forks, fixed since. |
+| RMC-14 (Rouny's Marine Corps, Space Stories; their code of 2026-10-01) | 264.0.2-fix-physics | Client and server build with 3D; every edit applies (16 files). Found one thing in the 3D code that their code needed, fixed since. Not launched: that needs their game resources, which were not downloaded. Their engine is engine 264 with three small bug fixes. |
+| Frontier Station | 267 | The installer's changes all fit. Not built or launched. |
+| Sector Frontier | unknown | The installer's changes all fit. Not built or launched. |
 | Floofstation and others | 239 | **Not possible yet**: the engine is too old. The installer refuses and changes nothing. |
 
-Of the 18 most-played public servers we looked at, 14 had a readable version, and 5 of those run engine 286 or newer.
-Most of the others run engines between 264 and 277, which the installer now accepts.
+\* Engines up to 268 build with .NET 9. These were built with .NET 10 and newer packages standing in for the exact ones
+(and the small engine changes later engines made for them), so they check the 3D code against that engine's API and
+client sandbox, not that engine build itself.
+
+Every one of the most-played servers on the public list runs engine 264 or newer: on 12 October 2026 that was 1,579 of
+the 1,584 players online (the server of the other 5 did not say its engine). The forks themselves, apart from RMC-14,
+have not been built with 3D; their engines are covered by the tests above.
 
 ## Things to know
 

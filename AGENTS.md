@@ -146,6 +146,11 @@ after changing client code.
     server-only. Look such components up by their registered name, or ask a system that exists in both.
   - Integration tests: older test harnesses refuse `ResolveDependency` inside `WaitPost`/`WaitAssertion`; resolve first.
     `MovementTest.WallLeft` and similar helpers are newer than 264.
+  - Forks change return types: RMC-14's `Identity.Name` returns its own type that converts to a string. Write `string`,
+    not `var`, where the result goes on to an API.
+- From engine 292 the client transform holds the simulated position; where a sprite is drawn is the render transform
+  (`GetRenderWorldPositionRotation`), and the eye follows that. Anything the 3D view draws goes through
+  `Render3DEngine.DrawnWorldPositionRotation`, never `GetWorldPositionRotation` directly.
 - `ss12 doctor` has read-only content checks (`installer/ContentCheck.cs`): rule names that the codebase does not define, and
   mouse aiming that bypasses `Render3DPointer`. They only warn and never make the doctor fail, and they must stay silent on an
   unmodified upstream codebase (check that when you change them: a false alarm on a healthy install costs more than a miss).

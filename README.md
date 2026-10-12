@@ -166,11 +166,36 @@ lowers the quality itself after a few seconds of slow running, and tells you whe
 
 ## Which servers can use it?
 
-3D can be added to a server **if the server's code is recent** (built on the game engine version 264 or newer; on
-264 to 285 the mouse steers the view instead of being captured).
-We tested it on the code of some of the most-played servers; the results are in
-[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). If you run a server that is older than that, the installer tells you
-and changes nothing.
+3D can be added to a server whose game engine (RobustToolbox) is **version 264 or newer**. That covers every one of
+the most-played servers on the public list. On engines 264 to 285 the mouse steers the view instead of being captured
+([why](docs/COMPATIBILITY.md#engines-264-to-285)). If your server is older, the installer tells you and changes nothing.
+
+### Supported engine versions
+
+| Engine | | Servers on it (public server list, 12 October 2026) |
+|--------|---|------------------------------------------------------|
+| 292 | tested, played | Goob Station (Sigma, Basileus), Corvax Вега |
+| 291 | tested, played | Wizard's Den Lizard |
+| 290 | tested, played | Starlight, Russian Marine Corps, Colonial Marines Universe |
+| 289 | tested | Время Приключений, Wizard's Den Leviathan |
+| 286 to 288 | supported | Misfits, S.T.A.L.K.E.R. Zona 14 |
+| 278 to 285 | supported | |
+| 277 | tested, played | LUST STATION, Рыбья станция, SS220 |
+| 276 | tested | Мёртвый космос |
+| 275 | tested | Euphoria Station, Delta-V |
+| 274 | tested | Hardlight Sector |
+| 271 to 273 | supported | |
+| 270 | tested | ARCANE, Omu Station, CorvaxGoob, RatBite |
+| 268 | tested | Funky Station |
+| 267 | tested | Frontier, Lone Star |
+| 265, 266 | supported | |
+| 264 | tested, played | Rouny's Marine Corps and Space Stories (their engine `264.0.2-fix-physics`; RMC-14's own code was built with 3D) |
+| 263 and older | **not supported** | Floofstation (239) |
+
+*Tested*: SS12 was installed into Space Station 14 code on that engine, built, and its tests were run. *Played*: also
+launched and checked in game. *Supported*: the installer accepts it, and it lies between tested versions. A fork can
+still have changed a spot the installer needs; it then says where and changes nothing.
+How each version was tested: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ---
 
