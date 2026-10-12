@@ -908,7 +908,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             if (uid == self || !_entMan.EntityExists(uid))
                 continue;
 
-            var name = Identity.Name(uid, _entMan);
+            string name = Identity.Name(uid, _entMan);
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
@@ -956,8 +956,9 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
         if (first is not { } uid || !_entMan.EntityExists(uid))
             return;
 
-        // The same name the 2D hover/context menu shows (respects identity: masked people are "Unknown").
-        var name = Identity.Name(uid, _entMan);
+        // The same name the 2D hover/context menu shows (respects identity: masked people are "Unknown"). A string, not var:
+        // forks such as RMC-14 return their own identity type, which only converts to a string.
+        string name = Identity.Name(uid, _entMan);
         if (string.IsNullOrWhiteSpace(name))
             return;
 
