@@ -62,11 +62,12 @@ list of console commands are in `overlay/docs/ss12/README.md`. Run the client wi
 
 ## Files for older engines
 
-The 3D code is written against the newest engine. The few engine calls that differ between engine 264 and now go
-through `Content.Client/Render3D/Engine/Render3DEngine.*.cs`, one small file per difference. Versions of those files for
-older engines are in `overlay/Tools/ss12-engine/before-<version>/` under the same path; the installer copies the one
-from the folder with the smallest version above the codebase's engine instead of the file itself, and records which in
-the install manifest. They are never compiled in a current codebase, so:
+The 3D code is written against the engine of the development tree (291). The few engine calls that differ between
+engine 264 and now go through `Content.Client/Render3D/Engine/Render3DEngine.*.cs`, one small file per difference.
+Versions of those files for other engines are in `overlay/Tools/ss12-engine/before-<version>/` (older engines) and
+`overlay/Tools/ss12-engine/from-<version>/` (newer ones) under the same path. The installer copies, instead of the file
+itself, the one from the highest `from-` folder the codebase's engine has reached, or else from the lowest `before-`
+folder above it, and records which in the install manifest. They are never compiled in the development tree, so:
 
 - keep the public members of every version identical (`selftest` compares them);
 - if you change one, build it against an engine of that age (upstream content at a commit with that engine works);

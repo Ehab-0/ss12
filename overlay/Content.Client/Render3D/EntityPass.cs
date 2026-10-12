@@ -287,7 +287,7 @@ public sealed class EntityPass : IDisposable
                 _tileWorld.GlassTiles.Add((glassGrid, new Vector2i((int) MathF.Floor(gp.X), (int) MathF.Floor(gp.Y))));
             }
 
-            var (pos, rot) = _xform.GetWorldPositionRotation(xform);
+            var (pos, rot) = Render3DEngine.DrawnWorldPositionRotation(_xform, uid, xform);
             var d = pos - camXy;
             var dist2 = d.LengthSquared();
             if (dist2 > r2)

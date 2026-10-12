@@ -134,7 +134,8 @@ after changing client code.
   degrade a feature (if optional). Never "fall back" to guessing a location.
 - Windows packaging copies `Content.Packaging` before running it (the running tool locks its own files).
 - Engine versions older than 264 are refused on purpose. Engines 264 to 285 get versions of a few files from
-  `overlay/Tools/ss12-engine/before-<version>/` (see `docs/FOR-DEVELOPERS.md`): the engine calls that differ go through
+  `overlay/Tools/ss12-engine/before-<version>/`, engines newer than the development tree from `from-<version>/` (see
+  `docs/FOR-DEVELOPERS.md`): the engine calls that differ go through
   `Render3DEngine`, and every version of one of its files declares the same public members (`selftest` checks it). They are
   not compiled in a current codebase: build a change to one against an engine of that age (upstream at that engine works).
   `IMapManager` was removed in engine 280, so it can only be named in a file for older engines.

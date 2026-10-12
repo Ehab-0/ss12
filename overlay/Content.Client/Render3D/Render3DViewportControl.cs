@@ -1552,7 +1552,7 @@ public sealed partial class Render3DViewportControl : Control, IViewportControl
             if (hit.Offset is not { } offset || !_entMan.EntityExists(hit.Uid))
                 continue;
 
-            var world = _xformSys.GetWorldPosition(hit.Uid) + offset;
+            var world = Render3DEngine.DrawnWorldPosition(_xformSys, hit.Uid) + offset;
             if (!gameplay.GetClickableEntities(new MapCoordinates(world, _lastMap), false).Contains(hit.Uid))
                 _hits.RemoveAt(i);
         }
