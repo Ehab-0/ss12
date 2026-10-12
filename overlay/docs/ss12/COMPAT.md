@@ -31,9 +31,14 @@ update run `ss12 update`; `ss12 doctor` warns when the files are for another eng
 | Frontier Station | `cc55eb68` (current head; the server runs `b069ad38`) | 290.0.0 | 2/2, 5/5 | dry run only: every required edit applies. Not built |
 | Sector Frontier, Funky Station | `110c0dee`, `c4c4e322` | not checked | 2/2, 5/5 | dry run only (their `/info` page gave no engine version): every required edit applies. Not built |
 | Stalker | n/a | 286.0.0 | not tried | not tried |
+| Space Wizards upstream (2026-09-30) on engine 292 | `989c2caf16` | 292.0.0 | 2/2, 5/5 | built (three spots of that older content adjusted by hand for 292), 659 unit and all 32 Render3D integration tests pass, **launched**; on 292 entities are drawn at their render position (`Tools/ss12-engine/from-292`) |
+| Space Wizards upstream (2026-09-13) | `4afa06d5b4` | 289.0.3 | 2/2, 5/5 | built, 659 unit tests and 30 of 32 Render3D integration tests pass (2 name checks) |
+| Space Wizards upstream (2026-05-09, 05-01, 03-29, 03-17) | `6cef2474dc`, `d36565a9e1`, `e9e497103a`, `33beb79a82` | 277.0.0, 276.0.0, 275.2.1, 274.0.0 | 2/2, 5/5 | each built, 659 unit tests and 26 of 32 Render3D integration tests pass (the 6 name checks) |
+| Space Wizards upstream (2026-01-01) | `4f1a1118b1` | 270.1.0 | 2/2, 5/5 | built (with SpaceWizards.Sdl 1.1.1 and the engine change that came with it), 659 unit and 26 of 32 integration tests pass |
+| Space Wizards upstream (2025-11-13, 2025-10-14) | `ae6c488039`, `9766c38032` | 268.0.0, 267.3.0 | 2/2, 5/5 | built on .NET 10 like 264, 659 unit and 26 of 32 integration tests pass |
 | Space Wizards upstream at engine 264 (2025-07-23) | `eb21b5826a^` | 264.0.0 | 2/2, 5/5 | built on .NET 10 with newer packages standing in for the exact ones (and the engine changes later engines made for them), 659 unit tests pass, 26 of 32 Render3D integration tests pass (the same 6 name checks), **launched**: mouse steering, FOV mask, doors, windows and lamps checked in game. Found and fixed: StringComparer outside the 264 client sandbox, EntityStorageComponent and PoweredLightComponent not being shared yet, test harness differences |
 | Space Wizards upstream at engine 277 (2026-06-25) | `51925662e2^` | 277.2.1 | 2/2, 5/5 | installed with the versions for older engines, built, 659 unit tests pass, 26 of the 32 Render3D integration tests pass (the 6 others check that the rules name only prototypes of this codebase, and it predates some names), **launched**: mouse steering and the FOV mask checked in game |
-| RMC14 (Rouny's Marine Corps) | `1c173c31` | 264.0.2 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
+| RMC14 (Rouny's Marine Corps; Space Stories runs it too) | `1c173c31` | 264.0.2-fix-physics | 2/2, 5/5 (16 files) | client and server **built** with 3D (found and fixed: `Identity.Name` returns RMC's own type); not launched, their resources were not downloaded |
 | Delta-V | `0bcc69b3` | 275.2.1 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
 | Einstein Engines | `10d41858` | 267.3.0 | 2/2, 3/5 (October 2) | accepted since engine 264 is; not built yet |
 | Goob Station | `cbd25950` | 270.1.0 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
@@ -42,8 +47,9 @@ update run `ss12 update`; `ss12 doctor` warns when the files are for another eng
 What this means today: the 3D view installs on codebases on engine 264 or newer. Of the 14 of the 18 most populated
 servers on the public list whose version could be read, 5 run engine 286 or newer (Starlight, Russian Marine Corps,
 Frontier, Stalker, upstream Wizard's Den), and most of the others (Delta-V, Goob and its relatives, SS220, Corvax,
-Arcane, RMC14, ...) run engines 264 to 277, which are now accepted too. Upstream code at engines 264 and 277 has been
-built and launched; the forks themselves have not.
+Arcane, RMC14, ...) run engines 264 to 277, which are now accepted too, and Goob has since moved to 292. Upstream code
+at engines 264, 267, 268, 270, 274 to 277, 289 and 292 has been built and tested (264, 277 and 292 launched); of the
+forks, RMC-14 has been built.
 
 ## Engine calls that forks make which the 3D view had to answer
 
