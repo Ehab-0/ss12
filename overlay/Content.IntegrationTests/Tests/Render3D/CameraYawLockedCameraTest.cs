@@ -22,9 +22,10 @@ public sealed class CameraYawLockedCameraTest : MovementTest
     [Test]
     public async Task MouseLookStillTurnsWasdWhenTheShuttleCameraIsLockedAndTheViewIsNotEnforced()
     {
+        // services are resolved before WaitPost: older test harnesses refuse to resolve them while the instance runs
+        var cfg = Server.ResolveDependency<IConfigurationManager>();
         await Server.WaitPost(() =>
         {
-            var cfg = Server.ResolveDependency<IConfigurationManager>();
             cfg.SetCVar(CCVars.CameraRotationLocked, true);
             cfg.SetCVar(CCVars.Render3DEnforced, false);
         });

@@ -20,9 +20,11 @@ public sealed class Render3DFixtureTest : MovementTest
         await RunTicks(5);
 
         var result = false;
+        // services are resolved before WaitPost: older test harnesses refuse to resolve them while the instance runs
+        var protos = Client.ResolveDependency<IPrototypeManager>();
         await Client.WaitPost(() =>
         {
-            var classifier = new EntityClassifier(CEntMan, Client.ResolveDependency<IPrototypeManager>());
+            var classifier = new EntityClassifier(CEntMan, protos);
             var uid = CEntMan.GetEntity(SEntMan.GetNetEntity(spawned));
             Assert.That(CEntMan.HasComponent<PointLightComponent>(uid), $"{prototype} should carry a point light for this test to mean something");
             result = classifier.TryGetFixture(uid, out _);

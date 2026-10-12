@@ -19,9 +19,11 @@ public sealed class Render3DGlassLookTest : MovementTest
         await RunTicks(5);
 
         GlassLook look = null;
+        // services are resolved before WaitPost: older test harnesses refuse to resolve them while the instance runs
+        var protos = Client.ResolveDependency<IPrototypeManager>();
         await Client.WaitPost(() =>
         {
-            var classifier = new EntityClassifier(CEntMan, Client.ResolveDependency<IPrototypeManager>());
+            var classifier = new EntityClassifier(CEntMan, protos);
             look = classifier.GetGlass(CEntMan.GetEntity(SEntMan.GetNetEntity(spawned)));
         });
 

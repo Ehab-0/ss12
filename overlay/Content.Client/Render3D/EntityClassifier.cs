@@ -6,7 +6,7 @@ using Content.Shared.Mobs;
 using Content.Shared.Mobs.Components;
 using Content.Shared.Placeable;
 using Content.Shared.Projectiles;
-using Content.Shared.Storage.Components;
+using Content.Shared.Storage.EntitySystems;
 using Content.Shared.Render3D;
 using Content.Shared.Standing;
 using Content.Shared.Throwing;
@@ -112,7 +112,10 @@ public sealed class EntityClassifier
     private readonly EntityQuery<PointLightComponent> _lights;
     private readonly EntityQuery<DoorComponent> _doors;
     private readonly EntityQuery<PlaceableSurfaceComponent> _surfaces;
-    private readonly EntityQuery<EntityStorageComponent> _storages;
+    // The locker component is found by its name: it moved from Content.Client to Content.Shared in 2025 (forks on engine
+    // 264 still have the client one), and the storage system answers whether it is open in both.
+    private readonly SharedEntityStorageSystem _storage;
+    private readonly Type? _storageType;
 
     private readonly IEntityManager _entMan;
     private readonly IPrototypeManager _protos;
@@ -156,13 +159,14 @@ public sealed class EntityClassifier
         _lights = entMan.GetEntityQuery<PointLightComponent>();
         _doors = entMan.GetEntityQuery<DoorComponent>();
         _surfaces = entMan.GetEntityQuery<PlaceableSurfaceComponent>();
-        _storages = entMan.GetEntityQuery<EntityStorageComponent>();
+        _storage = entMan.System<SharedEntityStorageSystem>();
+        _storageType = entMan.ComponentFactory.TryGetRegistration("EntityStorage", out var storageReg) ? storageReg.Type : null;
     }
 
     public bool IsSurface(EntityUid uid) => _surfaces.HasComp(uid);
 
     /// <summary>A locker, closet or crate that is open: what it held lies on the floor in it, not on top of it.</summary>
-    public bool IsOpenStorage(EntityUid uid) => _storages.TryComp(uid, out var storage) && storage.Open;
+    public bool IsOpenStorage(EntityUid uid) => _storageType != null && _entMan.HasComponent(uid, _storageType) && _storage.IsOpen(uid);
 
     public Render3DMode Classify(EntityUid uid, SpriteComponent sprite, TransformComponent xform)
     {
@@ -506,7 +510,8 @@ public sealed class EntityClassifier
     public Render3DComponent? GetRender3D(EntityUid uid) => _render3d.TryComp(uid, out var c) ? c : null;
 
     /// <summary>The components that make a wall-mounted light a lamp, by name (forks rename or drop them).</summary>
-    private static readonly string[] LampComponents = { "PoweredLight", "EmergencyLight" };
+    // PoweredLightVisuals: before 2025 (engine 264) PoweredLight was a server-only component, so the client only sees the visuals
+    private static readonly string[] LampComponents = { "PoweredLight", "PoweredLightVisuals", "EmergencyLight" };
 
     private Type[]? _lampTypes;
 

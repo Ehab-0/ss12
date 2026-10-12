@@ -31,6 +31,7 @@ update run `ss12 update`; `ss12 doctor` warns when the files are for another eng
 | Frontier Station | `cc55eb68` (current head; the server runs `b069ad38`) | 290.0.0 | 2/2, 5/5 | dry run only: every required edit applies. Not built |
 | Sector Frontier, Funky Station | `110c0dee`, `c4c4e322` | not checked | 2/2, 5/5 | dry run only (their `/info` page gave no engine version): every required edit applies. Not built |
 | Stalker | n/a | 286.0.0 | not tried | not tried |
+| Space Wizards upstream at engine 264 (2025-07-23) | `eb21b5826a^` | 264.0.0 | 2/2, 5/5 | built on .NET 10 with newer packages standing in for the exact ones (and the engine changes later engines made for them), 659 unit tests pass, 26 of 32 Render3D integration tests pass (the same 6 name checks), **launched**: mouse steering, FOV mask, doors, windows and lamps checked in game. Found and fixed: StringComparer outside the 264 client sandbox, EntityStorageComponent and PoweredLightComponent not being shared yet, test harness differences |
 | Space Wizards upstream at engine 277 (2026-06-25) | `51925662e2^` | 277.2.1 | 2/2, 5/5 | installed with the versions for older engines, built, 659 unit tests pass, 26 of the 32 Render3D integration tests pass (the 6 others check that the rules name only prototypes of this codebase, and it predates some names), **launched**: mouse steering and the FOV mask checked in game |
 | RMC14 (Rouny's Marine Corps) | `1c173c31` | 264.0.2 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
 | Delta-V | `0bcc69b3` | 275.2.1 | 2/2, 5/5 (October 2) | accepted since engine 264 is; not built yet |
@@ -41,8 +42,8 @@ update run `ss12 update`; `ss12 doctor` warns when the files are for another eng
 What this means today: the 3D view installs on codebases on engine 264 or newer. Of the 14 of the 18 most populated
 servers on the public list whose version could be read, 5 run engine 286 or newer (Starlight, Russian Marine Corps,
 Frontier, Stalker, upstream Wizard's Den), and most of the others (Delta-V, Goob and its relatives, SS220, Corvax,
-Arcane, RMC14, ...) run engines 264 to 277, which are now accepted too. Of those, only upstream code at engine 277 has
-been built and launched so far.
+Arcane, RMC14, ...) run engines 264 to 277, which are now accepted too. Upstream code at engines 264 and 277 has been
+built and launched; the forks themselves have not.
 
 ## Engine calls that forks make which the 3D view had to answer
 

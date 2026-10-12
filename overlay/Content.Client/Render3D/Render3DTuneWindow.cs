@@ -108,7 +108,7 @@ public sealed partial class Render3DTuneWindow : DefaultWindow
         var names = _cfg.GetRegisteredCVars()
             .Where(n => n.StartsWith(Prefix, StringComparison.Ordinal) && !n.StartsWith(Prefix + "dev_", StringComparison.Ordinal))
             .Where(n => (_cfg.GetCVarFlags(n) & CVar.CLIENTONLY) != 0)
-            .OrderBy(n => n, StringComparer.Ordinal)
+            .OrderBy(n => n, Comparer<string>.Create(string.CompareOrdinal)) // StringComparer is only in the client sandbox from engine 273
             .ToList();
 
         string? group = null;

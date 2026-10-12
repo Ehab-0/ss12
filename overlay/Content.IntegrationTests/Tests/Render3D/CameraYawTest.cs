@@ -48,7 +48,8 @@ public sealed class CameraYawTest : MovementTest
     [Test]
     public async Task YawEventForAnEntityTheSenderDoesNotControlIsRejected()
     {
-        var wall = WallLeft!.Value;
+        // an entity the player does not control (spawned here: MovementTest only keeps its walls from 2025 on)
+        var wall = SEntMan.GetNetEntity(await SpawnEntity("WallSolid", SEntMan.GetCoordinates(PlayerCoords).Offset(new Vector2(0, 2))));
         await SubmitYaw(Angle.FromDegrees(45), wall);
 
         var mover = SEntMan.GetComponent<InputMoverComponent>(SPlayer);

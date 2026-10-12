@@ -1,6 +1,6 @@
 {
   "comment": "Engine (RobustToolbox) versions. minEngineVersion: the oldest engine the 3D view supports; engines before 286 get versions of a few files from overlay/Tools/ss12-engine (no mouse capture before 286: mouse steering; no viewport FOV target before 283: an FOV mask). testedEngineVersions: built and run. Within warnWithin major versions of a tested one: warning only.",
   "minEngineVersion": "264.0.0",
-  "testedEngineVersions": ["277.2.1", "291.0.0"],
+  "testedEngineVersions": ["264.0.0", "277.2.1", "291.0.0"],
   "warnWithin": 15
 }
