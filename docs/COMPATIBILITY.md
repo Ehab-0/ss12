@@ -43,8 +43,9 @@ Everything below was tried on real code in October 2026 with this project's inst
 | Frontier Station | 290 | The installer's changes all fit. Not built or launched. |
 | Sector Frontier, Funky Station | unknown | The installer's changes all fit. Not built or launched. |
 | Stalker | 286 | Not tried. |
-| Space Station 14 (Wizard's Den code as it was on 2026-06-25) | 277 | Works. Installed with the versions for older engines, built, the unit tests and the 3D integration tests run, launched: mouse steering and hiding what you cannot see checked in game. Six integration tests fail there, as expected: they check that the 3D rules name only prototypes that exist, and that code is older than some of the names. |
-| Delta-V, Goob Station, Einstein Engines, RMC14 | 264 to 275 | Should work now (engine 264 or newer). **Not built or launched yet.** |
+| Space Station 14 (Wizard's Den code as it was on 2026-06-25) | 277 | Works. Installed with the versions for older engines, built, the unit tests and 26 of 32 3D integration tests pass, launched: mouse steering and hiding what you cannot see checked in game. The six integration tests that fail check that the 3D rules name only prototypes that exist, and that code is older than some of the names. |
+| Space Station 14 (Wizard's Den code as it was on 2025-07-23) | 264 | Works, with a caveat: it was built on .NET 10 with the newest packages on this computer instead of the exact ones engine 264 asks for (and the small engine changes later engines made for them), so it checks the 3D code against engine 264, not engine 264 itself. Installed with the versions for older engines, unit tests and 26 of 32 3D integration tests pass (the same six name checks as below fail), launched: mouse steering, hiding what you cannot see, doors, windows and lamps checked in game. Building it found four things that would have broken older forks, fixed since. |
+| Delta-V, Goob Station, Einstein Engines, RMC14 | 264 to 275 | Should work now: their engines lie between the two tested above. **The forks themselves have not been built or launched yet.** |
 | Floofstation and others | 239 | **Not possible yet**: the engine is too old. The installer refuses and changes nothing. |
 
 Of the 18 most-played public servers we looked at, 14 had a readable version, and 5 of those run engine 286 or newer.

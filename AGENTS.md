@@ -138,6 +138,13 @@ after changing client code.
   `Render3DEngine`, and every version of one of its files declares the same public members (`selftest` checks it). They are
   not compiled in a current codebase: build a change to one against an engine of that age (upstream at that engine works).
   `IMapManager` was removed in engine 280, so it can only be named in a file for older engines.
+- Code that must run on engine 264 has more to watch than the engine API:
+  - The client sandbox grew: `System.StringComparer` is only allowed from engine 273 (use
+    `Comparer<string>.Create(string.CompareOrdinal)`). Only a client launch on an old engine shows this.
+  - Content classes moved: `EntityStorageComponent` was a Content.Client class before 2025, `PoweredLightComponent` was
+    server-only. Look such components up by their registered name, or ask a system that exists in both.
+  - Integration tests: older test harnesses refuse `ResolveDependency` inside `WaitPost`/`WaitAssertion`; resolve first.
+    `MovementTest.WallLeft` and similar helpers are newer than 264.
 - `ss12 doctor` has read-only content checks (`installer/ContentCheck.cs`): rule names that the codebase does not define, and
   mouse aiming that bypasses `Render3DPointer`. They only warn and never make the doctor fail, and they must stay silent on an
   unmodified upstream codebase (check that when you change them: a false alarm on a healthy install costs more than a miss).

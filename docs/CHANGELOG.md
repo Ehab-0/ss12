@@ -16,8 +16,10 @@
   - The 3D rules also know the older names of windows, airlocks, window doors, beds and signs (`aliases:` in `rules.yml`).
   - After updating a server's engine, run `ss12 update`; `ss12 doctor` warns when the installed files are for another
     engine. `--engine <version>` sets the version when it cannot be read.
-  Tried on upstream code at engine 277 (built, tested, launched). Delta-V, Goob, Einstein Engines and RMC14 themselves
-  have not been built yet.
+  Tried on upstream code at engines 277 and 264 (built, tested, launched; 264 with .NET 10 and newer packages standing
+  in, see COMPATIBILITY). That found and fixed a client that would not start before engine 273 (a sandbox rule), lockers
+  and lamps not being recognised on 2025 code, and 3D integration tests that did not build or run there. Delta-V, Goob,
+  Einstein Engines and RMC14 themselves have not been built yet.
 - **Installer fixes.** Engine versions with a fork's suffix (`264.0.2-fix-physics`) are read (they were not, so the check
   was skipped). `ss12 package` finds the packaging tool of engines that build on .NET 9. The 3D pick passes every extra
   parameter of the click lookup on (RMC-14 has one more), and the health-bar edit also fits the older health-bar overlay

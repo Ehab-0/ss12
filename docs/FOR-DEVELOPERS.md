@@ -72,6 +72,12 @@ the install manifest. They are never compiled in a current codebase, so:
 - if you change one, build it against an engine of that age (upstream content at a commit with that engine works);
 - `render3d.mouse_steer` and `render3d.dev_fov_mask` run the steering and the FOV mask of older engines on a new one.
 
+Engines up to 268 build with the .NET 9 SDK. To check the 3D code against one without it, in a throwaway copy of upstream
+at that engine: set `global.json` (both of them) to the .NET 10 SDK, change `net9.0` to `net10.0` in
+`RobustToolbox/MSBuild/Robust.Engine.props` and `Robust.Properties.targets`, and restore from the packages you have. The
+engine itself may then need the small changes later engines made for .NET 10 and newer packages (OpenAL bindings,
+BitArray serialization). It is a check of the 3D code against that engine's API and client sandbox, not of the engine.
+
 ## Rules the 3D code follows (please keep them)
 
 - **Content only.** Nothing under `RobustToolbox/`. Players use the official launcher and get the 3D client from the
