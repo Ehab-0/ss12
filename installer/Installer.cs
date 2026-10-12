@@ -1070,13 +1070,15 @@ public sealed class SourceInfo
     }
 
     /// <summary>
-    ///     Versions of overlay files for older engines: <c>Tools/ss12-engine/before-286/Content.Client/...</c> replaces the file
-    ///     at <c>Content.Client/...</c> on engines older than 286. They are listed in overlay.manifest so the export carries
+    ///     Versions of overlay files for other engines: <c>Tools/ss12-engine/before-286/Content.Client/...</c> replaces the file
+    ///     at <c>Content.Client/...</c> on engines older than 286, <c>Tools/ss12-engine/from-292/...</c> on engines 292 and
+    ///     newer (newer than the one the overlay is developed on). They are listed in overlay.manifest so the export carries
     ///     them, but they are never copied as they are.
     /// </summary>
     public const string EngineVariantsDir = "Tools/ss12-engine";
 
-    private const string VariantPrefix = "before-";
+    private const string BeforePrefix = "before-";
+    private const string FromPrefix = "from-";
 
     public List<string> OverlayFiles() => ManifestFiles().Where(rel => !IsEngineVariant(rel)).ToList();
 
@@ -1091,40 +1093,53 @@ public sealed class SourceInfo
 
     public static bool IsEngineVariant(string rel) => rel.StartsWith(EngineVariantsDir + "/", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The engine major version a variant folder is for the engines before of ("before-286" is 286), or null.</summary>
-    public static int? VariantBelow(string variant) =>
-        variant.StartsWith(VariantPrefix, StringComparison.Ordinal) && int.TryParse(variant[VariantPrefix.Length..], out var below) ? below : null;
+    /// <summary>A variant folder's kind and engine major version: ("before", 286) for before-286, ("from", 292) for from-292, or null.</summary>
+    public static (bool From, int Major)? ParseVariant(string variant)
+    {
+        foreach (var (prefix, from) in new[] { (BeforePrefix, false), (FromPrefix, true) })
+        {
+            if (variant.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(variant[prefix.Length..], out var major))
+                return (from, major);
+        }
 
-    /// <summary>"engines before 286" for the variant before-286, "current engines" for the overlay file itself (null).</summary>
-    public static string Describe(string? variant) => variant == null ? "current engines" : "engines before " + variant[VariantPrefix.Length..];
+        return null;
+    }
 
-    /// <summary>The variant folders (before-X), smallest X first.</summary>
-    private List<(string Name, string Dir, int Below)> VariantDirs()
+    /// <summary>"engines before 286" for before-286, "engines 292 and newer" for from-292, "current engines" for the overlay file itself (null).</summary>
+    public static string Describe(string? variant) => variant == null ? "current engines"
+        : ParseVariant(variant) is { From: true } v ? $"engines {v.Major} and newer"
+        : "engines before " + variant[BeforePrefix.Length..];
+
+    /// <summary>The variant folders (before-X and from-X).</summary>
+    private List<(string Name, string Dir, bool From, int Major)> VariantDirs()
     {
         var root = Path.Combine(Root, EngineVariantsDir);
         if (!Directory.Exists(root))
             return new();
 
         return Directory.EnumerateDirectories(root)
-            .Select(d => (Name: Path.GetFileName(d), Dir: d, Below: VariantBelow(Path.GetFileName(d))))
-            .Where(v => v.Below != null)
-            .Select(v => (v.Name, v.Dir, v.Below!.Value))
-            .OrderBy(v => v.Item3)
+            .Select(d => (Name: Path.GetFileName(d), Dir: d, Kind: ParseVariant(Path.GetFileName(d))))
+            .Where(v => v.Kind != null)
+            .Select(v => (v.Name, v.Dir, v.Kind!.Value.From, v.Kind!.Value.Major))
             .ToList();
     }
 
     /// <summary>
-    ///     The file to copy to <paramref name="rel"/> for an engine: the variant in the before-X folder with the smallest X
-    ///     above the engine, otherwise the overlay file itself (also when the engine is unknown). Variant is null for that.
+    ///     The file to copy to <paramref name="rel"/> for an engine: the variant in the from-X folder with the largest X the engine
+    ///     has reached, otherwise the one in the before-X folder with the smallest X above the engine, otherwise the overlay file
+    ///     itself (also when the engine is unknown). Variant is null for that.
     /// </summary>
     public (string Path, string? Variant) SourceFor(string rel, Version? engine)
     {
         if (engine != null)
         {
-            foreach (var (name, dir, below) in VariantDirs())
+            var dirs = VariantDirs();
+            var candidates = dirs.Where(v => v.From && engine.Major >= v.Major).OrderByDescending(v => v.Major)
+                .Concat(dirs.Where(v => !v.From && engine.Major < v.Major).OrderBy(v => v.Major));
+            foreach (var (name, dir, _, _) in candidates)
             {
                 var candidate = Path.Combine(dir, rel);
-                if (engine.Major < below && File.Exists(candidate))
+                if (File.Exists(candidate))
                     return (candidate, name);
             }
         }
@@ -1132,14 +1147,14 @@ public sealed class SourceInfo
         return (Path.Combine(Root, rel), null);
     }
 
-    /// <summary>Overlay files that have at least one version for older engines.</summary>
+    /// <summary>Overlay files that have at least one version for other engines.</summary>
     public List<string> VariantTargets() => VariantFiles().Select(v => v.Target).Distinct(StringComparer.Ordinal).OrderBy(t => t, StringComparer.Ordinal).ToList();
 
-    /// <summary>Every variant file: its folder (before-X), the overlay file it replaces, and its path.</summary>
+    /// <summary>Every variant file: its folder (before-X or from-X), the overlay file it replaces, and its path.</summary>
     public List<(string Variant, string Target, string Path)> VariantFiles()
     {
         var result = new List<(string, string, string)>();
-        foreach (var (name, dir, _) in VariantDirs())
+        foreach (var (name, dir, _, _) in VariantDirs())
         {
             foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
                 result.Add((name, System.IO.Path.GetRelativePath(dir, file).Replace('\\', '/'), file));

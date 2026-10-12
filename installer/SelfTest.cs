@@ -170,8 +170,10 @@ public static class SelfTest
         }
 
         const string engineDir = "Content.Client/Render3D/Engine/";
-        foreach (var name in new[] { "Mouse", "Fov", "Grids", "Uniforms" })
+        foreach (var name in new[] { "Mouse", "Fov", "Grids", "Uniforms", "Drawn" })
             Put(engineDir + name + ".cs", "default " + name);
+        Put(SourceInfo.EngineVariantsDir + "/from-292/" + engineDir + "Drawn.cs", "292 Drawn");
+        Put(SourceInfo.EngineVariantsDir + "/from-295/" + engineDir + "Drawn.cs", "295 Drawn");
         Put(SourceInfo.EngineVariantsDir + "/before-286/" + engineDir + "Mouse.cs", "286 Mouse");
         Put(SourceInfo.EngineVariantsDir + "/before-286/" + engineDir + "Fov.cs", "286 Fov");
         Put(SourceInfo.EngineVariantsDir + "/before-283/" + engineDir + "Fov.cs", "283 Fov");
@@ -191,8 +193,14 @@ public static class SelfTest
             "the boundaries: 270 and 275 and 284 and 285 get the right versions");
         Check(new[] { "Mouse", "Fov", "Grids", "Uniforms" }.All(n => Pick(n, "286.0.0") == "default " + n && Pick(n, "291.0.1") == "default " + n && Pick(n, null) == "default " + n),
             "engine 286 and newer, and an unknown engine, get the overlay files themselves");
-        Check(located.VariantTargets().SequenceEqual(new[] { "Fov", "Grids", "Mouse", "Uniforms" }.Select(n => engineDir + n + ".cs")),
-            "every file with versions for older engines is known");
+        Check(Pick("Drawn", "291.0.1") == "default Drawn" && Pick("Drawn", "264.0.0") == "default Drawn" && Pick("Drawn", null) == "default Drawn",
+            "engines before the first from-X folder, and an unknown engine, get the overlay file");
+        Check(Pick("Drawn", "292.0.0") == "292 Drawn" && Pick("Drawn", "294.1.0") == "292 Drawn" && Pick("Drawn", "295.0.0") == "295 Drawn" && Pick("Drawn", "310.0.0") == "295 Drawn",
+            "newer engines get the version of the highest from-X folder they have reached");
+        Check(SourceInfo.Describe("from-292") == "engines 292 and newer" && SourceInfo.Describe("before-286") == "engines before 286",
+            "the versions are described by engine range");
+        Check(located.VariantTargets().SequenceEqual(new[] { "Drawn", "Fov", "Grids", "Mouse", "Uniforms" }.Select(n => engineDir + n + ".cs")),
+            "every file with versions for other engines is known");
 
         // install on 270, then the engine is updated to 291: doctor warns, update installs the current files
         var target = Path.Combine(dir, "target");
@@ -245,7 +253,7 @@ public static class SelfTest
 
         foreach (var b in bad)
             Console.WriteLine("    " + b);
-        Check(bad.Count == 0, $"the {real.VariantFiles().Count} file(s) for older engines in the overlay each replace an overlay file with the same public members");
+        Check(bad.Count == 0, $"the {real.VariantFiles().Count} file(s) for other engines in the overlay each replace an overlay file with the same public members");
     }
 
     /// <summary>The declarations of a file's public members ("public static bool HasRelativeMouse"), without bodies.</summary>
